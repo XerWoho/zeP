@@ -40,5 +40,6 @@ pub fn build(b: *std.Build) void {
     });
     exe.root_module.addImport("lib", libMod);
     b.install_prefix = "C:/Users/Public/AppData/Local/zeP";
+    @import(".zep/inject.zig").injectExtraImports(b, exe);
     b.installArtifact(exe);
 }

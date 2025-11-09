@@ -43,6 +43,11 @@ pub const Uninstaller = struct {
 
         var injector = UtilsInjector.Injector.init(self.allocator, self.package.packageName, self.printer);
         try injector.initInjector();
+
+        // remove a symbolic link
+        const linkPath = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ Constants.ZEP_FOLDER, self.package.packageName });
+        defer self.allocator.free(linkPath);
+        try std.fs.cwd().deleteDir(linkPath);
     }
 
     pub fn deletePackage(self: *Uninstaller) !bool {

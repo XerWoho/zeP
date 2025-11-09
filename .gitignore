@@ -1,6 +1,7 @@
 .zig-cache
 .github
 .zep
+.zep.lock
 
 packages
 release

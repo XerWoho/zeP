@@ -1,16 +1,15 @@
 {
   "schema": 1,
   "root": {
-    "author": "Mert Kücükhüseyin",
+    "author": "",
     "tags": [],
-    "repo": "git.check",
-    "name": "zeP",
-    "description": "A blazingly fast package manager, for Zig.",
+    "repo": "",
+    "name": "",
+    "description": "",
     "version": "0.0.1",
-    "license": "mit",
+    "license": "",
     "packages": [
-      "clap",
-      "art"
+      "clap"
     ],
     "devPackages": [],
     "build": {

@@ -18,18 +18,15 @@ New-Item -Path $zigDir -ItemType Directory -Force | Out-Null
 
 
 
-
-
 $tmpZDir = Join-Path $zDir "tmp/"
 New-Item -Path $tmpZDir -ItemType Directory -Force | Out-Null
 
-$destZDir = Join-Path $p "zeP/v/0.1"
-New-Item -Path $destZDir -ItemType Directory -Force | Out-Null
-
 if (Test-Path $destZDir -PathType Container) {
     Write-Host "Folder exists."
-	exit
 }
+
+$destZDir = Join-Path $p "zeP/v/0.1"
+New-Item -Path $destZDir -ItemType Directory -Force | Out-Null
 
 $zipFile = Join-Path $tmpZDir "0.1.zip"
 New-Item -Path $zipFile -ItemType File -Force | Out-Null

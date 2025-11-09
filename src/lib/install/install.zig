@@ -88,33 +88,30 @@ pub const Installer = struct {
             try self.printer.append(success);
         }
 
+        var injector = UtilsInjector.Injector.init(self.allocator, package.packageName, self.printer);
+        try injector.initInjector();
+
         // create a symbolic link
         const targetPath = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ Constants.ROOT_ZEP_PKG_FOLDER, package.packageName });
 
         defer self.allocator.free(targetPath);
-        if (!try UtilsFs.checkDirExists(targetPath)) {
-            _ = try std.fs.cwd().makeDir(targetPath);
-        }
+        var openTargetDir = try UtilsFs.openCDir(targetPath);
+        defer openTargetDir.close();
 
         const linkPath = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ Constants.ZEP_FOLDER, package.packageName });
         defer self.allocator.free(linkPath);
         if (!try UtilsFs.checkDirExists(linkPath)) {
             _ = try std.fs.cwd().makePath(linkPath);
+        } else {
+            return;
         }
 
-        const tAbsPath = try std.fs.realpathAlloc(self.allocator, targetPath);
-        defer self.allocator.free(tAbsPath);
-
-        const lAbsPath = try std.fs.realpathAlloc(self.allocator, linkPath);
+        var openLinkPath = try UtilsFs.openDir(linkPath);
+        defer openLinkPath.close();
+        const lAbsPath = try openLinkPath.realpathAlloc(self.allocator, ".");
         defer self.allocator.free(lAbsPath);
-        if (try UtilsFs.checkDirExists(linkPath)) {
-            _ = try std.fs.cwd().deleteDir(linkPath);
-        }
-
-        try std.fs.symLinkAbsolute(tAbsPath, lAbsPath, .{});
-
-        var injector = UtilsInjector.Injector.init(self.allocator, package.packageName, self.printer);
-        try injector.initInjector();
+        _ = try std.fs.cwd().deleteDir(lAbsPath);
+        try openTargetDir.symLink(targetPath, lAbsPath, .{ .is_directory = true });
     }
 
     pub fn addPackageToJson(self: *Installer) !void {

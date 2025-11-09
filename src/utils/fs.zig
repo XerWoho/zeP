@@ -13,9 +13,12 @@ pub fn checkFileExists(path: []const u8) !bool {
 pub fn checkDirExists(path: []const u8) !bool {
     const cwd = std.fs.cwd();
     var d = cwd.openDir(path, .{}) catch |err| switch (err) {
-        error.FileNotFound => return false,
-        error.NotDir => return false,
-        else => return err,
+        error.FileNotFound => {
+            return false;
+        },
+        else => {
+            return true;
+        },
     };
     defer d.close();
     return true;
