@@ -1,0 +1,12 @@
+{
+  "author": "Isaac Freund",
+  "tags": [
+    "binding"
+  ],
+  "git": "https://github.com/ifreund/zig-wayland",
+  "root_file": null,
+  "description": "Zig wayland scanner and libwayland bindings",
+  "license": "mit",
+  "updated_at": "2023-04-03T22:41:11Z",
+  "homepage": ""
+}

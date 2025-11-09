@@ -9,7 +9,9 @@
     "version": "0.0.1",
     "license": "",
     "packages": [
-      "clap"
+      "clap",
+      "art",
+      "adma"
     ],
     "devPackages": [],
     "build": {
@@ -23,6 +25,18 @@
       "author": "hejsil",
       "fingerprint": "16853597278313929526",
       "source": "https://github.com/Hejsil/zig-clap"
+    },
+    {
+      "name": "art",
+      "author": "travisstaloch",
+      "fingerprint": "17949635930634780805",
+      "source": "https://github.com/travisstaloch/art.zig"
+    },
+    {
+      "name": "adma",
+      "author": "Suirad",
+      "fingerprint": "3544374783085384587",
+      "source": "https://github.com/suirad/adma"
     }
   ]
 }

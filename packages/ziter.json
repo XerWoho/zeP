@@ -1,0 +1,13 @@
+{
+  "author": "hejsil",
+  "tags": [
+    "functional",
+    "math"
+  ],
+  "git": "https://github.com/Hejsil/ziter",
+  "root_file": "/ziter.zig",
+  "description": "The missing iterators for Zig",
+  "license": "mit",
+  "updated_at": "2023-03-28T13:58:55Z",
+  "homepage": ""
+}

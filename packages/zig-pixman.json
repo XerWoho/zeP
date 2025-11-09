@@ -1,0 +1,12 @@
+{
+  "author": "Isaac Freund",
+  "tags": [
+    "binding"
+  ],
+  "git": "https://github.com/ifreund/zig-pixman",
+  "root_file": "/pixman.zig",
+  "description": "Zig bindings for pixman",
+  "license": "mit",
+  "updated_at": "2022-01-15T15:31:25Z",
+  "homepage": ""
+}

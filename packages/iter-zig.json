@@ -1,0 +1,13 @@
+{
+  "author": "Takayuki Goto (@eldesh)",
+  "tags": [
+    "datastructure",
+    "algorithm"
+  ],
+  "git": "https://github.com/eldesh/iter-zig",
+  "root_file": "/src/lib.zig",
+  "description": "A basic iterator library written in Zig",
+  "license": "bsd-2-clause",
+  "updated_at": "2023-02-21T00:03:41Z",
+  "homepage": ""
+}

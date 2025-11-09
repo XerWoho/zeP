@@ -1,0 +1,12 @@
+{
+  "author": "joachimschmidt557",
+  "tags": [
+    "terminal"
+  ],
+  "git": "https://github.com/ziglibs/ansi-term",
+  "root_file": "/src/main.zig",
+  "description": "Zig library for dealing with ANSI terminals",
+  "license": "mit",
+  "updated_at": "2023-03-26T19:10:32Z",
+  "homepage": ""
+}

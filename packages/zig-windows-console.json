@@ -1,0 +1,13 @@
+{
+  "author": "SuperAuguste",
+  "tags": [
+    "os",
+    "terminal"
+  ],
+  "git": "https://github.com/ziglibs/zig-windows-console",
+  "root_file": "/src/main.zig",
+  "description": "Zig Windows Console stuff",
+  "license": "mit",
+  "updated_at": "2023-02-11T08:24:27Z",
+  "homepage": ""
+}

@@ -1,0 +1,12 @@
+{
+  "author": "xq",
+  "tags": [
+    "networking"
+  ],
+  "git": "https://github.com/MasterQ32/zig-uri",
+  "root_file": "/uri.zig",
+  "description": "A small URI parser that parses URIs after RFC3986",
+  "license": "mit",
+  "updated_at": "2023-01-07T08:10:00Z",
+  "homepage": null
+}

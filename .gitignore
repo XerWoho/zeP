@@ -3,7 +3,6 @@
 .zep
 .zep.lock
 
-packages
 release
 zig-out
 

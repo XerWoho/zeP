@@ -1,0 +1,13 @@
+{
+  "author": "xq",
+  "tags": [
+    "game",
+    "binding"
+  ],
+  "git": "https://github.com/MasterQ32/SDL.zig",
+  "root_file": "/src/lib.zig",
+  "description": "A shallow wrapper around SDL that provides object API and error handling",
+  "license": "mit",
+  "updated_at": "2023-04-11T14:23:20Z",
+  "homepage": ""
+}

@@ -1,0 +1,10 @@
+{
+  "author": "mattnite",
+  "tags": ["networking", "os"],
+  "git": "https://github.com/mattnite/bpf",
+  "root_file": "/exports.zig",
+  "description": "[WIP] Zig BPF library",
+  "license": "mit",
+  "updated_at": "2023-01-30T01:07:23Z",
+  "homepage": ""
+}

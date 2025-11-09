@@ -6,9 +6,7 @@
   "description": "",
   "version": "0.0.1",
   "license": "",
-  "packages": [
-    "clap"
-  ],
+  "packages": ["clap", "art", "adma"],
   "devPackages": [],
   "build": {
     "entry": "src/main.zig",
