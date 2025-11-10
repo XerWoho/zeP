@@ -93,8 +93,8 @@ pub const Installer = struct {
 
         // create a symbolic link
         const targetPath = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ Constants.ROOT_ZEP_PKG_FOLDER, package.packageName });
-
         defer self.allocator.free(targetPath);
+
         var openTargetDir = try UtilsFs.openCDir(targetPath);
         defer openTargetDir.close();
 
