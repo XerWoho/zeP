@@ -6,7 +6,12 @@
   "description": "",
   "version": "0.0.1",
   "license": "",
-  "packages": ["clap", "art", "adma"],
+  "packages": [
+    "clap",
+    "art",
+    "adma",
+    "dusty"
+  ],
   "devPackages": [],
   "build": {
     "entry": "src/main.zig",

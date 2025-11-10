@@ -11,7 +11,8 @@
     "packages": [
       "clap",
       "art",
-      "adma"
+      "adma",
+      "dusty"
     ],
     "devPackages": [],
     "build": {
@@ -37,6 +38,12 @@
       "author": "Suirad",
       "fingerprint": "3544374783085384587",
       "source": "https://github.com/suirad/adma"
+    },
+    {
+      "name": "dusty",
+      "author": "lalinsky",
+      "fingerprint": "601408702194443382",
+      "source": "https://github.com/lalinsky/dusty"
     }
   ]
 }

@@ -68,7 +68,7 @@ pub const Injector = struct {
         if (try UtilsFs.checkFileExists(Constants.ZEP_INJECTOR))
             try UtilsFs.delFile(Constants.ZEP_INJECTOR);
 
-        const injectorFile = try UtilsFs.openFile(Constants.ZEP_INJECTOR);
+        const injectorFile = try UtilsFs.openCFile(Constants.ZEP_INJECTOR);
         defer injectorFile.close();
 
         const injectorStart = if (totalPkgs.len >= 1)
