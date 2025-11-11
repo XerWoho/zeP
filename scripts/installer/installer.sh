@@ -64,3 +64,7 @@ chmod +rx "$zepExe"
 chmod u+w "$zepExe"
 
 echo "Installation complete."
+echo "Setting up zeP now."
+
+/usr/local/bin/zeP setup
+echo "Setup complete. On errors, re-run the setup."

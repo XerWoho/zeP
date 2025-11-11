@@ -39,13 +39,16 @@ pub fn main() !void {
     defer printer.deinit();
     try printer.append("\n");
 
-    try UtilsSetup.setup(&printer);
-
     const subcommand = args.next() orelse {
         try printer.append("Missing subcommand.\n\n");
         try printUsage(&printer);
         return;
     };
+
+    if (std.mem.eql(u8, subcommand, "setup")) {
+        try UtilsSetup.setup(&printer);
+        return;
+    }
 
     inline for ([_][]const u8{ "version", "help", "init", "install", "uninstall", "clear", "purge", "zig" }) |cmd| {
         if (std.mem.eql(u8, subcommand, cmd)) break;

@@ -18,7 +18,7 @@ $tempZepZigDir = Join-Path $zepDir "tmp/"
 New-Item -Path $tempZepZigDir -ItemType Directory -Force | Out-Null
 
 
-$destZepZigDir = Join-Path $p "zeP/v/0.1"
+$destZepZigDir = Join-Path $localAppData "zeP/v/0.1"
 if (Test-Path $destZepZigDir -PathType Container) {
     Write-Host "Folder exists."
 }
@@ -48,3 +48,7 @@ Move-Item -Path $tempZepPackagesFolder -Destination $destZepPackagesFolder
 $tempZepScriptsFolder = Join-Path $destZepZigDir "scripts"
 $destZepScriptsFolder = Join-Path $zepDir "scripts"
 Move-Item -Path $tempZepScriptsFolder -Destination $destZepScriptsFolder
+
+
+$zePTargetFile = Join-Path $destZepZigDir "zep.exe"
+& "$zePTargetFile" setup
