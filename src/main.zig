@@ -23,7 +23,7 @@ fn printUsage(printer: *UtilsPrinter.Printer) !void {
 }
 
 const DEFAULT_TARGET_WINDOWS = "x86_64-windows";
-const DEFAULT_TARGET_LINUX = "src";
+const DEFAULT_TARGET_LINUX = "x86_64-linux";
 
 pub fn main() !void {
     try Utils.UtilsSetup.setup();
