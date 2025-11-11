@@ -32,7 +32,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}
           tag: "0.1"
         run: |
-          gh release create "$tag" ./release/**/*.zip \
+          gh release create "$tag" ./release/**/* \
               --repo="$GITHUB_REPOSITORY" \
               --title="zep 0.1" \
               --generate-notes
