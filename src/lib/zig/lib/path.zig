@@ -13,9 +13,9 @@ pub fn modifyPath() !void {
     const manifest = try Manifest.getManifest();
     defer manifest.deinit();
     const absPath = try std.fs.realpathAlloc(allocator, manifest.value.path);
-    const combinedPath = try std.fmt.allocPrint(allocator, "{s}/zig.exe", .{absPath});
 
     if (builtin.os.tag == .windows) {
+        const combinedPath = try std.fmt.allocPrint(allocator, "{s}/zig.exe", .{absPath});
         const script = try std.fmt.allocPrint(allocator, "{s}/p/path.ps1", .{Constants.ROOT_ZEP_SCRIPTS});
         defer allocator.free(script);
         const argv = &[4][]const u8{ "powershell.exe", "-File", script, combinedPath };
@@ -24,6 +24,7 @@ pub fn modifyPath() !void {
         _ = try process.wait();
         _ = try process.kill();
     } else {
+        const combinedPath = try std.fmt.allocPrint(allocator, "{s}/zig", .{absPath});
         const script = try std.fmt.allocPrint(allocator, "{s}/p/path.sh", .{Constants.ROOT_ZEP_SCRIPTS});
         defer allocator.free(script);
 

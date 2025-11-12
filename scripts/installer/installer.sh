@@ -7,7 +7,6 @@ lib="/lib"
 zepExe="$usrLocalBin/zeP"
 zepDir="$lib/zeP"
 zepZigDir="$zepDir/zig"
-zepZigExe="$zepZigDir/zig"
 
 mkdir -p "$zepDir"
 mkdir -p "$zepZigDir"

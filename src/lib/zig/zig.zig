@@ -12,6 +12,8 @@ const Utils = @import("utils");
 const UtilsFs = Utils.UtilsFs;
 const UtilsPrinter = Utils.UtilsPrinter;
 
+const Manifest = @import("lib/manifest.zig");
+
 const Version = struct {
     path: []const u8,
     tarball: []const u8,
@@ -131,7 +133,8 @@ pub const Zig = struct {
 
         const version = try self.getVersion(targetVersion, target);
         if (try UtilsFs.checkDirExists(version.path)) {
-            try self.printer.append("Zig version already installed...\n\n");
+            try self.printer.append("Zig version already installed...\n");
+            try self.printer.append("Use 'zeP zig switch x.x.x' if the path is not up-to-date.\n\n");
             return;
         }
 
