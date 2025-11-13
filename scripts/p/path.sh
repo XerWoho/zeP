@@ -43,3 +43,4 @@ if [ -e $zepZigExe ]; then
 fi
 
 ln -s $target $zepZigExe
+chmod +x $zepZigExe
