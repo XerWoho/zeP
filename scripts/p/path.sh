@@ -4,7 +4,7 @@ lib="/lib"
 usrLocalBin="/usr/local/bin"
 zepDir="$lib/zeP"
 zepZigDir="$zepDir/zig"
-zepZigExe="$zepZigDir/zig.exe"
+zepZigExe="$usrLocalBin/zig"
 
 if [ $EUID != 0 ]; then
 	sudo "$0" "$@"
