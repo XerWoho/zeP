@@ -25,13 +25,10 @@ pub fn modifyPath() !void {
         _ = try process.kill();
     } else {
         const combinedPath = try std.fmt.allocPrint(allocator, "{s}/zig", .{absPath});
-        const script = try std.fmt.allocPrint(allocator, "{s}/p/path.sh", .{Constants.ROOT_ZEP_SCRIPTS});
-        defer allocator.free(script);
-
         const executer = try std.fmt.allocPrint(allocator, "{s}/p/path.sh", .{Constants.ROOT_ZEP_SCRIPTS});
         defer allocator.free(executer);
 
-        const argv = &[6][]const u8{ "chmod", "+x", script, "|", executer, combinedPath };
+        const argv = &[2][]const u8{ executer, combinedPath };
         var process = std.process.Child.init(argv, allocator);
         try process.spawn();
         _ = try process.wait();

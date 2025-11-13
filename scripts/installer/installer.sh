@@ -62,6 +62,13 @@ chmod ugo-wrx "$zepExe"
 chmod +rx "$zepExe"
 chmod u+w "$zepExe"
 
+
+pathFile="$zepDir/scripts/p/path.sh"
+chmod ugo-wrx "$pathFile"
+chmod +rx "$pathFile"
+chmod u+w "$pathFile"
+
+
 echo "Installation complete."
 echo "Setting up zeP now."
 
