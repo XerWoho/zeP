@@ -7,20 +7,22 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 $localAppData = "C:/Users/Public/AppData/Local/"
 $zepDir = Join-Path $localAppData "zeP/"
 $zepZigDir = Join-Path $zepDir "zig/"
-$zepZigExe = Join-Path $zepZigDir "zig.exe"
+$zepZigExeDir = Join-Path $zepZigDir "e/"
+$zepZigExe = Join-Path $zepZigExeDir "zig.exe"
 
 # Create directories if they don't exist
 New-Item -Path $zepDir -ItemType Directory -Force | Out-Null
 New-Item -Path $zepZigDir -ItemType Directory -Force | Out-Null
+New-Item -Path $zepZigExeDir -ItemType Directory -Force | Out-Null
 
 $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-if (-not ($machinePath.Split(';') -contains $zepZigDir)) {
-	$machineNewPath = $zepZigDir + ";" + $machinePath
+if (-not ($machinePath.Split(';') -contains $zepZigExeDir)) {
+	$machineNewPath = $zepZigExeDir + ";" + $machinePath
 	[Environment]::SetEnvironmentVariable("Path", $machineNewPath, "Machine")
-	Write-Host "$zepZigDir added to user PATH. You may need to restart your terminal to see the change."
+	Write-Host "$zepZigExeDir added to user PATH. You may need to restart your terminal to see the change."
 }
 else {
-	Write-Host "$zepZigDir is already in the PATH."
+	Write-Host "$zepZigExeDir is already in the PATH."
 }
 
 if ($args.Length -eq 0) {

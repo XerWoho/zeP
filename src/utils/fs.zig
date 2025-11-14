@@ -17,7 +17,7 @@ pub fn checkDirExists(path: []const u8) !bool {
             return false;
         },
         else => {
-            return true;
+            return false;
         },
     };
     defer d.close();
