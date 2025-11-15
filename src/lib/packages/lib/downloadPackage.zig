@@ -12,7 +12,7 @@ const UtilsCompression = Utils.UtilsCompression;
 const UtilsPrinter = Utils.UtilsPrinter;
 
 const CachePackage =
-    @import("../../install/lib/cachePackage.zig");
+    @import("cachePackage.zig");
 
 pub const Downloader = struct {
     allocator: std.mem.Allocator,

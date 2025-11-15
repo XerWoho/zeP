@@ -1,9 +1,9 @@
-pub const LibClear = @import("lib/clear/clear.zig");
-pub const LibInit = @import("lib/init/init.zig");
-pub const LibInstall = @import("lib/install/install.zig");
+pub const LibClear = @import("lib/packages/clear.zig");
+pub const LibInit = @import("lib/packages/init.zig");
+pub const LibInstall = @import("lib/packages/install.zig");
 pub const LibPreBuilt = @import("lib/preBuilt/preBuilt.zig");
-pub const LibPurge = @import("lib/purge/purge.zig");
-pub const LibUninstall = @import("lib/uninstall/uninstall.zig");
+pub const LibPurge = @import("lib/packages/purge.zig");
+pub const LibUninstall = @import("lib/packages/uninstall.zig");
 pub const LibZigInstall = @import("lib/zig/install.zig");
 pub const LibZigUninstall = @import("lib/zig/uninstall.zig");
 pub const LibZigSwitch = @import("lib/zig/switch.zig");

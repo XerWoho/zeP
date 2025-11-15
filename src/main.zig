@@ -6,11 +6,11 @@ const UtilsPrinter = Utils.UtilsPrinter;
 const UtilsSetup = Utils.UtilsSetup;
 const UtilsFs = Utils.UtilsFs;
 
-const Init = @import("lib/init/init.zig");
-const Install = @import("lib/install/install.zig");
-const Uninstall = @import("lib/uninstall/uninstall.zig");
-const Clear = @import("lib/clear/clear.zig");
-const Purge = @import("lib/purge/purge.zig");
+const Init = @import("lib/packages/init.zig");
+const Install = @import("lib/packages/install.zig");
+const Uninstall = @import("lib/packages/uninstall.zig");
+const Clear = @import("lib/packages/clear.zig");
+const Purge = @import("lib/packages/purge.zig");
 const Zig = @import("lib/zig/zig.zig");
 
 fn printUsage(printer: *UtilsPrinter.Printer) !void {
@@ -24,9 +24,6 @@ fn printUsage(printer: *UtilsPrinter.Printer) !void {
     try printer.append("  zeP purge [pkg|cache]\n");
     try printer.append("  zeP zig [install|uninstall|switch|list]\n\n");
 }
-
-const DEFAULT_TARGET_WINDOWS = "x86_64-windows";
-const DEFAULT_TARGET_LINUX = "x86_64-linux";
 
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
@@ -135,8 +132,8 @@ pub fn main() !void {
 
             const targetSrc = args.next() orelse blk: {
                 try printer.append("No target specified, rolling back to default targets.\n");
-                if (builtin.target.os.tag == .windows) break :blk DEFAULT_TARGET_WINDOWS;
-                break :blk DEFAULT_TARGET_LINUX;
+                if (builtin.target.os.tag == .windows) break :blk Constants.DEFAULT_TARGET_WINDOWS;
+                break :blk Constants.DEFAULT_TARGET_LINUX;
             };
 
             try zig.install(targetVersion, targetSrc);
@@ -148,8 +145,8 @@ pub fn main() !void {
 
             const targetSrc = args.next() orelse blk: {
                 try printer.append("No target specified, rolling back to default targets.\n");
-                if (builtin.target.os.tag == .windows) break :blk DEFAULT_TARGET_WINDOWS;
-                break :blk DEFAULT_TARGET_LINUX;
+                if (builtin.target.os.tag == .windows) break :blk Constants.DEFAULT_TARGET_WINDOWS;
+                break :blk Constants.DEFAULT_TARGET_LINUX;
             };
 
             try zig.uninstall(targetVersion, targetSrc);
@@ -161,8 +158,8 @@ pub fn main() !void {
 
             const targetSrc = args.next() orelse blk: {
                 try printer.append("No target specified, rolling back to default targets.\n");
-                if (builtin.target.os.tag == .windows) break :blk DEFAULT_TARGET_WINDOWS;
-                break :blk DEFAULT_TARGET_LINUX;
+                if (builtin.target.os.tag == .windows) break :blk Constants.DEFAULT_TARGET_WINDOWS;
+                break :blk Constants.DEFAULT_TARGET_LINUX;
             };
 
             try zig.switchV(targetVersion, targetSrc);

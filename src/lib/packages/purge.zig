@@ -6,11 +6,11 @@ const UtilsJson = Utils.UtilsJson;
 const UtilsPrinter = Utils.UtilsPrinter;
 
 const Clear =
-    @import("../clear/clear.zig");
+    @import("clear.zig");
 const Uninstall =
-    @import("../uninstall/uninstall.zig");
+    @import("uninstall.zig");
 const Init =
-    @import("../init/init.zig");
+    @import("init.zig");
 
 pub const Purger = struct {
     allocator: std.mem.Allocator,

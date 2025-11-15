@@ -2,6 +2,8 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 pub const ZIG_V_JSON = "https://ziglang.org/download/index.json";
+pub const DEFAULT_TARGET_WINDOWS = "x86_64-windows";
+pub const DEFAULT_TARGET_LINUX = "x86_64-linux";
 
 fn getBaseDir() []const u8 {
     const os = builtin.os.tag;
