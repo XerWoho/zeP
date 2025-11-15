@@ -89,13 +89,14 @@ pub const Injector = struct {
     pub fn injectIntoBuildZig(self: *Injector) !void {
         const path = "build.zig";
         if (!try UtilsFs.checkFileExists(path)) {
+            try self.printer.append("\nbuild.zig does not exist! Initting zig project\n(Make sure zig is installed [zeP zig install x.x.x])\n");
             // init zig
             const argv = &[2][]const u8{ "zig", "init" };
             var process = std.process.Child.init(argv, self.allocator);
             try process.spawn();
             _ = try process.wait();
             _ = try process.kill();
-            try self.printer.append("\nInitted zig project...\n");
+            try self.printer.append("Initted!\n\n");
         }
 
         var file = try std.fs.cwd().openFile(path, .{ .mode = .read_write });

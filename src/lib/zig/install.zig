@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const Manifest = @import("lib/manifest.zig");
+const Path = @import("lib/path.zig");
 
 const Constants = @import("constants");
 
@@ -156,6 +157,12 @@ pub const ZigInstaller = struct {
         try self.fetchData(name, tarball, version, target);
         try self.printer.append("Modifying Manifest...\n");
         try Manifest.modifyManifest(name, version, target);
+        try self.printer.pop(1);
         try self.printer.append("Manifest Up to Date!\n");
+
+        try self.printer.append("Switching to installed version...\n");
+        try Path.modifyPath();
+        try self.printer.pop(1);
+        try self.printer.append("Switched to installed version!\n");
     }
 };
