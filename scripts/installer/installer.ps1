@@ -18,27 +18,37 @@ $tempZepZigDir = Join-Path $zepDir "tmp/"
 New-Item -Path $tempZepZigDir -ItemType Directory -Force | Out-Null
 
 
+
 $destZepZigDir = Join-Path $localAppData "zeP/v/0.1"
 if (Test-Path $destZepZigDir -PathType Container) {
-    Write-Host "Folder exists."
+    Write-Host "Zep Version exists."
+} else {
+    New-Item -Path $destZepZigDir -ItemType Directory -Force | Out-Null
 }
-New-Item -Path $destZepZigDir -ItemType Directory -Force | Out-Null
+
+
+$exeZepDir = Join-Path $localAppData "zep/e"
+$exeZepFile = Join-Path $localAppData "zep/e/zeP.exe"
+if (Test-Path $exeZepDir -PathType Container) {
+    Write-Host "Exe zep Dir exists."
+} else {
+    New-Item -Path $exeZepDir -ItemType Directory -Force | Out-Null
+}
+$userPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+if (-not ($userPath.Split(';') -contains $exeZepDir)) {    
+    $newPath = $exeZepDir + ";" + $userPath
+    [Environment]::SetEnvironmentVariable("Path", $newPath, "Machine")
+    Write-Host "$exeZepDir added to user PATH. You may need to restart your terminal to see the change."
+}
+
+
 
 $tempZepZigFile = Join-Path $tempZepZigDir "0.1.zip"
 New-Item -Path $tempZepZigFile -ItemType File -Force | Out-Null
-Write-Host $tempZepZigFile
 
 Invoke-WebRequest -uri "https://github.com/XerWoho/zeP/releases/download/0.1/windows_0.1.zip" -Method "GET"  -Outfile $tempZepZigFile
 Expand-Archive $tempZepZigFile -DestinationPath $destZepZigDir
 Remove-Item -Path $tempZepZigDir -Force -Recurse
-Remove-Item -Path $tempZepZigFile
-
-$userPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-if (-not ($userPath.Split(';') -contains $destZepZigDir)) {    
-    $newPath = $destZepZigDir + ";" + $userPath
-    [Environment]::SetEnvironmentVariable("Path", $newPath, "Machine")
-    Write-Host "$destZepZigDir added to user PATH. You may need to restart your terminal to see the change."
-}
 
 $tempZepPackagesFolder = Join-Path $destZepZigDir "packages"
 $destZepPackagesFolder = Join-Path $zepDir "ava"
@@ -50,5 +60,11 @@ $destZepScriptsFolder = Join-Path $zepDir "scripts"
 Move-Item -Path $tempZepScriptsFolder -Destination $destZepScriptsFolder
 
 
-$zePTargetFile = Join-Path $destZepZigDir "zep.exe"
+$zePTargetFile = Join-Path $destZepZigDir "zeP.exe"
 & "$zePTargetFile" setup
+
+
+if (Test-Path $exeZepFile) { Remove-Item $exeZepFile -Force }
+New-Item -ItemType SymbolicLink -Target $zePTargetFile -Path $exeZepFile | Out-Null  # exeZep is the symlink
+
+Read-Host "Press Enter to exit"
