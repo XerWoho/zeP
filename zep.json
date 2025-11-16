@@ -1,0 +1,15 @@
+{
+  "author": "",
+  "tags": [],
+  "repo": "",
+  "name": "",
+  "description": "",
+  "version": "0.0.1",
+  "license": "",
+  "packages": [],
+  "devPackages": [],
+  "build": {
+    "entry": "src/main.zig",
+    "target": ""
+  }
+}
