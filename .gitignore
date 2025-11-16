@@ -2,4 +2,7 @@
 
 release
 zig-out
+
+
 .zep/*
+!.zep/inject.zig
