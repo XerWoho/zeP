@@ -33,11 +33,18 @@ pub const ZigLister = struct {
             return;
         }
 
+        const manifest = try Manifest.getManifest();
+        defer manifest.deinit();
+
         const dir = try std.fs.cwd().openDir(path, std.fs.Dir.OpenDirOptions{ .iterate = true });
         var it = dir.iterate();
         while (try it.next()) |entry| {
             if (entry.kind != .directory) continue;
-            try self.printer.append(entry.name);
+            const name = try self.allocator.dupe(u8, entry.name);
+            try self.printer.append(name);
+            if (std.mem.containsAtLeast(u8, manifest.value.path, 1, name)) {
+                try self.printer.append(" (in-use)");
+            }
             try self.printer.append("\n");
         }
         try self.printer.append("\n");

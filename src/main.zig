@@ -12,17 +12,31 @@ const Uninstall = @import("lib/packages/uninstall.zig");
 const Clear = @import("lib/packages/clear.zig");
 const Purge = @import("lib/packages/purge.zig");
 const Zig = @import("lib/zig/zig.zig");
+const PreBuilt = @import("lib/prebuilt/prebuilt.zig");
 
 fn printUsage(printer: *UtilsPrinter.Printer) !void {
-    try printer.append("Usage:\n");
+    try printer.append("\nUsage:\n");
+    try printer.append(" Legend:\n");
+    try printer.append("  > []  # required\n  > ()  # optional\n\n");
+    try printer.append("--- SIMPLE COMMANDS ---\n");
     try printer.append("  zeP version\n");
     try printer.append("  zeP help\n");
-    try printer.append("  zeP init\n");
-    try printer.append("  zeP install [target]\n");
+    try printer.append("  zeP init\n\n");
+
+    try printer.append("--- PACKAGE COMMANDS ---\n");
+    try printer.append("  zeP install (target)\n");
     try printer.append("  zeP uninstall [target]\n");
     try printer.append("  zeP clear [cache|fingerprint]\n");
-    try printer.append("  zeP purge [pkg|cache]\n");
-    try printer.append("  zeP zig [install|uninstall|switch|list]\n\n");
+    try printer.append("  zeP purge [pkg|cache]\n\n");
+
+    try printer.append("--- PREBUILT COMMANDS ---\n");
+    try printer.append("  zeP prebuilt [build|use] [name] (target)\n");
+    try printer.append("  zeP prebuilt delete [name]\n\n");
+
+    try printer.append("--- ZIG COMMANDS ---\n");
+    try printer.append("  zeP zig [uninstall|switch] [version]\n");
+    try printer.append("  zeP zig install [version] (target)\n");
+    try printer.append("  zeP zig list\n\n");
 }
 
 pub fn main() !void {
@@ -47,7 +61,7 @@ pub fn main() !void {
         return;
     }
 
-    inline for ([_][]const u8{ "version", "help", "init", "install", "uninstall", "clear", "purge", "zig" }) |cmd| {
+    inline for ([_][]const u8{ "version", "help", "init", "install", "uninstall", "clear", "purge", "zig", "prebuilt" }) |cmd| {
         if (std.mem.eql(u8, subcommand, cmd)) break;
     } else {
         const invalidSC = try std.fmt.allocPrint(allocator, "Invalid subcommand: {s}\n\n", .{subcommand});
@@ -116,9 +130,48 @@ pub fn main() !void {
             const invalidM = try std.fmt.allocPrint(allocator, "Invalid mode: {s}\n\n", .{mode});
             try printer.append(invalidM);
         }
+    } else if (std.mem.eql(u8, subcommand, "prebuilt")) {
+        const mode = args.next() orelse {
+            try printer.append("Missing argument:\n > zeP prebuilt [build|use|delete] [name]\n\n");
+            return;
+        };
+
+        var preBuilt = try PreBuilt.PreBuilt.init(allocator, &printer);
+        if (std.mem.eql(u8, mode, "build")) {
+            const builtname = args.next() orelse {
+                try printer.append("Missing argument:\n > zeP prebuilt build [name] [target]\n\n");
+                return;
+            };
+
+            const target = args.next();
+            if (target == null) {
+                try printer.append("No target specified! Rolling back to \".\"!\n\n");
+            }
+
+            try preBuilt.setBuilt(builtname, target orelse ".");
+        } else if (std.mem.eql(u8, mode, "use")) {
+            const builtname = args.next() orelse {
+                try printer.append("Missing argument:\n > zeP prebuilt use [name] [target]\n\n");
+                return;
+            };
+
+            const target = args.next();
+            if (target == null) {
+                try printer.append("No target specified! Rolling back to \".\"!\n\n");
+            }
+
+            try preBuilt.getBuilt(builtname, target orelse ".");
+        } else if (std.mem.eql(u8, mode, "delete")) {
+            const builtname = args.next() orelse {
+                try printer.append("Missing argument:\n > zeP prebuilt delete [name]\n\n");
+                return;
+            };
+
+            try preBuilt.delBuilt(builtname);
+        }
     } else if (std.mem.eql(u8, subcommand, "zig")) {
         const mode = args.next() orelse {
-            try printer.append("Missing argument:\n > zeP zig [install|switch|uninstall] [version]\n\n");
+            try printer.append("Missing argument:\n > zeP zig [install|switch|uninstall|list] [version]\n\n");
             return;
         };
 

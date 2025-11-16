@@ -3,16 +3,14 @@ const std =
 
 const Constants = @import("constants");
 const UtilsFs = @import("fs.zig");
-const UtilsPackage = @import("package.zig");
 const UtilsPrinter = @import("printer.zig");
 
 pub const Compressor = struct {
     allocator: std.mem.Allocator,
-    package: UtilsPackage.Package,
     printer: *UtilsPrinter.Printer,
 
-    pub fn init(allocator: std.mem.Allocator, package: UtilsPackage.Package, printer: *UtilsPrinter.Printer) !?Compressor {
-        return Compressor{ .allocator = allocator, .package = package, .printer = printer };
+    pub fn init(allocator: std.mem.Allocator, printer: *UtilsPrinter.Printer) !Compressor {
+        return Compressor{ .allocator = allocator, .printer = printer };
     }
 
     fn compressTmp(self: *Compressor, folderPath: []const u8, tarPath: []const u8) !void {
@@ -54,20 +52,11 @@ pub const Compressor = struct {
         }
     }
 
-    pub fn compress(self: *Compressor) !void {
-        const targetFolder = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ Constants.ROOT_ZEP_PKG_FOLDER, self.package.packageName });
-        defer self.allocator.free(targetFolder);
+    pub fn compress(self: *Compressor, targetFolder: []const u8, tarPath: []const u8) !void {
         if (!try UtilsFs.checkDirExists(targetFolder)) return;
         if (!try UtilsFs.checkDirExists(Constants.ROOT_ZEP_ZEPPED_FOLDER)) {
             try std.fs.cwd().makeDir(Constants.ROOT_ZEP_ZEPPED_FOLDER);
         }
-
-        const tarPath = try std.fmt.allocPrint(
-            self.allocator,
-            "{s}/{s}_{s}.zep",
-            .{ Constants.ROOT_ZEP_ZEPPED_FOLDER, self.package.packageName, self.package.packageFingerprint },
-        );
-        defer self.allocator.free(tarPath);
 
         const tmpTarPath = try std.fmt.allocPrint(self.allocator, "{s}.tmp", .{tarPath});
         try self.compressTmp(targetFolder, tmpTarPath);
@@ -82,13 +71,7 @@ pub const Compressor = struct {
         };
     }
 
-    pub fn decompress(self: *Compressor) !bool {
-        const zepPath = try std.fmt.allocPrint(self.allocator, "{s}/{s}_{s}.zep", .{ Constants.ROOT_ZEP_ZEPPED_FOLDER, self.package.packageName, self.package.packageFingerprint });
-        defer self.allocator.free(zepPath);
-
-        const extractPath = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ Constants.ROOT_ZEP_PKG_FOLDER, self.package.packageName });
-        defer self.allocator.free(extractPath);
-
+    pub fn decompress(self: *Compressor, zepPath: []const u8, extractPath: []const u8) !bool {
         if (!try UtilsFs.checkDirExists(extractPath))
             try std.fs.cwd().makeDir(extractPath);
 

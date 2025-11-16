@@ -132,6 +132,10 @@ pub const Zig = struct {
         try self.printer.append(withTarget);
 
         const version = try self.getVersion(targetVersion, target);
+        if (version.path.len == 0) {
+            return;
+        }
+
         if (try UtilsFs.checkDirExists(version.path)) {
             try self.printer.append("Zig version already installed...\n");
             try self.printer.append("Use 'zeP zig switch x.x.x' if the path is not up-to-date.\n\n");

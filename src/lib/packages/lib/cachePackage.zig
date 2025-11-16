@@ -18,8 +18,8 @@ pub const Cacher = struct {
     printer: *UtilsPrinter.Printer,
 
     pub fn init(allocator: std.mem.Allocator, package: UtilsPackage.Package, printer: *UtilsPrinter.Printer) !Cacher {
-        const compressor = try UtilsCompression.Compressor.init(allocator, package, printer);
-        return Cacher{ .allocator = allocator, .package = package, .compressor = compressor.?, .printer = printer };
+        const compressor = try UtilsCompression.Compressor.init(allocator, printer);
+        return Cacher{ .allocator = allocator, .package = package, .compressor = compressor, .printer = printer };
     }
 
     pub fn deinit(self: *Cacher) void {
@@ -43,11 +43,26 @@ pub const Cacher = struct {
         const cached = try self.isPackageCached();
         if (!cached) return false;
 
-        return try self.compressor.decompress();
+        const zepPath = try std.fmt.allocPrint(self.allocator, "{s}/{s}_{s}.zep", .{ Constants.ROOT_ZEP_ZEPPED_FOLDER, self.package.packageName, self.package.packageFingerprint });
+        defer self.allocator.free(zepPath);
+        const extractPath = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ Constants.ROOT_ZEP_PKG_FOLDER, self.package.packageName });
+        defer self.allocator.free(extractPath);
+
+        return try self.compressor.decompress(zepPath, extractPath);
     }
 
     pub fn cachePackage(self: *Cacher) !bool {
-        try self.compressor.compress();
+        const targetFolder = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ Constants.ROOT_ZEP_PKG_FOLDER, self.package.packageName });
+        defer self.allocator.free(targetFolder);
+
+        const tarPath = try std.fmt.allocPrint(
+            self.allocator,
+            "{s}/{s}_{s}.zep",
+            .{ Constants.ROOT_ZEP_ZEPPED_FOLDER, self.package.packageName, self.package.packageFingerprint },
+        );
+        defer self.allocator.free(tarPath);
+
+        try self.compressor.compress(targetFolder, tarPath);
 
         if (Locales.VERBOSITY_MODE >= 1) {
             try self.printer.append(" > PACKAGE CACHED: ");

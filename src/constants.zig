@@ -18,6 +18,7 @@ pub const ROOT_ZEP_FOLDER = getBaseDir() ++ "/zeP";
 pub const ROOT_ZEP_PACKAGES = ROOT_ZEP_FOLDER ++ "/ava";
 pub const ROOT_ZEP_SCRIPTS = ROOT_ZEP_FOLDER ++ "/scripts";
 pub const ROOT_ZEP_ZIG_FOLDER = ROOT_ZEP_FOLDER ++ "/zig";
+pub const ROOT_ZEP_PREBUILT_FOLDER = ROOT_ZEP_FOLDER ++ "/prebuilt";
 pub const ROOT_ZEP_PKG_FOLDER = ROOT_ZEP_FOLDER ++ "/pkg";
 pub const ROOT_ZEP_PKG_MANIFEST = ROOT_ZEP_PKG_FOLDER ++ "/manifest.json";
 

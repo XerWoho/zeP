@@ -25,8 +25,12 @@ pub const ZigSwitcher = struct {
     pub fn switchVersion(self: *ZigSwitcher, name: []const u8, version: []const u8, target: []const u8) !void {
         try self.printer.append("Modifying Manifest...\n");
         try Manifest.modifyManifest(name, version, target);
-        try self.printer.append("Manifest Up to Date!\n\n");
+        self.printer.pop(1);
+        try self.printer.append("Manifest Up to Date!\n");
 
+        try self.printer.append("Switching to installed version...\n");
         try Path.modifyPath();
+        self.printer.pop(1);
+        try self.printer.append("Switched to installed version!\n");
     }
 };
