@@ -51,7 +51,7 @@ default_setup
 clean_up()
 {
 	if [ -e $ZEP_DIR ]; then
-			rm -rf "$ZEP_DIR/*"
+			rm -rf "${ZEP_DIR:?}/*"
 	fi
 
 	# remove the current ZEP_EXE
