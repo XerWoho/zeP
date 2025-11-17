@@ -51,3 +51,8 @@ pub const PackageStruct = struct {
     updated_at: []const u8,
     homepage: ?[]const u8,
 };
+
+pub const ZepManifest = struct {
+    version: []const u8,
+    path: []const u8,
+};

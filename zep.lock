@@ -1,18 +1,18 @@
 {
   "schema": 1,
   "root": {
-    "author": "",
+    "author": "Xerrs",
     "tags": [],
-    "repo": "",
-    "name": "",
+    "repo": "https://github.com/XerWoho/zeP",
+    "name": "zeP",
     "description": "",
-    "version": "0.0.1",
-    "license": "",
+    "version": "0.2",
+    "license": "A new zig Package manager, and version manager for zig. ",
     "packages": [],
     "devPackages": [],
     "build": {
       "entry": "src/main.zig",
-      "target": ""
+      "target": "x86_64-windows-msvc"
     }
   },
   "packages": []

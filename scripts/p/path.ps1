@@ -4,31 +4,29 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 	exit
 }
 
-$localAppData = "C:/Users/Public/AppData/Local/"
-$zepDir = Join-Path $localAppData "zeP/"
-$zepZigDir = Join-Path $zepDir "zig/"
-$zepZigExeDir = Join-Path $zepZigDir "e/"
-$zepZigExe = Join-Path $zepZigExeDir "zig.exe"
+$LocalAppData = "C:/Users/Public/AppData/Local/"
+$ZepDir = Join-Path $LocalAppData "zeP/"
+$ZepZigDir = Join-Path $ZepDir "zig/"
+$ZepZigExeDir = Join-Path $ZepZigDir "e/"
+$ZepZigExe = Join-Path $ZepZigExeDir "zig.exe"
 
 # Create directories if they don't exist
-New-Item -Path $zepDir -ItemType Directory -Force | Out-Null
-New-Item -Path $zepZigDir -ItemType Directory -Force | Out-Null
-New-Item -Path $zepZigExeDir -ItemType Directory -Force | Out-Null
+New-Item -Path $ZepDir -ItemType Directory -Force | Out-Null
+New-Item -Path $ZepZigDir -ItemType Directory -Force | Out-Null
+New-Item -Path $ZepZigExeDir -ItemType Directory -Force | Out-Null
 
-$machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-if (-not ($machinePath.Split(';') -contains $zepZigExeDir)) {
-	$machineNewPath = $zepZigExeDir + ";" + $machinePath
-	[Environment]::SetEnvironmentVariable("Path", $machineNewPath, "Machine")
-	Write-Host "$zepZigExeDir added to user PATH. You may need to restart your terminal to see the change."
+$UserPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+if (-not ($UserPath.Split(';') -contains $ZepZigExeDir)) {
+	$NewPath = $ZepZigExeDir + ";" + $UserPath
+	[Environment]::SetEnvironmentVariable("Path", $NewPath, "Machine")
+	Write-Host "$ZepZigExeDir added to user PATH. You may need to restart your terminal to see the change."
 }
-else {
-	Write-Host "$zepZigExeDir is already in the PATH."
-}
+
 
 if ($args.Length -eq 0) {
 	exit
 }
 
-$target = $args[0]
-if (Test-Path $zepZigExe) { Remove-Item $zepZigExe -Force }
-New-Item -ItemType SymbolicLink -Target $target -Path $zepZigExe | Out-Null  # zigExe is the symlink
+$Target = $args[0]
+if (Test-Path $ZepZigExe) { Remove-Item $ZepZigExe -Force }
+New-Item -ItemType SymbolicLink -Target $Target -Path $ZepZigExe | Out-Null  # zigExe is the symlink

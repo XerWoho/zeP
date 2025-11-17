@@ -1,48 +1,62 @@
 #!/bin/bash
 set -e
 
-usrLocalBin="/usr/local/bin"
-lib="/lib"
+USR_LOCAL_BIN="/usr/local/bin"
+LIB="/lib"
 
-zepExe="$usrLocalBin/zeP" # zeP executeable (symlink)
-zepDir="$lib/zeP"  # main zeP directory
-zepZigDir="$zepDir/zig"  # directory for zig version manager
-zepVersionDir="$zepDir/v/0.1/"  # directory for current zeP version
 
-tempZepTarDir="/tmp/zeP";  # temporary directory where tar file gets extracted
-tempZepTarFile="/tmp/zeP/0.1.tar";  # temporary tar file
+TARGET="0.2" # latest version
+if [ $# -eq 0 ]; then
+	TARGET="$1"
+fi
+
+ZEP_EXE="$USR_LOCAL_BIN/zeP" # zeP executeable (symlink)
+ZEP_DIR="$LIB/zeP"  # main zeP directory
+ZEP_ZIG_DIR="$ZEP_DIR/zig"  # directory for zig version manager
+ZEP_VERSION_DIR="$ZEP_DIR/zep/v/$TARGET/"  # directory for current zeP version
+MANIFEST_ZEP="$ZEP_DIR/zep/manifest.json"
+
+TEMP_ZEP_TAR_DIR="/tmp/zeP";  # temporary directory where tar file gets extracted
+TEMP_ZEP_TAR_FILE="/tmp/zeP/$TARGET.tar";  # temporary tar file
 
 ###
 # Creating required directories
 ###
-defaultSetUp()
+default_setup()
 {
-	mkdir -p "$zepDir"
-	mkdir -p "$zepZigDir"
-	mkdir -p "$zepVersionDir"
+	mkdir -p "$ZEP_DIR"
+	mkdir -p "$ZEP_ZIG_DIR"
+	mkdir -p "$ZEP_VERSION_DIR"
 
 	if [ $EUID != 0 ]; then
 			sudo "$0" "$@"
 			exit $?
 	fi
 
-	mkdir -p "$tempZepTarDir"
+	mkdir -p "$TEMP_ZEP_TAR_DIR"
+
+	JSON_STRING="{
+	\"version\":\"${TARGET}\",
+	\"path\":\"${ZEP_VERSION_DIR}\",
+	}"
+
+	echo "$JSON_STRING" > $MANIFEST_ZEP
 }
-defaultSetUp
+default_setup
 
 
 ###
 # Clear the current data
 ###
-cleanUp()
+clean_up()
 {
-	if [ -e $zepDir ]; then
-			rm -rf "$zepDir/*"
+	if [ -e $ZEP_DIR ]; then
+			rm -rf "$ZEP_DIR/*"
 	fi
 
-	# remove the current zepExe
-	if [ -e $zepExe ]; then
-			rm $zepExe
+	# remove the current ZEP_EXE
+	if [ -e $ZEP_EXE ]; then
+			rm $ZEP_EXE
 	fi
 }
 
@@ -51,17 +65,17 @@ cleanUp()
 # Download the current release
 # And extract the tar file
 ###
-downloadAndExtract()
+download_and_extract()
 {
 	echo "Downloading release..."
-	curl -L "https://github.com/XerWoho/zeP/releases/download/0.1/linux_0.1.tar" -o "$tempZepTarFile"
+	curl -L "https://github.com/XerWoho/zeP/releases/download/$TARGET/linux_$TARGET.tar" -o "$TEMP_ZEP_TAR_FILE"
 
 
 	echo "Extracting..."
-	tar -xvf "$tempZepTarFile" -C "$tempZepTarDir"
+	tar -xvf "$TEMP_ZEP_TAR_FILE" -C "$TEMP_ZEP_TAR_DIR"
 }
 
-downloadAndExtract
+download_and_extract
 
 
 
@@ -70,53 +84,29 @@ downloadAndExtract
 # and create if it doesnt
 # exists
 ###
-safeMoveDir()
+safe_move_dir()
 {
-	FROM=$1
-	TO=$2
+	local src=$1
+	local dest=$2
 
-	if ! [ -e "$FROM/*" ]; then
-		mkdir -p "$FROM"
+	if [ -n "$(ls -A "$src" 2>/dev/null)" ]; then
+		mkdir -p "$src"
 	fi
 
 	# Move folders
-	mv "$FROM" "$TO"
+	mv "$src" "$dest"
 }
 
-###
-# Set chmod
-###
-setChmod()
-{
-	FILE=$1
+clean_up # clean up
 
-	chmod ugo-wrx "$FILE"
-	chmod +rx "$FILE"
-	chmod u+w "$FILE"
-}
-
-cleanUp # clean up
-
-if [ -e "$zepDir/ava" ]; then
-		rm -rf "$zepDir/ava"
-fi
-if [ -e "$zepDir/scripts" ]; then
-		rm -rf "$zepDir/scripts"
-fi
-
-safeMoveDir "$tempZepTarDir/packages" "$zepDir/ava"
-safeMoveDir "$tempZepTarDir/scripts" "$zepDir/scripts"
-mv -f "$tempZepTarDir/zeP" $zepVersionDir
-rm -r $tempZepTarDir
-
-setChmod "$zepVersionDir/zeP"
-setChmod "$zepDir/scripts/p/path.sh"
+chmod 755 "$ZEP_VERSION_DIR/zeP"
+chmod 755 "$ZEP_VERSION_DIR/scripts/p/path.sh"
 
 echo "Installation complete."
 echo "Setting up zeP now."
 
-ln -s "$zepVersionDir/zeP" $zepExe  # create symlink
-setChmod $zepExe  # make symlink an exe
-$zepExe setup  # run setup script of zeP
+ln -s "$ZEP_VERSION_DIR/zeP" $ZEP_EXE  # create symlink
+chmod 755 $ZEP_EXE  # make symlink an exe
+$ZEP_EXE setup  # run setup script of zeP
 
 echo "Setup complete. On errors, re-run the setup. ($ [sudo] zeP setup)"

@@ -1,84 +1,78 @@
-if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) {
-	$argString = $args -join ' '
-	Start-Process powershell -Verb runAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $argString"
-	exit
+$Target = "0.2" # latest version
+if ! ($args.Length -eq 0) {
+    $Target = $args[0]
 }
 
-$localAppData = "C:/Users/Public/AppData/Local/"
-$destZepZigDir = Join-Path $localAppData "zeP/v/0.1"
-if (Test-Path $destZepZigDir -PathType Container) {
-    Remove-Item -Path $destZepZigDir -Force -Recurse
+
+function Ensure-Admin {
+    if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) {
+        Start-Process powershell -Verb runAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $Target"
+        exit
+    }
+}
+Ensure-Admin
+
+$LocalAppData = "C:/Users/Public/AppData/Local/"
+$ZepDir = Join-Path $LocalAppData "zeP/"
+$ZepZigDir = Join-Path $ZepDir "zig/"
+$TempZepZigDir = Join-Path $ZepDir "tmp/"
+$TempZepZigFile = Join-Path $TempZepZigDir "$Target.zip"
+
+$ManifestZep = Join-Path $ZepDir "zep/manifest.json"
+
+$ExeZepDir = Join-Path $ZepDir "zep/e/"
+$ExeZepFile = Join-Path $ExeZepDir "zeP.exe"
+
+$DestZepZigDir = Join-Path $ZepDir "zep/v/$Target"
+if (Test-Path $DestZepZigDir -PathType Container) {
+    Remove-Item -Path $DestZepZigDir -Force -Recurse
 }
 
-$zepDir = Join-Path $localAppData "zeP/"
-$zepZigDir = Join-Path $zepDir "zig/"
-
-$tempZepZigDir = Join-Path $zepDir "tmp/"
-$tempZepZigFile = Join-Path $tempZepZigDir "0.1.zip"
-
-$exeZepDir = Join-Path $zepDir "e/"
-$exeZepFile = Join-Path $exeZepDir "zeP.exe"
+$ZepTargetFile = Join-Path $DestZepZigDir "zeP.exe"
 
 function Set-EnvVar {
-    $userPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-    if (-not ($userPath.Split(';') -contains $exeZepDir)) {    
-        $newPath = $exeZepDir + ";" + $userPath
-        [Environment]::SetEnvironmentVariable("Path", $newPath, "Machine")
-        Write-Host "$exeZepDir added to user PATH. You may need to restart your terminal to see the change."
+    $UserPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    if (-not ($UserPath.Split(';') -contains $ExeZepDir)) {    
+        $NewPath = $ExeZepDir + ";" + $UserPath
+        [Environment]::SetEnvironmentVariable("Path", $NewPath, "Machine")
+        Write-Host "$ExeZepDir added to user PATH. You may need to restart your terminal to see the change."
     }
 }
 
 function Set-Up {
-    New-Item -Path $zepDir -ItemType Directory -Force | Out-Null
-    New-Item -Path $zepZigDir -ItemType Directory -Force | Out-Null
+    New-Item -Path $ZepDir -ItemType Directory -Force | Out-Null
+    New-Item -Path $ZepZigDir -ItemType Directory -Force | Out-Null
 
-    New-Item -Path $tempZepZigDir -ItemType Directory -Force | Out-Null
-    New-Item -Path $tempZepZigFile -ItemType File -Force | Out-Null
+    New-Item -Path $TempZepZigDir -ItemType Directory -Force | Out-Null
+    New-Item -Path $TempZepZigFile -ItemType File -Force | Out-Null
 
-    New-Item -Path $destZepZigDir -ItemType Directory -Force | Out-Null
-    New-Item -Path $exeZepDir -ItemType Directory -Force | Out-Null
+    New-Item -Path $DestZepZigDir -ItemType Directory -Force | Out-Null
+    New-Item -Path $ExeZepDir -ItemType Directory -Force | Out-Null
+
+    New-Item -Path $ManifestZep -ItemType File -Force | Out-Null
+
+    $data = @{
+        version = "$Target"
+        path = "$DestZepZigDir"
+    }
+
+    $data | ConvertTo-Json -Depth 10 | Set-Content "$ManifestZep"
 
     Set-EnvVar
 }
 Set-Up
 
 function Get-Download {
-    Invoke-WebRequest -uri "https://github.com/XerWoho/zeP/releases/download/0.1/windows_0.1.zip" -Method "GET"  -Outfile $tempZepZigFile
-    Expand-Archive $tempZepZigFile -DestinationPath $destZepZigDir
-    Remove-Item -Path $tempZepZigDir -Force -Recurse
+    Invoke-WebRequest -uri "https://github.com/XerWoho/zeP/releases/download/$Target/windows_$Target.zip" -Method "GET"  -Outfile $TempZepZigFile
+    Expand-Archive $TempZepZigFile -DestinationPath $DestZepZigDir
+    Remove-Item -Path $TempZepZigDir -Force -Recurse
 }
 Get-Download
 
-#####
-###
-# move the packages and scripts from
-# the extracted folder, to the main 
-# zeP folder
-$tempZepPackagesFolder = Join-Path $destZepZigDir "packages"
-$destZepPackagesFolder = Join-Path $zepDir "ava"
-if (Test-Path $destZepPackagesFolder -PathType Container) {
-    Remove-Item -Path $destZepPackagesFolder -Force -Recurse
-    # exit
-}
 
-Move-Item -Path $tempZepPackagesFolder -Destination $destZepPackagesFolder
-###
-$tempZepScriptsFolder = Join-Path $destZepZigDir "scripts"
-$destZepScriptsFolder = Join-Path $zepDir "scripts"
-if (Test-Path $destZepScriptsFolder -PathType Container) {
-    Remove-Item -Path $destZepScriptsFolder -Force -Recurse
-    # exit
-}
+& "$ZepTargetFile" setup
 
-Move-Item -Path $tempZepScriptsFolder -Destination $destZepScriptsFolder
-###
-#####
+if (Test-Path $ExeZepFile) { Remove-Item $ExeZepFile -Force }
+New-Item -ItemType SymbolicLink -Target $ZepTargetFile -Path $ExeZepFile | Out-Null  # exeZep is the symlink
 
-
-$zePTargetFile = Join-Path $destZepZigDir "zeP.exe"
-& "$zePTargetFile" setup
-
-if (Test-Path $exeZepFile) { Remove-Item $exeZepFile -Force }
-New-Item -ItemType SymbolicLink -Target $zePTargetFile -Path $exeZepFile | Out-Null  # exeZep is the symlink
-
-Read-Host "Press Enter to exit"
+Read-Host "Installation finished!"

@@ -44,14 +44,36 @@ pub const Package = struct {
     }
 
     pub fn deinit(self: *Package) void {
-        defer {
-            self.json.deinit();
-            self.packageParsed.deinit();
-        }
+        self.packageParsed.deinit();
     }
 
     fn getPackageNames(self: *Package) !std.ArrayList([]const u8) {
-        const dir = try UtilsFs.openDir(Constants.ROOT_ZEP_PACKAGES);
+        const manifestTarget = Constants.ROOT_ZEP_ZEP_MANIFEST;
+        const openManifest = try UtilsFs.openFile(manifestTarget);
+        defer openManifest.close();
+
+        const readOpenManifest = try openManifest.readToEndAlloc(self.allocator, 1024 * 1024);
+        const parsedManifest = try std.json.parseFromSlice(Structs.ZepManifest, self.allocator, readOpenManifest, .{});
+        defer parsedManifest.deinit();
+        const localPath = try std.fmt.allocPrint(self.allocator, "{s}/packages/", .{parsedManifest.value.path});
+        defer self.allocator.free(localPath);
+
+        const dir = try UtilsFs.openDir(localPath);
+        defer dir.close();
+
+        var names = std.ArrayList([]const u8).init(self.allocator);
+        var iter = dir.iterate();
+        while (try iter.next()) |entry| {
+            if (!std.mem.endsWith(u8, entry.name, ".json")) continue;
+            const name = entry.name[0 .. entry.name.len - 5];
+            try names.append(try self.allocator.dupe(u8, name));
+        }
+
+        return names;
+    }
+
+    fn getCustomPackageNames(self: *Package) !std.ArrayList([]const u8) {
+        const dir = try UtilsFs.openDir(Constants.ROOT_ZEP_CUSTOM_PACKAGES);
         defer dir.close();
 
         var names = std.ArrayList([]const u8).init(self.allocator);
@@ -66,38 +88,60 @@ pub const Package = struct {
     }
 
     pub fn findPackage(self: *Package) !?[]const u8 {
-        const packageNames = try self.getPackageNames();
+        const localPackageNames = try self.getPackageNames();
         defer {
-            for (packageNames.items) |n| self.allocator.free(n);
-            packageNames.deinit();
+            for (localPackageNames.items) |n| self.allocator.free(n);
+            localPackageNames.deinit();
         }
-
-        var suggestions = std.ArrayList([]const u8).init(self.allocator);
-        defer suggestions.deinit();
-
-        for (packageNames.items) |pn| {
+        var localSuggestions = std.ArrayList([]const u8).init(self.allocator);
+        defer localSuggestions.deinit();
+        for (localPackageNames.items) |pn| {
             const dist = hammingDistance(pn, self.packageName);
             if (dist == 0) {
                 const found = try self.allocator.dupe(u8, pn);
                 return found;
             } else if (dist < 3) {
-                try suggestions.append(pn);
+                try localSuggestions.append(pn);
+            }
+        }
+
+        const customPackageNames = try self.getCustomPackageNames();
+        defer {
+            for (customPackageNames.items) |n| self.allocator.free(n);
+            customPackageNames.deinit();
+        }
+
+        try self.printer.append(try customPackageNames.toOwnedSlice());
+        var customSuggestions = std.ArrayList([]const u8).init(self.allocator);
+        defer customSuggestions.deinit();
+        for (customPackageNames.items) |pn| {
+            const dist = hammingDistance(pn, self.packageName);
+            if (dist == 0) {
+                const found = try self.allocator.dupe(u8, pn);
+                return found;
+            } else if (dist < 3) {
+                try customSuggestions.append(pn);
             }
         }
 
         if (Locales.VERBOSITY_MODE >= 1) {
-            if (suggestions.items.len > 0) {
-                const noPkg = try std.fmt.allocPrint(self.printer.allocator, "(404) No package named '{s}' found.\nDid you mean:\n", .{self.packageName});
-                try self.printer.append(noPkg);
-                for (suggestions.items) |s| {
-                    const pkg = try std.fmt.allocPrint(self.printer.allocator, "- {s}\n", .{s});
-                    try self.printer.append(pkg);
-                }
-                try self.printer.append("\n");
-            } else {
+            if (localSuggestions.items.len == 0 and customSuggestions.items.len == 0) {
                 const noPkg = try std.fmt.allocPrint(self.printer.allocator, "(404) No package named '{s}' found.\nCheck for typos!\n", .{self.packageName});
                 try self.printer.append(noPkg);
+                return null;
             }
+            const noPkg = try std.fmt.allocPrint(self.printer.allocator, "(404) No package named '{s}' found.\nDid you mean:\n", .{self.packageName});
+            try self.printer.append(noPkg);
+            for (localSuggestions.items) |s| {
+                const pkg = try std.fmt.allocPrint(self.printer.allocator, "- {s} (local)\n", .{s});
+                try self.printer.append(pkg);
+            }
+            try self.printer.append("\n");
+            for (customSuggestions.items) |s| {
+                const pkg = try std.fmt.allocPrint(self.printer.allocator, "- {s} (custom)\n", .{s});
+                try self.printer.append(pkg);
+            }
+            try self.printer.append("\n");
         }
 
         return null;
@@ -192,17 +236,16 @@ pub const Package = struct {
     // ----
 
     fn updatePkgFile(self: *Package, pkg: *Structs.PackageJsonStruct) !void {
-        const str = try self.json.stringifyPkgJson(pkg);
+        const str = try std.json.stringifyAlloc(self.allocator, pkg, .{ .whitespace = .indent_2 });
         try self.writePkg(str);
     }
 
     fn updateLockFile(self: *Package, lock: *Structs.PackageLockStruct) !void {
-        const str = try self.json.stringifyLockJson(lock);
+        const str = try std.json.stringifyAlloc(self.allocator, lock, .{ .whitespace = .indent_2 });
         try self.writeLock(str);
     }
 
-    fn writePkg(self: *Package, pkgString: []const u8) !void {
-        _ = self;
+    fn writePkg(_: *Package, pkgString: []const u8) !void {
         _ = std.fs.cwd().createFile(Constants.ZEP_PACKAGE_FILE, .{}) catch |err| switch (err) {
             error.PathAlreadyExists => {},
             else => return err,
@@ -211,9 +254,7 @@ pub const Package = struct {
         _ = try pFile.write(pkgString);
     }
 
-    fn writeLock(self: *Package, lockString: []const u8) !void {
-        _ = self;
-
+    fn writeLock(_: *Package, lockString: []const u8) !void {
         _ = std.fs.cwd().createFile(Constants.ZEP_LOCK_PACKAGE_FILE, .{}) catch |err| switch (err) {
             error.PathAlreadyExists => {},
             else => return err,

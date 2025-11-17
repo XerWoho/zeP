@@ -8,9 +8,7 @@ pub const Printer = struct {
     }
 
     pub fn deinit(self: *Printer) void {
-        defer {
-            self.data.deinit();
-        }
+        self.data.deinit();
     }
 
     pub fn append(self: *Printer, data: []const u8) !void {
@@ -27,8 +25,7 @@ pub const Printer = struct {
         return;
     }
 
-    pub fn clearScreen(self: *Printer) !void {
-        _ = self;
+    pub fn clearScreen(_: *Printer) !void {
         const stdout = std.io.getStdOut().writer();
         try stdout.print("\x1B[3J\x1B[2J\x1B[H", .{});
     }

@@ -25,14 +25,14 @@ jobs:
           sudo mv zig-linux-x86_64-0.14.0/lib /usr/local/bin/lib
 
       - name: Build Releases
-        run: sh ./release.sh 0.1
+        run: sh ./release.sh 0.2
 
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}
-          tag: "0.1"
+          tag: "0.2"
         run: |
           gh release create "$tag" ./release/**/* \
               --repo="$GITHUB_REPOSITORY" \
-              --title="zep 0.1" \
+              --title="zep 0.2" \
               --generate-notes

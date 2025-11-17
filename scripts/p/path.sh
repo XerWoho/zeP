@@ -1,29 +1,29 @@
 #!/bin/bash
 
-lib="/lib"
-usrLocalBin="/usr/local/bin"
-zepDir="$lib/zeP"
-zepZigDir="$zepDir/zig"
-zepZigExe="$usrLocalBin/zig"
+USR_LOCAL_BIN="/usr/local/bin"
+LIB="/lib"
+ZEP_DIR="$LIB/zeP"
+ZEP_ZIG_DIR="$ZEP_DIR/zig"
+ZEP_ZIG_EXE="$USR_LOCAL_BIN/zig"
 
 if [ $EUID != 0 ]; then
 	sudo "$0" "$@"
-	currentPath=$PATH
-	if ! [[ $currentPath == *"$zepZigDir"* ]]; then 
+	local currentPath="$PATH"
+	if ! [[ $currentPath == *"$ZEP_ZIG_DIR"* ]]; then 
 			echo "Setting PATH" 
-			export PATH="$zepZigDir:$PATH"
+			export PATH="$ZEP_ZIG_DIR:$PATH"
 			echo $PATH
 	fi
 	exit $?
 fi
 
-if ! [ -e $zepDir ]; then
-	mkdir $zepDir
+if ! [ -d "$ZEP_DIR" ]; then
+	mkdir "$ZEP_DIR"
 			exit
 fi
 
-if ! [ -e $zepZigDir ]; then
-	mkdir $zepZigDir
+if ! [ -d "$ZEP_ZIG_DIR" ]; then
+	mkdir "$ZEP_ZIG_DIR"
 			exit
 fi
 
@@ -31,16 +31,16 @@ if [ $# -eq 0 ]; then
 	echo "No arguments supplied"
 			exit
 fi
-target=$1
+TARGET="$1"
 
-if ! [ -e $target ]; then
+if ! [ -e "$TARGET" ]; then
 	echo "Target does not exist!"
 			exit       
 fi
 
-if [ -e $zepZigExe ]; then
-	rm $zepZigExe
+if [ -e "$ZEP_ZIG_EXE" ]; then
+	rm "$ZEP_ZIG_EXE"
 fi
 
-ln -s $target $zepZigExe
-chmod +x $zepZigExe
+ln -s "$TARGET" "$ZEP_ZIG_EXE"
+chmod +x "$ZEP_ZIG_EXE"

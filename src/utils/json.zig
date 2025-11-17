@@ -17,10 +17,7 @@ pub const Json = struct {
         return Json{ .allocator = allocator };
     }
 
-    pub fn parsePackage(self: *Json, packageName: []const u8) !?std.json.Parsed(Structs.PackageStruct) {
-        const path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.json", .{ Constants.ROOT_ZEP_PACKAGES, packageName });
-        defer self.allocator.free(path);
-
+    fn parse(self: *Json, path: []const u8) !?std.json.Parsed(Structs.PackageStruct) {
         const check = try UtilsFs.checkFileExists(path);
         if (!check) return null;
 
@@ -30,6 +27,28 @@ pub const Json = struct {
         const data = try file.readToEndAlloc(self.allocator, MAX_JSON_SIZE);
         const parsedData = try std.json.parseFromSlice(Structs.PackageStruct, self.allocator, data, .{});
         return parsedData;
+    }
+
+    pub fn parsePackage(self: *Json, packageName: []const u8) !?std.json.Parsed(Structs.PackageStruct) {
+        const manifestTarget = Constants.ROOT_ZEP_ZEP_MANIFEST;
+        const openManifest = try UtilsFs.openFile(manifestTarget);
+        defer openManifest.close();
+
+        const readOpenManifest = try openManifest.readToEndAlloc(self.allocator, 1024 * 1024);
+        const parsedManifest = try std.json.parseFromSlice(Structs.ZepManifest, self.allocator, readOpenManifest, .{});
+        defer parsedManifest.deinit();
+
+        const localPath = try std.fmt.allocPrint(self.allocator, "{s}/packages/{s}.json", .{ parsedManifest.value.path, packageName });
+        defer self.allocator.free(localPath);
+
+        const customPath = try std.fmt.allocPrint(self.allocator, "{s}/{s}.json", .{ Constants.ROOT_ZEP_CUSTOM_PACKAGES, packageName });
+        defer self.allocator.free(customPath);
+
+        const localParsed = try self.parse(localPath);
+        if (localParsed) |l| return l;
+        const customParsed = try self.parse(customPath);
+        if (customParsed) |c| return c;
+        return null;
     }
 
     pub fn parsePkgJson(self: *Json) !?std.json.Parsed(Structs.PackageJsonStruct) {
@@ -63,13 +82,5 @@ pub const Json = struct {
 
         const data = try file.readToEndAlloc(self.allocator, MAX_JSON_SIZE);
         return try std.json.parseFromSlice(Structs.PkgsManifest, self.allocator, data, .{});
-    }
-
-    pub fn stringifyPkgJson(self: *Json, package: *Structs.PackageJsonStruct) ![]u8 {
-        return try std.json.stringifyAlloc(self.allocator, package, .{ .whitespace = .indent_2 });
-    }
-
-    pub fn stringifyLockJson(self: *Json, lock: *Structs.PackageLockStruct) ![]u8 {
-        return try std.json.stringifyAlloc(self.allocator, lock, .{ .whitespace = .indent_2 });
     }
 };
