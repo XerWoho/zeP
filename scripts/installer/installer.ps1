@@ -1,5 +1,5 @@
 $Target = "0.2" # latest version
-if ! ($args.Length -eq 0) {
+if (-not ($args.Length -eq 0)) {
     $Target = $args[0]
 }
 
