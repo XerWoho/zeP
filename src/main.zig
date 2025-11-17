@@ -85,7 +85,7 @@ pub fn main() !void {
         return;
     }
     if (std.mem.eql(u8, subcommand, "version")) {
-        try printer.append("zeP Version 0.1\n\n");
+        try printer.append("zeP Version 0.2\n\n");
         return;
     }
 
