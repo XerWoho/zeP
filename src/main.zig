@@ -13,7 +13,7 @@ const Clear = @import("lib/packages/clear.zig");
 const Purge = @import("lib/packages/purge.zig");
 const Zig = @import("lib/zig/zig.zig");
 const Zep = @import("lib/zep/zep.zig");
-const PreBuilt = @import("lib/prebuilt/prebuilt.zig");
+const PreBuilt = @import("lib/preBuilt/prebuilt.zig");
 const CustomPackage = @import("lib/packages/custom.zig");
 
 // ------------------------
