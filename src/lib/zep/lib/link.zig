@@ -28,26 +28,29 @@ pub fn updateLink() !void {
     const parsedManifest = try std.json.parseFromSlice(Structs.ZepManifest, allocator, readOpenManifest, .{});
     defer parsedManifest.deinit();
 
-    const zepExePath = try std.fmt.allocPrint(allocator, "{s}/zep.exe", .{parsedManifest.value.path});
-    defer allocator.free(zepExePath);
-
     if (builtin.os.tag == .windows) {
+        const zepExePath = try std.fmt.allocPrint(allocator, "{s}/zep.exe", .{parsedManifest.value.path});
+        defer allocator.free(zepExePath);
+
         const linkExePathDir = try std.fmt.allocPrint(allocator, "{s}/e/", .{Constants.ROOT_ZEP_ZEP_FOLDER});
-        if (!try UtilsFs.checkDirExists(linkExePathDir)) {
+        if (!UtilsFs.checkDirExists(linkExePathDir)) {
             try std.fs.cwd().makePath(linkExePathDir);
         }
 
         const linkExePath = try std.fmt.allocPrint(allocator, "{s}/e/zep.exe", .{Constants.ROOT_ZEP_ZEP_FOLDER});
         defer allocator.free(linkExePath);
-        if (try UtilsFs.checkFileExists(linkExePath)) {
+        if (UtilsFs.checkFileExists(linkExePath)) {
             try std.fs.cwd().deleteFile(linkExePath);
         }
         try std.fs.cwd().symLink(zepExePath, linkExePath, .{ .is_directory = false });
     } else {
+        const zepExePath = try std.fmt.allocPrint(allocator, "{s}/zeP", .{parsedManifest.value.path});
+        defer allocator.free(zepExePath);
+
         const zepExeTarget = try std.fs.cwd().openFile(zepExePath, .{});
         defer zepExeTarget.close();
         try zepExeTarget.chmod(755);
 
-        try std.fs.cwd().symLink(zepExePath, "/usr/local/bin/zig", .{ .is_directory = false });
+        try std.fs.cwd().symLink(zepExePath, "/usr/local/bin/zeP", .{ .is_directory = false });
     }
 }

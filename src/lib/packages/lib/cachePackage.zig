@@ -73,7 +73,7 @@ pub const Cacher = struct {
         const path = try self.cacheFilePath();
         defer self.allocator.free(path);
 
-        return try UtilsFs.checkFileExists(path);
+        return UtilsFs.checkFileExists(path);
     }
 
     // ---------------------------

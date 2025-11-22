@@ -10,17 +10,25 @@ const UtilsJson = @import("json.zig");
 pub fn writeManifest(comptime ManifestType: type, allocator: std.mem.Allocator, path: []const u8, manifest: ManifestType) !void {
     _ = UtilsFs.delFile(path) catch {};
 
-    const jsonStr = try std.json.stringifyAlloc(allocator, manifest, .{ .whitespace = .indent_tab });
+    const jsonStr = std.json.stringifyAlloc(allocator, manifest, .{ .whitespace = .indent_tab }) catch {
+        @panic("Stringifying failed!");
+    };
     defer allocator.free(jsonStr);
 
     // Write to manifest file
-    const f = try UtilsFs.openCFile(path);
+    const f = UtilsFs.openCFile(path) catch {
+        std.debug.print("{s}\n", .{path});
+        @panic("Stringifying failed!");
+    };
     defer f.close();
-    _ = try f.write(jsonStr);
+    _ = f.write(jsonStr) catch {
+        std.debug.print("{s}\n", .{jsonStr});
+        @panic("Writing failed!");
+    };
 }
 
 pub fn readManifest(comptime ManifestType: type, allocator: std.mem.Allocator, path: []const u8) !std.json.Parsed(ManifestType) {
-    if (!try UtilsFs.checkFileExists(path)) {
+    if (!UtilsFs.checkFileExists(path)) {
         const default_manifest: ManifestType = .{}; // this applies all default values
         try UtilsManifest.writeManifest(ManifestType, allocator, path, default_manifest);
     }
@@ -107,7 +115,7 @@ pub fn removePathFromManifest(
     } else {
         const pkgPath = try std.fmt.allocPrint(allocator, "{s}/{s}/", .{ Constants.ROOT_ZEP_PKG_FOLDER, packageId });
         defer allocator.free(pkgPath);
-        if (try UtilsFs.checkDirExists(pkgPath)) {
+        if (UtilsFs.checkDirExists(pkgPath)) {
             std.fs.cwd().deleteTree(pkgPath) catch {};
         }
     }

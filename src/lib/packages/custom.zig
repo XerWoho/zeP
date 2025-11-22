@@ -56,7 +56,7 @@ pub const CustomPackage = struct {
         });
         defer self.allocator.free(pkgPath);
 
-        if (try UtilsFs.checkFileExists(pkgPath)) {
+        if (UtilsFs.checkFileExists(pkgPath)) {
             try self.printer.append("-- PACKAGE EXISTS [ADD VERSION MODE] --\n\n", .{}, .{ .color = 33 });
 
             const v = try self.promptVersionData(stdin);
@@ -111,7 +111,7 @@ pub const CustomPackage = struct {
     }
 
     fn addPackage(self: CustomPackage, pkgPath: []const u8, packageJson: Structs.PackageStruct) !void {
-        if (try UtilsFs.checkFileExists(pkgPath)) {
+        if (UtilsFs.checkFileExists(pkgPath)) {
             try std.fs.cwd().deleteFile(pkgPath);
         }
 
@@ -154,7 +154,7 @@ pub const CustomPackage = struct {
         const pkgPath = try std.fmt.allocPrint(self.allocator, "{s}/{s}.json", .{ Constants.ROOT_ZEP_CUSTOM_PACKAGES, packageName });
         defer self.allocator.free(pkgPath);
 
-        if (try UtilsFs.checkFileExists(pkgPath)) {
+        if (UtilsFs.checkFileExists(pkgPath)) {
             try self.printer.append("Package found...\n", .{}, .{});
             try std.fs.cwd().deleteFile(pkgPath);
             try self.printer.append("Deleted.\n\n", .{}, .{});

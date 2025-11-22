@@ -6,7 +6,7 @@ const UtilsFs = @import("fs.zig");
 const UtilsPrinter = @import("printer.zig");
 
 fn mkdir(path: []const u8, printer: *UtilsPrinter.Printer) !void {
-    if (try UtilsFs.checkDirExists(path)) return;
+    if (UtilsFs.checkDirExists(path)) return;
     std.fs.cwd().makePath(path) catch |err| {
         switch (err) {
             error.AccessDenied => {

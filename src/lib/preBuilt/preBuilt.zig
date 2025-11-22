@@ -14,7 +14,7 @@ pub const PreBuilt = struct {
 
     /// Initializes PreBuilt with compressor and ensures prebuilt folder exists
     pub fn init(allocator: std.mem.Allocator, printer: *UtilsPrinter.Printer) !PreBuilt {
-        if (!try UtilsFs.checkDirExists(Constants.ROOT_ZEP_PREBUILT_FOLDER)) {
+        if (!UtilsFs.checkDirExists(Constants.ROOT_ZEP_PREBUILT_FOLDER)) {
             try std.fs.cwd().makeDir(Constants.ROOT_ZEP_PREBUILT_FOLDER);
         }
         const compressor = try UtilsCompression.Compressor.init(allocator, printer);
@@ -31,14 +31,14 @@ pub const PreBuilt = struct {
         const path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.zep", .{ Constants.ROOT_ZEP_PREBUILT_FOLDER, preBuiltName });
         defer self.allocator.free(path);
 
-        if (!try UtilsFs.checkFileExists(path)) {
+        if (!UtilsFs.checkFileExists(path)) {
             try self.printer.append("Pre-Built does NOT exist!\n\n", .{}, .{});
             return;
         }
 
         try self.printer.append("Pre-Built found!\n", .{}, .{});
 
-        if (!try UtilsFs.checkDirExists(targetPath)) {
+        if (!UtilsFs.checkDirExists(targetPath)) {
             try self.printer.append("Creating target path...\n", .{}, .{});
             try std.fs.cwd().makePath(targetPath);
             try self.printer.append("Created!\n\n", .{}, .{});
@@ -55,7 +55,7 @@ pub const PreBuilt = struct {
         const path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.zep", .{ Constants.ROOT_ZEP_PREBUILT_FOLDER, preBuiltName });
         defer self.allocator.free(path);
 
-        if (try UtilsFs.checkFileExists(path)) {
+        if (UtilsFs.checkFileExists(path)) {
             try self.printer.append("Pre-Built already exists! Overwriting it now...\n\n", .{}, .{});
             try std.fs.cwd().deleteFile(path);
         }
@@ -75,7 +75,7 @@ pub const PreBuilt = struct {
         const path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.zep", .{ Constants.ROOT_ZEP_PREBUILT_FOLDER, preBuiltName });
         defer self.allocator.free(path);
 
-        if (try UtilsFs.checkFileExists(path)) {
+        if (UtilsFs.checkFileExists(path)) {
             try self.printer.append("Pre-Built found!\n", .{}, .{});
             try std.fs.cwd().deleteFile(path);
             try self.printer.append("Deleted.\n\n", .{}, .{});

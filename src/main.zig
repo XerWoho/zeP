@@ -73,14 +73,22 @@ pub fn main() !void {
         return;
     };
 
+    if (builtin.os.tag == .linux) {
+        const pid = std.os.linux.geteuid();
+        if (pid != 0) {
+            try printer.append("Root permissions required for this action!\n", .{}, .{ .color = 31 });
+            return;
+        }
+    }
+
     // ------------------------
     // Schema check
     // ------------------------
     // First verify that we are in zeP project
     //-------------------------
-    if (try UtilsFs.checkFileExists(Constants.ZEP_LOCK_PACKAGE_FILE) and
-        try UtilsFs.checkFileExists(Constants.ZEP_PACKAGE_FILE) and
-        try UtilsFs.checkDirExists(Constants.ZEP_FOLDER))
+    if (UtilsFs.checkFileExists(Constants.ZEP_LOCK_PACKAGE_FILE) and
+        UtilsFs.checkFileExists(Constants.ZEP_PACKAGE_FILE) and
+        UtilsFs.checkDirExists(Constants.ZEP_FOLDER))
     {
         const lock = try UtilsManifest.readManifest(Structs.PackageLockStruct, allocator, Constants.ZEP_LOCK_PACKAGE_FILE);
         defer lock.deinit();

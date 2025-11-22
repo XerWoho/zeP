@@ -56,7 +56,7 @@ pub const Zep = struct {
 
         const path = try std.fmt.allocPrint(self.allocator, "{s}/v/{s}", .{ Constants.ROOT_ZEP_ZEP_FOLDER, targetVersion });
         defer self.allocator.free(path);
-        if (try UtilsFs.checkDirExists(path)) {
+        if (UtilsFs.checkDirExists(path)) {
             try self.printer.append("Zep version already installed.\n", .{}, .{});
             try self.printer.append("Use 'zeP zep switch x.x.x' to update.\n\n", .{}, .{});
             return;
@@ -75,7 +75,7 @@ pub const Zep = struct {
         const path = try std.fmt.allocPrint(self.allocator, "{s}/v/{s}", .{ Constants.ROOT_ZEP_ZEP_FOLDER, targetVersion });
         defer self.allocator.free(path);
 
-        if (!try UtilsFs.checkDirExists(path)) {
+        if (!UtilsFs.checkDirExists(path)) {
             try self.printer.append("Zep version is not installed.\n\n", .{}, .{});
             return;
         }
@@ -94,7 +94,7 @@ pub const Zep = struct {
         const path = try std.fmt.allocPrint(self.allocator, "{s}/v/{s}", .{ Constants.ROOT_ZEP_ZEP_FOLDER, targetVersion });
         defer self.allocator.free(path);
 
-        if (!try UtilsFs.checkDirExists(path)) {
+        if (!UtilsFs.checkDirExists(path)) {
             try self.printer.append("Zep version not installed.\n\n", .{}, .{});
             return;
         }

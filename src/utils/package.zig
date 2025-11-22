@@ -107,7 +107,7 @@ pub const Package = struct {
     pub fn deinit(_: *Package) void {}
 
     fn getPackageNames(self: *Package) !std.ArrayList([]const u8) {
-        if (!try UtilsFs.checkFileExists(Constants.ROOT_ZEP_ZEP_MANIFEST)) {
+        if (!UtilsFs.checkFileExists(Constants.ROOT_ZEP_ZEP_MANIFEST)) {
             var tmp = try std.fs.cwd().createFile(Constants.ROOT_ZEP_ZEP_MANIFEST, .{});
             defer tmp.close();
             try self.json.writePretty(Constants.ROOT_ZEP_ZEP_MANIFEST, Structs.ZepManifest{

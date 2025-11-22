@@ -31,7 +31,7 @@ pub const Purger = struct {
         const previous_verbosity = Locales.VERBOSITY_MODE;
         Locales.VERBOSITY_MODE = 0;
 
-        if (!try UtilsFs.checkFileExists(Constants.ZEP_PACKAGE_FILE)) {
+        if (!UtilsFs.checkFileExists(Constants.ZEP_PACKAGE_FILE)) {
             // Initialize zep.json if missing
             var initter = try Init.Init.init(self.allocator);
             try initter.commitInit();
@@ -62,7 +62,7 @@ pub const Purger = struct {
     /// Purge caches
     pub fn purgeCache(self: *Purger) !void {
         try self.printer.append("Purging caches...\n", .{}, .{});
-        if (try UtilsFs.checkDirExists(Constants.ROOT_ZEP_ZEPPED_FOLDER)) {
+        if (UtilsFs.checkDirExists(Constants.ROOT_ZEP_ZEPPED_FOLDER)) {
             try std.fs.cwd().deleteTree(Constants.ROOT_ZEP_ZEPPED_FOLDER);
         }
 

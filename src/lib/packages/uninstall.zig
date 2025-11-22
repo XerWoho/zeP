@@ -74,7 +74,7 @@ pub const Uninstaller = struct {
         // Remove symbolic link
         const linkPath = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ Constants.ZEP_FOLDER, self.packageName });
         defer self.allocator.free(linkPath);
-        if (try UtilsFs.checkDirExists(linkPath)) {
+        if (UtilsFs.checkDirExists(linkPath)) {
             const cwd = try std.fs.cwd().realpathAlloc(self.allocator, ".");
             defer self.allocator.free(cwd);
 

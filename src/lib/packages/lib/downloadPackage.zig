@@ -98,7 +98,7 @@ pub const Downloader = struct {
         const path = try self.packagePath();
         defer self.allocator.free(path);
 
-        if (try UtilsFs.checkDirExists(path)) {
+        if (UtilsFs.checkDirExists(path)) {
             try UtilsFs.delDir(path);
         }
 
@@ -203,7 +203,7 @@ pub const Downloader = struct {
     fn doesPackageExist(self: *Downloader) !bool {
         const path = try self.packagePath();
         defer self.allocator.free(path);
-        return try UtilsFs.checkDirExists(path);
+        return UtilsFs.checkDirExists(path);
     }
 
     pub fn downloadPackage(self: *Downloader, url: []const u8) !void {

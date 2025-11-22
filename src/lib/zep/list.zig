@@ -36,12 +36,12 @@ pub const ZepLister = struct {
         const versionsDir = try std.fmt.allocPrint(self.allocator, "{s}/v/", .{Constants.ROOT_ZEP_ZEP_FOLDER});
         defer self.allocator.free(versionsDir);
 
-        if (!try UtilsFs.checkDirExists(versionsDir)) {
+        if (!UtilsFs.checkDirExists(versionsDir)) {
             try self.printer.append("No versions installed!\n\n", .{}, .{});
             return;
         }
 
-        if (!try UtilsFs.checkFileExists(Constants.ROOT_ZEP_ZEP_MANIFEST)) {
+        if (!UtilsFs.checkFileExists(Constants.ROOT_ZEP_ZEP_MANIFEST)) {
             var json = try UtilsJson.Json.init(self.allocator);
             try json.writePretty(Constants.ROOT_ZEP_ZEP_MANIFEST, Structs.ZepManifest{
                 .version = "",

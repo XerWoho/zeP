@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const Locales = @import("locales");
 const Constants = @import("constants");
@@ -144,7 +145,11 @@ pub const Installer = struct {
         const absLinkedPath = try std.fs.path.resolve(self.allocator, &[_][]const u8{ cwd, linkPath });
         defer self.allocator.free(absLinkedPath);
 
-        if (try UtilsFs.checkDirExists(linkPath)) try std.fs.cwd().deleteDir(linkPath);
+        if (builtin.os.tag == .windows) {
+            if (UtilsFs.checkDirExists(linkPath)) try std.fs.cwd().deleteDir(linkPath);
+        } else {
+            if (UtilsFs.checkDirExists(linkPath)) try std.fs.cwd().deleteFile(linkPath);
+        }
         try std.fs.cwd().symLink(targetPath, linkPath, .{ .is_directory = true });
 
         try UtilsManifest.addPathToManifest(

@@ -47,7 +47,7 @@ pub const ZigInstaller = struct {
         );
 
         // Download if not cached
-        if (!try UtilsFs.checkFileExists(targetFile)) {
+        if (!UtilsFs.checkFileExists(targetFile)) {
             try self.downloadFile(tarball, targetFile);
         } else {
             try self.printer.append("Data found in cache!\n", .{}, .{});
@@ -124,7 +124,7 @@ pub const ZigInstaller = struct {
     // ------------------------
     fn decompressWindows(self: *ZigInstaller, skStream: std.fs.File.SeekableStream, decompressedPath: []const u8, target: []const u8) !void {
         const newTarget = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ decompressedPath, target });
-        if (try UtilsFs.checkDirExists(newTarget)) {
+        if (UtilsFs.checkDirExists(newTarget)) {
             try self.printer.append("Already installed!\n", .{}, .{});
             return;
         }
@@ -157,26 +157,27 @@ pub const ZigInstaller = struct {
 
         var decompressed = try std.compress.xz.decompress(self.allocator, reader);
         defer decompressed.deinit();
+        const decompressReader = decompressed.reader();
 
         var filenameBuf: [std.fs.max_path_bytes]u8 = undefined;
         var linkBuf: [std.fs.max_path_bytes]u8 = undefined;
-        var tarIter = std.tar.iterator(decompressed.reader(), .{ .file_name_buffer = &filenameBuf, .link_name_buffer = &linkBuf });
+        var tarIter = std.tar.iterator(decompressReader, .{ .file_name_buffer = &filenameBuf, .link_name_buffer = &linkBuf });
 
-        const firstFile = try tarIter.next();
-        const extractedName = firstFile.?.name;
+        const firstFile = try tarIter.next() orelse @panic("Invalid tar file");
+        const extractedName = firstFile.name;
 
         const newTarget = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ decompressedPath, target });
-        if (try UtilsFs.checkDirExists(newTarget)) {
+        if (UtilsFs.checkDirExists(newTarget)) {
             try self.printer.append("Already installed!\n", .{}, .{});
             return;
         }
 
         const extractTarget = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ decompressedPath, extractedName });
-        try std.tar.pipeToFileSystem(dir, decompressed.reader(), .{ .mode_mode = .ignore });
+        try std.tar.pipeToFileSystem(dir, decompressReader, .{ .mode_mode = .ignore });
         try self.printer.append("Extracted!\n\n", .{}, .{});
         try std.fs.cwd().rename(extractTarget, newTarget);
 
-        const zigExeTarget = try std.fmt.allocPrint(self.allocator, "{s}/zig.exe", .{extractTarget});
+        const zigExeTarget = try std.fmt.allocPrint(self.allocator, "{s}/zig", .{newTarget});
         defer self.allocator.free(zigExeTarget);
         const zigExeFile = try UtilsFs.openFile(zigExeTarget);
         defer zigExeFile.close();
@@ -188,11 +189,10 @@ pub const ZigInstaller = struct {
     // ------------------------
     pub fn install(self: *ZigInstaller, name: []const u8, tarball: []const u8, version: []const u8, target: []const u8) !void {
         try self.fetchData(name, tarball, version, target);
-
         try self.printer.append("Modifying Manifest...\n", .{}, .{});
 
         const path = try std.fmt.allocPrint(self.allocator, "{s}/d/{s}/{s}", .{ Constants.ROOT_ZEP_ZIG_FOLDER, version, target });
-        try UtilsManifest.writeManifest(
+        UtilsManifest.writeManifest(
             Structs.ZigManifest,
             self.allocator,
             Constants.ROOT_ZEP_ZIG_MANIFEST,
@@ -200,14 +200,16 @@ pub const ZigInstaller = struct {
                 .name = name,
                 .path = path,
             },
-        );
+        ) catch {
+            try self.printer.append("Updating Manifest failed!\n", .{}, .{ .color = 31 });
+        };
 
-        self.printer.pop(1);
         try self.printer.append("Manifest Up to Date!\n", .{}, .{});
 
         try self.printer.append("Switching to installed version...\n", .{}, .{});
-        try Link.updateLink();
-        self.printer.pop(1);
+        Link.updateLink() catch {
+            try self.printer.append("Updating Link has failed!\n", .{}, .{ .color = 31 });
+        };
         try self.printer.append("Switched to installed version!\n", .{}, .{});
     }
 };

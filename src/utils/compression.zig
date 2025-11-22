@@ -53,8 +53,8 @@ pub const Compressor = struct {
     }
 
     pub fn compress(self: *Compressor, targetFolder: []const u8, tarPath: []const u8) !bool {
-        if (!try UtilsFs.checkDirExists(targetFolder)) return false;
-        if (!try UtilsFs.checkDirExists(Constants.ROOT_ZEP_ZEPPED_FOLDER)) {
+        if (!UtilsFs.checkDirExists(targetFolder)) return false;
+        if (!UtilsFs.checkDirExists(Constants.ROOT_ZEP_ZEPPED_FOLDER)) {
             try std.fs.cwd().makeDir(Constants.ROOT_ZEP_ZEPPED_FOLDER);
         }
 
@@ -75,10 +75,10 @@ pub const Compressor = struct {
     }
 
     pub fn decompress(self: *Compressor, zepPath: []const u8, extractPath: []const u8) !bool {
-        if (!try UtilsFs.checkDirExists(extractPath))
+        if (!UtilsFs.checkDirExists(extractPath))
             try std.fs.cwd().makeDir(extractPath);
 
-        if (!try UtilsFs.checkFileExists(zepPath))
+        if (!UtilsFs.checkFileExists(zepPath))
             return false;
 
         var file = try UtilsFs.openFile(zepPath);

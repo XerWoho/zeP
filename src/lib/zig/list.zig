@@ -36,7 +36,7 @@ pub const ZigLister = struct {
         const versionsDir = try std.fmt.allocPrint(self.allocator, "{s}/d/", .{Constants.ROOT_ZEP_ZIG_FOLDER});
         defer self.allocator.free(versionsDir);
 
-        if (!try UtilsFs.checkDirExists(versionsDir)) {
+        if (!UtilsFs.checkDirExists(versionsDir)) {
             try self.printer.append("No versions installed!\n\n", .{}, .{});
             return;
         }

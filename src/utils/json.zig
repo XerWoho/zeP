@@ -23,7 +23,7 @@ pub const Json = struct {
         path: []const u8,
         max: usize,
     ) !?std.json.Parsed(T) {
-        if (!try UtilsFs.checkFileExists(path))
+        if (!UtilsFs.checkFileExists(path))
             return null;
 
         var file = try std.fs.cwd().openFile(path, .{});

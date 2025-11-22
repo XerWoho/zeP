@@ -34,9 +34,8 @@ pub const ZepSwitcher = struct {
     pub fn switchVersion(self: *ZepSwitcher, version: []const u8) !void {
         // Update manifest with new version
         try self.printer.append("Modifying Manifest...\n", .{}, .{});
-
         const path = try std.fmt.allocPrint(self.allocator, "{s}/v/{s}/", .{ Constants.ROOT_ZEP_ZEP_FOLDER, version });
-        try UtilsManifest.writeManifest(
+        UtilsManifest.writeManifest(
             Structs.ZepManifest,
             self.allocator,
             Constants.ROOT_ZEP_ZEP_MANIFEST,
@@ -44,15 +43,17 @@ pub const ZepSwitcher = struct {
                 .version = version,
                 .path = path,
             },
-        );
+        ) catch {
+            try self.printer.append("Updating Manifest failed!\n", .{}, .{ .color = 31 });
+        };
 
-        self.printer.pop(1); // Remove temporary log
         try self.printer.append("Manifest up to date!\n", .{}, .{ .color = 32 });
 
         // Update system PATH to point to new version
         try self.printer.append("Switching to installed version...\n", .{}, .{});
-        try Link.updateLink();
-        self.printer.pop(1); // Remove temporary log
+        Link.updateLink() catch {
+            try self.printer.append("Updating Link has failed!\n", .{}, .{ .color = 31 });
+        };
         try self.printer.append("Switched to installed version successfully!\n", .{}, .{ .color = 32 });
     }
 };

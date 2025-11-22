@@ -38,11 +38,11 @@ pub const Init = struct {
             },
         };
 
-        if (!try UtilsFs.checkFileExists(Constants.ZEP_PACKAGE_FILE)) {
+        if (!UtilsFs.checkFileExists(Constants.ZEP_PACKAGE_FILE)) {
             try self.json.writePretty(Constants.ZEP_PACKAGE_FILE, pkg);
         }
 
-        if (!try UtilsFs.checkFileExists(Constants.ZEP_LOCK_PACKAGE_FILE)) {
+        if (!UtilsFs.checkFileExists(Constants.ZEP_LOCK_PACKAGE_FILE)) {
             try self.json.writePretty(Constants.ZEP_LOCK_PACKAGE_FILE, lock);
         }
     }

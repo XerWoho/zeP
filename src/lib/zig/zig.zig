@@ -141,7 +141,7 @@ pub const Zig = struct {
         const version = try self.getVersion(targetVersion, target);
         if (version.path.len == 0) return;
 
-        if (try UtilsFs.checkDirExists(version.path)) {
+        if (UtilsFs.checkDirExists(version.path)) {
             try self.printer.append("Zig version already installed.\n", .{}, .{});
             try self.printer.append("Use 'zeP zig switch x.x.x' to update.\n\n", .{}, .{});
             return;
@@ -158,7 +158,7 @@ pub const Zig = struct {
     pub fn uninstall(self: *Zig, targetVersion: []const u8, target: []const u8) !void {
         try self.printer.append("Uninstalling version: {s}\nWith target: {s}\n\n", .{ targetVersion, target }, .{});
         const version = try self.getVersion(targetVersion, target);
-        if (!try UtilsFs.checkDirExists(version.path)) {
+        if (!UtilsFs.checkDirExists(version.path)) {
             try self.printer.append("Zig version is not installed.\n\n", .{}, .{});
             return;
         }
@@ -175,7 +175,7 @@ pub const Zig = struct {
     pub fn switchVersion(self: *Zig, targetVersion: []const u8, target: []const u8) !void {
         try self.printer.append("Switching version: {s}\nWith target: {s}\n\n", .{ targetVersion, target }, .{});
         const version = try self.getVersion(targetVersion, target);
-        if (!try UtilsFs.checkDirExists(version.path)) {
+        if (!UtilsFs.checkDirExists(version.path)) {
             try self.printer.append("Zig version not installed.\n\n", .{}, .{});
             return;
         }

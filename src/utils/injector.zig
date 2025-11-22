@@ -58,7 +58,7 @@ pub const Injector = struct {
         const totalPkgs = try injectedPkgs.toOwnedSlice();
         const injectorEnd = "}";
 
-        if (try UtilsFs.checkFileExists(Constants.ZEP_INJECTOR)) {
+        if (UtilsFs.checkFileExists(Constants.ZEP_INJECTOR)) {
             try UtilsFs.delFile(Constants.ZEP_INJECTOR);
         }
 
@@ -81,7 +81,7 @@ pub const Injector = struct {
 
     pub fn injectIntoBuildZig(self: *Injector) !void {
         const path = "build.zig";
-        if (!try UtilsFs.checkFileExists(path)) {
+        if (!UtilsFs.checkFileExists(path)) {
             try self.printer.append("\nbuild.zig does not exist! Initting zig project\n(Make sure zig is installed [zeP zig install x.x.x])\n", .{}, .{});
             // init zig
             const argv = &[2][]const u8{ "zig", "init" };
