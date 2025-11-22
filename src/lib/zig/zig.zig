@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const MAX_JSON_SIZE = 1028 * 1028 * 50; // Maximum size for JSON download
 
@@ -116,7 +117,7 @@ pub const Zig = struct {
         // Parse name from tarball URL
         const prefix = "https://ziglang.org/download/";
         const skipLen = prefix.len + targetVersion.len + 1;
-        const name = tarball[skipLen .. tarball.len - 4];
+        const name = if (builtin.os.tag == .windows) tarball[skipLen .. tarball.len - 4] else tarball[skipLen .. tarball.len - 7];
 
         const path = try std.fmt.allocPrint(
             self.allocator,

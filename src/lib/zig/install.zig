@@ -175,6 +175,12 @@ pub const ZigInstaller = struct {
         try std.tar.pipeToFileSystem(dir, decompressed.reader(), .{ .mode_mode = .ignore });
         try self.printer.append("Extracted!\n\n", .{}, .{});
         try std.fs.cwd().rename(extractTarget, newTarget);
+
+        const zigExeTarget = try std.fmt.allocPrint(self.allocator, "{s}/zig.exe", .{extractTarget});
+        defer self.allocator.free(zigExeTarget);
+        const zigExeFile = try UtilsFs.openFile(zigExeTarget);
+        defer zigExeFile.close();
+        try zigExeFile.chmod(755);
     }
 
     // ------------------------

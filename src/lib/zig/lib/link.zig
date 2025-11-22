@@ -19,23 +19,27 @@ pub fn updateLink() !void {
     const absPath = try std.fs.realpathAlloc(allocator, manifest.value.path);
     defer allocator.free(absPath);
 
-    const linkExePathDir = try std.fmt.allocPrint(allocator, "{s}/e/", .{Constants.ROOT_ZEP_ZIG_FOLDER});
-    if (!try UtilsFs.checkDirExists(linkExePathDir)) {
-        try std.fs.cwd().makePath(linkExePathDir);
-    }
-
-    const linkExePath = try std.fmt.allocPrint(allocator, "{s}/e/zig.exe", .{Constants.ROOT_ZEP_ZIG_FOLDER});
-    defer allocator.free(linkExePath);
-    if (try UtilsFs.checkFileExists(linkExePath)) {
-        try std.fs.cwd().deleteFile(linkExePath);
-    }
-
     const zigExe = try std.fmt.allocPrint(allocator, "{s}/zig.exe", .{absPath});
     defer allocator.free(zigExe);
-    if (builtin.os.tag == .linux) {
-        const zigExeTarget = try std.fs.cwd().openFile(zigExe, .{});
-        try zigExeTarget.chmod(755);
-    }
 
-    try std.fs.cwd().symLink(zigExe, linkExePath, .{ .is_directory = false });
+    if (builtin.os.tag == .windows) {
+        const linkExePathDir = try std.fmt.allocPrint(allocator, "{s}/e/", .{Constants.ROOT_ZEP_ZIG_FOLDER});
+        if (!try UtilsFs.checkDirExists(linkExePathDir)) {
+            try std.fs.cwd().makePath(linkExePathDir);
+        }
+
+        const linkExePath = try std.fmt.allocPrint(allocator, "{s}/e/zig.exe", .{Constants.ROOT_ZEP_ZIG_FOLDER});
+        defer allocator.free(linkExePath);
+        if (try UtilsFs.checkFileExists(linkExePath)) {
+            try std.fs.cwd().deleteFile(linkExePath);
+        }
+
+        try std.fs.cwd().symLink(zigExe, linkExePath, .{ .is_directory = false });
+    } else {
+        const zigExeTarget = try std.fs.cwd().openFile(zigExe, .{});
+        defer zigExeTarget.close();
+        try zigExeTarget.chmod(755);
+
+        try std.fs.cwd().symLink(zigExe, "/usr/local/bin/zig", .{ .is_directory = false });
+    }
 }

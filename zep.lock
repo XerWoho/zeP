@@ -1,20 +1,20 @@
 {
-  "schema": 2,
-  "root": {
-    "author": "Xerrs",
-    "tags": [],
-    "zigVersion": "0.14.0",
-    "repo": "https://github.com/XerWoho/zeP",
-    "name": "zeP",
-    "description": "",
-    "version": "0.3",
-    "license": "A new zig Package manager, and version manager for zig.",
-    "packages": [],
-    "devPackages": [],
-    "build": {
-      "entry": "src/main.zig",
-      "target": "x86_64-windows-msvc"
-    }
-  },
-  "packages": []
+	"schema": 2,
+	"root": {
+		"author": "Xerrs",
+		"tags": [],
+		"zigVersion": "0.14.0",
+		"repo": "https://github.com/XerWoho/zeP",
+		"name": "zeP",
+		"description": "",
+		"version": "0.3",
+		"license": "A new zig Package manager, and version manager for zig.",
+		"packages": [],
+		"devPackages": [],
+		"build": {
+			"entry": "src/main.zig",
+			"target": "x86_64-windows-msvc"
+		}
+	},
+	"packages": []
 }
