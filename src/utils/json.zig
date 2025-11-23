@@ -3,10 +3,9 @@ const std = @import("std");
 const Constants = @import("constants");
 const Structs = @import("structs");
 
-const UtilsFs =
-    @import("fs.zig");
-const UtilsPackage =
-    @import("package.zig");
+const UtilsFs = @import("fs.zig");
+const UtilsPackage = @import("package.zig");
+const UtilsManifest = @import("manifest.zig");
 
 const MAX_JSON_SIZE = 10 * 1024 * 1024; // 10 MB
 
@@ -52,15 +51,15 @@ pub const Json = struct {
     }
 
     pub fn parsePackage(self: *Json, packageName: []const u8) !?std.json.Parsed(Structs.PackageStruct) {
-        const manifestTarget = Constants.ROOT_ZEP_ZEP_MANIFEST;
-        const openManifest = try UtilsFs.openFile(manifestTarget);
-        defer openManifest.close();
+        const manifest = try UtilsManifest.readManifest(Structs.ZepManifest, self.allocator, Constants.ROOT_ZEP_ZEP_MANIFEST);
+        defer manifest.deinit();
+        if (manifest.value.path.len == 0) {
+            std.debug.print("\nManifest path is not defined! Use\n $ zep zep switch <current-version>\nOr re-install to fix!\n", .{});
+            std.process.exit(0);
+            return null;
+        }
 
-        const readOpenManifest = try openManifest.readToEndAlloc(self.allocator, 1024 * 1024);
-        const parsedManifest = try std.json.parseFromSlice(Structs.ZepManifest, self.allocator, readOpenManifest, .{});
-        defer parsedManifest.deinit();
-
-        const localPath = try std.fmt.allocPrint(self.allocator, "{s}/packages/{s}.json", .{ parsedManifest.value.path, packageName });
+        const localPath = try std.fmt.allocPrint(self.allocator, "{s}/packages/{s}.json", .{ manifest.value.path, packageName });
         defer self.allocator.free(localPath);
 
         return try self.parseJsonFromFile(Structs.PackageStruct, localPath, MAX_JSON_SIZE);

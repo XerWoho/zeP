@@ -28,7 +28,7 @@ fn printUsage(printer: *UtilsPrinter.Printer) !void {
     try printer.append("--- SIMPLE COMMANDS ---\n  zeP version\n  zeP help\n  zeP init\n\n", .{}, .{});
     try printer.append("--- PACKAGE COMMANDS ---\n  zeP install (target)@(version)\n  zeP uninstall [target]\n", .{}, .{});
     try printer.append("  zeP purge [pkg|cache]\n", .{}, .{});
-    try printer.append("  zeP remove [custom package name]\n  zeP add\n zeP list [target]\n\n", .{}, .{});
+    try printer.append("  zeP list [target]\n  zeP remove [custom package name]\n  zeP add\n\n", .{}, .{});
     try printer.append("--- PREBUILT COMMANDS ---\n  zeP prebuilt [build|use] [name] (target)\n", .{}, .{});
     try printer.append("  zeP prebuilt delete [name]\n\n", .{}, .{});
     try printer.append("--- ZIG COMMANDS ---\n  zeP zig [uninstall|switch] [version]\n", .{}, .{});
@@ -52,6 +52,18 @@ fn resolveDefaultTarget() []const u8 {
     return Constants.DEFAULT_TARGET_LINUX;
 }
 
+fn isRoot(printer: *UtilsPrinter.Printer) bool {
+    if (builtin.os.tag == .linux) {
+        const pid = std.os.linux.geteuid();
+        if (pid != 0) {
+            printer.append("Root permissions required for this action!\n", .{}, .{ .color = 31 }) catch {};
+            return false;
+        }
+        return true;
+    }
+    return true;
+}
+
 // ------------------------
 // Main Function
 // ------------------------
@@ -63,23 +75,15 @@ pub fn main() !void {
     _ = args.skip(); // skip program name
 
     const data = std.ArrayList(Structs.PrinterData).init(allocator);
-    var printer = try UtilsPrinter.Printer.init(data);
+    var printer = UtilsPrinter.Printer.init(data);
     defer printer.deinit();
     try printer.append("\n", .{}, .{});
 
     const subcommand = args.next() orelse {
-        try printer.append("Missing subcommand.\n\n", .{}, .{});
+        std.debug.print("Missing subcommand!", .{});
         try printUsage(&printer);
         return;
     };
-
-    if (builtin.os.tag == .linux) {
-        const pid = std.os.linux.geteuid();
-        if (pid != 0) {
-            try printer.append("Root permissions required for this action!\n", .{}, .{ .color = 31 });
-            return;
-        }
-    }
 
     // ------------------------
     // Schema check
@@ -118,11 +122,15 @@ pub fn main() !void {
     // Custom package commands
     // ------------------------
     if (std.mem.eql(u8, subcommand, "add")) {
+        if (!isRoot(&printer)) return;
+
         var custom = CustomPackage.CustomPackage.init(allocator, &printer);
         try custom.requestPackage();
         return;
     }
     if (std.mem.eql(u8, subcommand, "remove")) {
+        if (!isRoot(&printer)) return;
+
         const target = args.next();
         var custom = CustomPackage.CustomPackage.init(allocator, &printer);
         if (target == null) {
@@ -143,6 +151,8 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "install")) {
+        if (!isRoot(&printer)) return;
+
         const target = args.next();
         if (target) |package| {
             var split = std.mem.splitScalar(u8, package, '@');
@@ -154,10 +164,13 @@ pub fn main() !void {
             installer.install() catch |err| {
                 switch (err) {
                     error.AlreadyInstalled => {
-                        try printer.append("Already installed!\n\n", .{}, .{ .color = 33 });
+                        try printer.append("\nAlready installed!\n\n", .{}, .{ .color = 33 });
+                    },
+                    error.HashMismatch => {
+                        try printer.append("\nHASH MISMATCH!\nPLEASE REPORT!\n\n", .{}, .{ .color = 31 });
                     },
                     else => {
-                        try printer.append("Installing {s} has failed...\n\n", .{package}, .{ .color = 31 });
+                        try printer.append("\nInstalling {s} has failed...\n\n", .{package}, .{ .color = 31 });
                     },
                 }
             };
@@ -169,12 +182,16 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "list")) {
+        if (!isRoot(&printer)) return;
+
         const target = args.next();
         if (target) |package| {
             var split = std.mem.splitScalar(u8, package, '@');
             const packageName = split.first();
             var lister = try List.Lister.init(allocator, &printer, packageName);
-            try lister.list();
+            lister.list() catch {
+                try printer.append("\nListing {s} has failed...\n\n", .{packageName}, .{ .color = 31 });
+            };
         } else {
             try printer.append("Missing argument;\nzeP list [target]\n\n", .{}, .{ .color = 31 });
         }
@@ -182,6 +199,8 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "uninstall")) {
+        if (!isRoot(&printer)) return;
+
         const target = try nextArg(&args, &printer, " > zeP uninstall [target]");
         var split = std.mem.splitScalar(u8, target, '@');
         const packageName = split.first();
@@ -189,18 +208,24 @@ pub fn main() !void {
         var uninstaller = try Uninstall.Uninstaller.init(allocator, packageName, &printer);
         defer uninstaller.deinit();
         uninstaller.uninstall() catch {
-            try printer.append("Installing {s} has failed...\n\n", .{packageName}, .{ .color = 31 });
+            try printer.append("\nInstalling {s} has failed...\n\n", .{packageName}, .{ .color = 31 });
         };
         return;
     }
 
     if (std.mem.eql(u8, subcommand, "purge")) {
+        if (!isRoot(&printer)) return;
+
         const mode = try nextArg(&args, &printer, " > zeP purge [pkg|cache]");
         var purger = try Purge.Purger.init(allocator, &printer);
         if (std.mem.eql(u8, mode, "pkg")) {
-            try purger.purgePkgs();
+            purger.purgePkgs() catch {
+                try printer.append("\nPurging packages has failed...\n\n", .{}, .{ .color = 31 });
+            };
         } else if (std.mem.eql(u8, mode, "cache")) {
-            try purger.purgeCache();
+            purger.purgeCache() catch {
+                try printer.append("\nPurging cache has failed...\n\n", .{}, .{ .color = 31 });
+            };
         } else {
             try printer.append("Invalid mode: {s}\n\n", .{mode}, .{});
         }
@@ -221,13 +246,21 @@ pub fn main() !void {
                 break :blk ".";
             };
             if (std.mem.eql(u8, mode, "build")) {
-                try prebuilt.buildBuilt(name, target);
+                prebuilt.buildBuilt(name, target) catch {
+                    try printer.append("\nBuilding prebuilt has failed...\n\n", .{}, .{ .color = 31 });
+                };
             } else {
-                try prebuilt.useBuilt(name, target);
+                prebuilt.useBuilt(name, target) catch {
+                    try printer.append("\nUsing prebuilt has failed...\n\n", .{}, .{ .color = 31 });
+                };
             }
         } else if (std.mem.eql(u8, mode, "delete")) {
+            if (!isRoot(&printer)) return;
+
             const name = try nextArg(&args, &printer, " > zeP prebuilt delete [name]");
-            try prebuilt.deleteBuilt(name);
+            prebuilt.deleteBuilt(name) catch {
+                try printer.append("\nDeleting prebuilt has failed...\n\n", .{}, .{ .color = 31 });
+            };
         } else {
             try printer.append("Invalid mode: {s}\n\n", .{mode}, .{});
         }
@@ -238,6 +271,8 @@ pub fn main() !void {
     // Zig commands
     // ------------------------
     if (std.mem.eql(u8, subcommand, "zig")) {
+        if (!isRoot(&printer)) return;
+
         const mode = try nextArg(&args, &printer, " > zeP zig [install|switch|uninstall|list] [version]");
         var zig = try Zig.Zig.init(allocator, &printer);
         defer zig.deinit();
@@ -246,14 +281,22 @@ pub fn main() !void {
             const version = try nextArg(&args, &printer, " > zeP zig {install|switch|uninstall} [version] [target?]");
             const target = args.next() orelse resolveDefaultTarget();
             if (std.mem.eql(u8, mode, "install")) {
-                try zig.install(version, target);
+                zig.install(version, target) catch {
+                    try printer.append("\nInstalling zig version {s} has failed...\n\n", .{version}, .{ .color = 31 });
+                };
             } else if (std.mem.eql(u8, mode, "uninstall")) {
-                try zig.uninstall(version, target);
+                zig.uninstall(version, target) catch {
+                    try printer.append("\nUninstalling zig version {s} has failed...\n\n", .{version}, .{ .color = 31 });
+                };
             } else {
-                try zig.switchVersion(version, target);
+                zig.switchVersion(version, target) catch {
+                    try printer.append("\nSwitching zig version {s} has failed...\n\n", .{version}, .{ .color = 31 });
+                };
             }
         } else if (std.mem.eql(u8, mode, "list")) {
-            try zig.list();
+            zig.list() catch {
+                try printer.append("\nListing zig versions has failed...\n\n", .{}, .{ .color = 31 });
+            };
         } else {
             try printer.append("Invalid mode: {s}\n\n", .{mode}, .{});
         }
@@ -264,6 +307,8 @@ pub fn main() !void {
     // Zep commands
     // ------------------------
     if (std.mem.eql(u8, subcommand, "zep")) {
+        if (!isRoot(&printer)) return;
+
         const mode = try nextArg(&args, &printer, " > zeP zep [install|switch|uninstall|list] [version]");
         var zep = try Zep.Zep.init(allocator, &printer);
         defer zep.deinit();
@@ -271,11 +316,17 @@ pub fn main() !void {
         if (std.mem.eql(u8, mode, "install") or std.mem.eql(u8, mode, "uninstall") or std.mem.eql(u8, mode, "switch")) {
             const version = try nextArg(&args, &printer, " > zeP zep {install|switch|uninstall} [version]");
             if (std.mem.eql(u8, mode, "install")) {
-                try zep.install(version);
+                zep.install(version) catch {
+                    try printer.append("\nInstalling zep version {s} has failed...\n\n", .{version}, .{ .color = 31 });
+                };
             } else if (std.mem.eql(u8, mode, "uninstall")) {
-                try zep.uninstall(version);
+                zep.uninstall(version) catch {
+                    try printer.append("\nUninstalling zep version {s} has failed...\n\n", .{version}, .{ .color = 31 });
+                };
             } else {
-                try zep.switchVersion(version);
+                zep.switchVersion(version) catch {
+                    try printer.append("\nSwitching to zep version {s} has failed...\n\n", .{version}, .{ .color = 31 });
+                };
             }
         } else if (std.mem.eql(u8, mode, "list")) {
             try zep.list();

@@ -14,55 +14,45 @@ pub fn updateLink() !void {
     var allocator = std.heap.page_allocator;
 
     // Load manifest and get absolute path
-    const manifest = UtilsManifest.readManifest(Structs.ZigManifest, allocator, Constants.ROOT_ZEP_ZIG_MANIFEST) catch {
-        @panic("Reading Manifest failed!");
-    };
+    const manifest = try UtilsManifest.readManifest(Structs.ZigManifest, allocator, Constants.ROOT_ZEP_ZIG_MANIFEST);
+    if (manifest.value.path.len == 0) {
+        std.debug.print("\nManifest path is not defined! Use\n $ zep zig switch <zig-version>\nTo fix!\n", .{});
+        std.process.exit(0);
+        return;
+    }
 
     defer manifest.deinit();
+
     const absPath = try std.fs.realpathAlloc(allocator, manifest.value.path);
     defer allocator.free(absPath);
 
     if (builtin.os.tag == .windows) {
         const zigExe = try std.fmt.allocPrint(allocator, "{s}/zig.exe", .{absPath});
         defer allocator.free(zigExe);
-        if (!UtilsFs.checkFileExists(zigExe)) {
-            @panic("Zig exe does not exists!");
-        }
+        if (!UtilsFs.checkFileExists(zigExe)) return;
 
         const linkExePathDir = try std.fmt.allocPrint(allocator, "{s}/e/", .{Constants.ROOT_ZEP_ZIG_FOLDER});
         if (!UtilsFs.checkDirExists(linkExePathDir)) {
-            std.fs.cwd().makePath(linkExePathDir) catch {
-                @panic("Making path!");
-            };
+            try std.fs.cwd().makePath(linkExePathDir);
         }
 
         const linkExePath = try std.fmt.allocPrint(allocator, "{s}/e/zig.exe", .{Constants.ROOT_ZEP_ZIG_FOLDER});
         defer allocator.free(linkExePath);
         if (UtilsFs.checkFileExists(linkExePath)) {
-            std.fs.cwd().deleteFile(linkExePath) catch {
-                @panic("Deleting!");
-            };
+            try std.fs.cwd().deleteFile(linkExePath);
         }
 
-        std.fs.cwd().symLink(zigExe, linkExePath, .{ .is_directory = false }) catch {
-            @panic("Symlink failed windows!");
-        };
+        try std.fs.cwd().symLink(zigExe, linkExePath, .{ .is_directory = false });
     } else {
         const zigExe = try std.fmt.allocPrint(allocator, "{s}/zig", .{absPath});
         defer allocator.free(zigExe);
-        if (!UtilsFs.checkFileExists(zigExe)) {
-            @panic("Zig exe does not exists!");
-        }
+        if (!UtilsFs.checkFileExists(zigExe)) return;
 
         const zigExeTarget = try std.fs.cwd().openFile(zigExe, .{});
         defer zigExeTarget.close();
-        zigExeTarget.chmod(755) catch {
-            @panic("chmod 755!");
-        };
+        try zigExeTarget.chmod(755);
 
         try UtilsFs.delFile("/usr/local/bin/zig");
-        std.fs.cwd().symLink(zigExe, "/usr/local/bin/zig", .{ .is_directory = false }) catch {
-            @panic("Symlink failed linux!");
-        };
+        try std.fs.cwd().symLink(zigExe, "/usr/local/bin/zig", .{ .is_directory = false });
     }
 }

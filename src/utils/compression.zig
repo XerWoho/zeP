@@ -1,5 +1,4 @@
-const std =
-    @import("std");
+const std = @import("std");
 
 const Constants = @import("constants");
 const UtilsFs = @import("fs.zig");
@@ -9,14 +8,13 @@ pub const Compressor = struct {
     allocator: std.mem.Allocator,
     printer: *UtilsPrinter.Printer,
 
-    pub fn init(allocator: std.mem.Allocator, printer: *UtilsPrinter.Printer) !Compressor {
+    pub fn init(allocator: std.mem.Allocator, printer: *UtilsPrinter.Printer) Compressor {
         return Compressor{ .allocator = allocator, .printer = printer };
     }
 
     fn compressTmp(self: *Compressor, folderPath: []const u8, tarPath: []const u8) !void {
-        var dir = try std.fs.cwd().openDir(folderPath, .{ .iterate = true });
+        var dir = try UtilsFs.openDir(folderPath);
         defer dir.close();
-
         var tmpFile = try UtilsFs.openFile(tarPath);
         defer tmpFile.close();
 
@@ -30,7 +28,7 @@ pub const Compressor = struct {
                 continue;
             }
 
-            var file = try std.fs.cwd().openFile(fullPath, .{ .mode = .read_only });
+            var file = try UtilsFs.openFile(fullPath);
             defer file.close();
 
             var compressed = std.ArrayList(u8).init(self.allocator);
@@ -55,7 +53,7 @@ pub const Compressor = struct {
     pub fn compress(self: *Compressor, targetFolder: []const u8, tarPath: []const u8) !bool {
         if (!UtilsFs.checkDirExists(targetFolder)) return false;
         if (!UtilsFs.checkDirExists(Constants.ROOT_ZEP_ZEPPED_FOLDER)) {
-            try std.fs.cwd().makeDir(Constants.ROOT_ZEP_ZEPPED_FOLDER);
+            _ = try UtilsFs.openCDir(Constants.ROOT_ZEP_ZEPPED_FOLDER);
         }
 
         const tmpTarPath = try std.fmt.allocPrint(self.allocator, "{s}.tmp", .{tarPath});
@@ -65,21 +63,19 @@ pub const Compressor = struct {
         defer tmpFile.close();
         var outFile = try UtilsFs.openFile(tarPath);
         defer outFile.close();
-        std.compress.zlib.compress(tmpFile.reader(), outFile.writer(), .{}) catch {
-            return false;
-        };
-        std.fs.cwd().deleteFile(tmpTarPath) catch {
-            @panic("failed to delete tmp file!");
-        };
+        try std.compress.zlib.compress(tmpFile.reader(), outFile.writer(), .{});
+        try UtilsFs.delFile(tmpTarPath);
         return true;
     }
 
     pub fn decompress(self: *Compressor, zepPath: []const u8, extractPath: []const u8) !bool {
-        if (!UtilsFs.checkDirExists(extractPath))
-            try std.fs.cwd().makeDir(extractPath);
+        if (!UtilsFs.checkDirExists(extractPath)) {
+            _ = try UtilsFs.openCDir(extractPath);
+        }
 
-        if (!UtilsFs.checkFileExists(zepPath))
+        if (!UtilsFs.checkFileExists(zepPath)) {
             return false;
+        }
 
         var file = try UtilsFs.openFile(zepPath);
         defer file.close();

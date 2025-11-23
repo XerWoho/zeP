@@ -8,23 +8,15 @@ const UtilsManifest = @import("manifest.zig");
 const UtilsJson = @import("json.zig");
 
 pub fn writeManifest(comptime ManifestType: type, allocator: std.mem.Allocator, path: []const u8, manifest: ManifestType) !void {
-    _ = UtilsFs.delFile(path) catch {};
+    try UtilsFs.delFile(path);
 
-    const jsonStr = std.json.stringifyAlloc(allocator, manifest, .{ .whitespace = .indent_tab }) catch {
-        @panic("Stringifying failed!");
-    };
+    const jsonStr = try std.json.stringifyAlloc(allocator, manifest, .{ .whitespace = .indent_tab });
     defer allocator.free(jsonStr);
 
     // Write to manifest file
-    const f = UtilsFs.openCFile(path) catch {
-        std.debug.print("{s}\n", .{path});
-        @panic("Stringifying failed!");
-    };
+    const f = try UtilsFs.openCFile(path);
     defer f.close();
-    _ = f.write(jsonStr) catch {
-        std.debug.print("{s}\n", .{jsonStr});
-        @panic("Writing failed!");
-    };
+    _ = try f.write(jsonStr);
 }
 
 pub fn readManifest(comptime ManifestType: type, allocator: std.mem.Allocator, path: []const u8) !std.json.Parsed(ManifestType) {
@@ -37,7 +29,11 @@ pub fn readManifest(comptime ManifestType: type, allocator: std.mem.Allocator, p
     defer f.close();
 
     const data = try f.readToEndAlloc(allocator, 10 * 1024 * 1024);
-    const parsed = try std.json.parseFromSlice(ManifestType, allocator, data, .{});
+    const parsed = std.json.parseFromSlice(ManifestType, allocator, data, .{}) catch {
+        try std.fs.cwd().deleteFile(path);
+        return try readManifest(ManifestType, allocator, path);
+    };
+
     return parsed;
 }
 

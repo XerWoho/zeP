@@ -43,7 +43,11 @@ pub const ZigLister = struct {
 
         const manifest = try UtilsManifest.readManifest(Structs.ZigManifest, self.allocator, Constants.ROOT_ZEP_ZIG_MANIFEST);
         defer manifest.deinit();
-
+        if (manifest.value.path.len == 0) {
+            std.debug.print("\nManifest path is not defined! Use\n $ zep zig switch <zig-version>\nTo fix!\n", .{});
+            std.process.exit(0);
+            return;
+        }
         const dir = try std.fs.cwd().openDir(versionsDir, std.fs.Dir.OpenDirOptions{ .iterate = true });
         var it = dir.iterate();
         while (try it.next()) |entry| {

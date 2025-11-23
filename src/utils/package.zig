@@ -51,7 +51,8 @@ pub const Package = struct {
 
         const versions = parsedPkg.?.value.versions;
         if (versions.len == 0) {
-            @panic("Package has no versions!");
+            printer.append("\nPackage has no version!\n", .{}, .{ .color = 31 }) catch {};
+            return null;
         }
 
         // Pick target version
@@ -211,6 +212,15 @@ pub const Package = struct {
         try self.printer.append("\n", .{}, .{});
 
         return null;
+    }
+
+    pub fn deletePackage(self: *Package) !void {
+        const path = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ Constants.ROOT_ZEP_PKG_FOLDER, self.id });
+        defer self.allocator.free(path);
+
+        if (UtilsFs.checkDirExists(path)) {
+            try UtilsFs.delTree(path);
+        }
     }
 
     // --- PACKAGE-FILES ---

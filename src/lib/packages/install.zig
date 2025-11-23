@@ -27,24 +27,23 @@ pub const Installer = struct {
     cacher: CachePackage.Cacher,
     printer: *UtilsPrinter.Printer,
 
-    pub fn init(allocator: std.mem.Allocator, printer: *UtilsPrinter.Printer, packageName: ?[]const u8, packageVersionTarget: ?[]const u8) anyerror!Installer {
+    pub fn init(allocator: std.mem.Allocator, printer: *UtilsPrinter.Printer, packageName: ?[]const u8, packageVersionTarget: ?[]const u8) !Installer {
         if (packageName == null) {
             const previous_verbosity = Locales.VERBOSITY_MODE;
             Locales.VERBOSITY_MODE = 0;
 
             try printer.append("Installing all packages...\n", .{}, .{ .verbosity = 0 });
-            installAll(allocator, printer) catch {
-                try printer.append("Installing all packages failed...\n\n", .{}, .{ .verbosity = 0, .color = 31 });
-            };
+
+            try installAll(allocator, printer);
 
             Locales.VERBOSITY_MODE = previous_verbosity;
             std.process.exit(0);
-            return error.NoPackage;
+            return .NoPackageSpecified;
         }
 
         const package = try UtilsPackage.Package.init(allocator, packageName.?, packageVersionTarget, printer) orelse {
             std.process.exit(0);
-            return error.NoPackage;
+            return .PackageNotFound;
         };
 
         const cacher = try CachePackage.Cacher.init(allocator, package, printer);
@@ -95,9 +94,7 @@ pub const Installer = struct {
                     self.printer,
                 );
 
-                uninstaller.uninstall() catch {
-                    try self.printer.append("Failed to uninstall {s}...\n\n", .{self.package.packageName}, .{ .color = 31 });
-                };
+                try uninstaller.uninstall();
                 Locales.VERBOSITY_MODE = previous_verbosity;
             }
         }
@@ -109,18 +106,21 @@ pub const Installer = struct {
         if (std.mem.eql(u8, package.packageHash, parsed.sha256sum)) {
             try self.printer.append("HASH IDENTICAL!\n", .{}, .{});
         } else {
+            try self.package.deletePackage();
+            try self.cacher.deletePackageFromCache();
             return error.HashMismatch;
-            // try self.printer.append("HASH IDENTICAL!\n", .{}, .{});
         }
 
         try self.printer.append("\nChecking Caching...\n", .{}, .{});
-        if (!(try self.cacher.isPackageCached())) {
+        const isPackageCached = try self.cacher.isPackageCached();
+        if (!isPackageCached) {
             try self.printer.append("\nCaching...\n", .{}, .{});
 
             try self.cacher.cachePackage();
             try self.printer.append("PACKAGE CACHED!\n\n", .{}, .{});
         }
         try self.printer.append("PACKAGE ALREADY CACHED! SKIPPING CACHING!\n\n", .{}, .{});
+
         try self.setPackage();
         try self.printer.append("Successfully installed - {s}\n\n", .{package.packageName}, .{ .color = 32 });
     }
@@ -137,6 +137,8 @@ pub const Installer = struct {
         defer self.allocator.free(targetPath);
 
         const linkPath = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ Constants.ZEP_FOLDER, package.packageName });
+        std.fs.cwd().deleteDir(linkPath) catch {};
+        std.fs.cwd().deleteFile(linkPath) catch {};
         defer self.allocator.free(linkPath);
 
         const cwd = try std.fs.cwd().realpathAlloc(self.allocator, ".");
@@ -144,22 +146,17 @@ pub const Installer = struct {
 
         const absLinkedPath = try std.fs.path.resolve(self.allocator, &[_][]const u8{ cwd, linkPath });
         defer self.allocator.free(absLinkedPath);
-
-        if (builtin.os.tag == .windows) {
-            if (UtilsFs.checkDirExists(linkPath)) try std.fs.cwd().deleteDir(linkPath);
-        } else {
-            if (UtilsFs.checkDirExists(linkPath)) try std.fs.cwd().deleteFile(linkPath);
-        }
         try std.fs.cwd().symLink(targetPath, linkPath, .{ .is_directory = true });
-
-        try UtilsManifest.addPathToManifest(
+        UtilsManifest.addPathToManifest(
             &self.json,
             self.package.id,
             absLinkedPath,
-        );
+        ) catch {
+            try self.printer.append("Adding to manifest failed!\n", .{}, .{ .color = 31 });
+        };
     }
 
-    pub fn addPackageToJson(self: *Installer) !void {
+    fn addPackageToJson(self: *Installer) !void {
         var packageJson = try UtilsManifest.readManifest(Structs.PackageJsonStruct, self.allocator, Constants.ZEP_PACKAGE_FILE);
         var lockJson = try UtilsManifest.readManifest(Structs.PackageLockStruct, self.allocator, Constants.ZEP_LOCK_PACKAGE_FILE);
 
@@ -170,7 +167,7 @@ pub const Installer = struct {
     }
 };
 
-fn installAll(allocator: std.mem.Allocator, printer: *UtilsPrinter.Printer) !void {
+fn installAll(allocator: std.mem.Allocator, printer: *UtilsPrinter.Printer) anyerror!void {
     var pkgJson = try UtilsManifest.readManifest(Structs.PackageJsonStruct, allocator, Constants.ZEP_PACKAGE_FILE);
 
     const pkgJsonValue = pkgJson.value;

@@ -32,11 +32,11 @@ pub const Downloader = struct {
     // small helper: alloc formatted string and make caller responsible for free
     fn allocFmt(self: *Downloader, fmt: []const u8, args: anytype) ![]u8 {
         // Note: zig fmt helpers differ by version; keep this pattern.
-        return std.fmt.allocPrint(self.allocator, fmt, args);
+        return try std.fmt.allocPrint(self.allocator, fmt, args);
     }
 
     fn packagePath(self: *Downloader) ![]u8 {
-        return std.fmt.allocPrint(
+        return try std.fmt.allocPrint(
             self.allocator,
             "{s}/{s}@{s}",
             .{ Constants.ROOT_ZEP_PKG_FOLDER, self.package.packageName, self.package.packageVersion },
@@ -50,13 +50,11 @@ pub const Downloader = struct {
 
     fn ensureTmpDir(self: *Downloader) !std.fs.Dir {
         const path = self.tmpDirPath();
-        // create directory if not exists; openCDir returns Dir
-        return UtilsFs.openCDir(path);
+        return try UtilsFs.openCDir(path);
     }
 
     fn removeTmpDir(self: *Downloader) !void {
-        // best effort cleanup
-        try std.fs.cwd().deleteTree(self.tmpDirPath());
+        try UtilsFs.delTree(self.tmpDirPath());
     }
 
     fn writeStreamToFile(self: *Downloader, reader: anytype, out_path: []const u8) !void {
@@ -66,7 +64,7 @@ pub const Downloader = struct {
         var buffered_writer = std.io.bufferedWriter(out_file.writer());
         defer {
             buffered_writer.flush() catch {
-                @panic("failed to flush buffer!");
+                self.printer.append("\nFailed to flush buffer!\n", .{}, .{ .color = 31 }) catch {};
             };
         }
 
@@ -95,19 +93,17 @@ pub const Downloader = struct {
 
     fn fetchPackage(self: *Downloader, url: []const u8) !void {
         // allocate paths and free them after use
-        const path = try self.packagePath();
+        const path = self.packagePath() catch |err| return err;
         defer self.allocator.free(path);
 
-        if (UtilsFs.checkDirExists(path)) {
-            try UtilsFs.delDir(path);
-        }
+        if (UtilsFs.checkDirExists(path)) try UtilsFs.delDir(path);
 
         // create/open temporary directory
         var tmp_dir = try self.ensureTmpDir();
         defer tmp_dir.close();
         defer {
             self.removeTmpDir() catch {
-                @panic("Failed to remove temporary directory!");
+                self.printer.append("\nFailed to delete temp directory!\n", .{}, .{ .color = 31 }) catch {};
             };
         }
 
@@ -134,7 +130,7 @@ pub const Downloader = struct {
         );
         defer {
             std.fs.cwd().deleteFile(zipped_path) catch {
-                @panic("failed to delete zip file");
+                self.printer.append("\nFailed to deleted zip file!\n", .{}, .{ .color = 31 }) catch {};
             };
             self.allocator.free(zipped_path);
         }
@@ -183,7 +179,7 @@ pub const Downloader = struct {
             rm_child.stdout_behavior = .Ignore;
             rm_child.stderr_behavior = .Ignore;
             _ = rm_child.spawnAndWait() catch {
-                _ = try self.printer.append("warning: attrib failed\n", .{}, .{});
+                try self.printer.append("warning: attrib failed\n", .{}, .{});
             };
         }
 
@@ -191,12 +187,12 @@ pub const Downloader = struct {
         for (Constants.FILTER_PACKAGE_FOLDERS) |folder| {
             const folder_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ path, folder });
             defer self.allocator.free(folder_path);
-            _ = UtilsFs.delTree(folder_path) catch {};
+            try UtilsFs.delTree(folder_path);
         }
         for (Constants.FILTER_PACKAGE_FILES) |file| {
             const file_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ path, file });
             defer self.allocator.free(file_path);
-            _ = UtilsFs.delFile(file_path) catch {};
+            try UtilsFs.delFile(file_path);
         }
     }
 

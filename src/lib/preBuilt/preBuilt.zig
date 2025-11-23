@@ -17,7 +17,7 @@ pub const PreBuilt = struct {
         if (!UtilsFs.checkDirExists(Constants.ROOT_ZEP_PREBUILT_FOLDER)) {
             try std.fs.cwd().makeDir(Constants.ROOT_ZEP_PREBUILT_FOLDER);
         }
-        const compressor = try UtilsCompression.Compressor.init(allocator, printer);
+        const compressor = UtilsCompression.Compressor.init(allocator, printer);
 
         return PreBuilt{
             .allocator = allocator,

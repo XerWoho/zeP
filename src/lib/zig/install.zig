@@ -93,7 +93,7 @@ pub const ZigInstaller = struct {
         var bufferedWriter = std.io.bufferedWriter(outFile.writer());
         defer {
             bufferedWriter.flush() catch {
-                @panic("Could not flush buffered Writer!");
+                self.printer.append("\nFailed to flush buffer!\n", .{}, .{ .color = 31 }) catch {};
             };
         }
 
@@ -163,7 +163,14 @@ pub const ZigInstaller = struct {
         var linkBuf: [std.fs.max_path_bytes]u8 = undefined;
         var tarIter = std.tar.iterator(decompressReader, .{ .file_name_buffer = &filenameBuf, .link_name_buffer = &linkBuf });
 
-        const firstFile = try tarIter.next() orelse @panic("Invalid tar file");
+        const firstFile = tarIter.next() catch {
+            self.printer.append("\nInvalid tar file!\n", .{}, .{ .color = 31 }) catch {};
+            return;
+        } orelse {
+            self.printer.append("\nInvalid tar file!\n", .{}, .{ .color = 31 }) catch {};
+            return;
+        };
+
         const extractedName = firstFile.name;
 
         const newTarget = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ decompressedPath, target });

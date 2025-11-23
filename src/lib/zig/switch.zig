@@ -59,12 +59,26 @@ pub const ZigSwitcher = struct {
 
             pkg.value.zigVersion = version;
             lock.value.root = pkg.value;
-            try UtilsManifest.writeManifest(Structs.PackageJsonStruct, self.allocator, Constants.ZEP_PACKAGE_FILE, pkg.value);
-            try UtilsManifest.writeManifest(Structs.PackageLockStruct, self.allocator, Constants.ZEP_LOCK_PACKAGE_FILE, lock.value);
+            UtilsManifest.writeManifest(
+                Structs.PackageJsonStruct,
+                self.allocator,
+                Constants.ZEP_PACKAGE_FILE,
+                pkg.value,
+            ) catch {
+                try self.printer.append("Updating Json Manifest failed!\n", .{}, .{ .color = 31 });
+            };
+            UtilsManifest.writeManifest(
+                Structs.PackageLockStruct,
+                self.allocator,
+                Constants.ZEP_LOCK_PACKAGE_FILE,
+                lock.value,
+            ) catch {
+                try self.printer.append("Updating Lock Manifest failed!\n", .{}, .{ .color = 31 });
+            };
             break :blk;
         }
 
-        try self.printer.append("Manifest up to date!\n", .{}, .{});
+        try self.printer.append("Manifests up to date!\n", .{}, .{});
 
         // Update system PATH to point to new version
         try self.printer.append("Switching to installed version...\n", .{}, .{});

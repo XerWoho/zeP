@@ -22,7 +22,7 @@ pub const Cacher = struct {
         return .{
             .allocator = allocator,
             .package = package,
-            .compressor = try UtilsCompression.Compressor.init(allocator, printer),
+            .compressor = UtilsCompression.Compressor.init(allocator, printer),
             .printer = printer,
         };
     }
@@ -34,7 +34,7 @@ pub const Cacher = struct {
     // ---------------------------
 
     fn cacheFilePath(self: *Cacher) ![]u8 {
-        return std.fmt.allocPrint(
+        return try std.fmt.allocPrint(
             self.allocator,
             "{s}/{s}@{s}.zep",
             .{
@@ -46,7 +46,7 @@ pub const Cacher = struct {
     }
 
     fn extractPath(self: *Cacher) ![]u8 {
-        return std.fmt.allocPrint(
+        return try std.fmt.allocPrint(
             self.allocator,
             "{s}/{s}@{s}",
             .{
@@ -81,13 +81,16 @@ pub const Cacher = struct {
     // ---------------------------
 
     pub fn getPackageFromCache(self: *Cacher) !bool {
-        if (!try self.isPackageCached()) return false;
+        const isCached = try self.isPackageCached();
+        if (!isCached) return false;
 
         const _tmpOutputPath = try self.tmpOutputPath();
         var tmpDir = try UtilsFs.openCDir(_tmpOutputPath);
         defer {
             tmpDir.close();
-            std.fs.cwd().deleteTree(".ZEPtmp") catch {};
+            std.fs.cwd().deleteTree(".ZEPtmp") catch {
+                self.printer.append("\nFailed to deleted .ZEPtmp!\n", .{}, .{ .color = 31 }) catch {};
+            };
             self.allocator.free(_tmpOutputPath);
         }
 
@@ -101,7 +104,17 @@ pub const Cacher = struct {
     }
 
     pub fn setPackageToCache(self: *Cacher, targetFolder: []const u8) !bool {
-        return try self.compressor.compress(targetFolder, try self.cacheFilePath());
+        const cfPath = try self.cacheFilePath();
+        return try self.compressor.compress(targetFolder, cfPath);
+    }
+
+    pub fn deletePackageFromCache(self: *Cacher) !void {
+        const path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.zep", .{ Constants.ROOT_ZEP_ZEPPED_FOLDER, self.package.id });
+        defer self.allocator.free(path);
+
+        if (UtilsFs.checkFileExists(path)) {
+            try UtilsFs.delFile(path);
+        }
     }
 
     // ---------------------------

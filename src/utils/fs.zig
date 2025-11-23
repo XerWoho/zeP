@@ -31,23 +31,21 @@ pub fn openCFile(path: []const u8) !std.fs.File {
 
 pub fn openFile(path: []const u8) !std.fs.File {
     if (!checkFileExists(path)) {
-        _ = try std.fs.cwd().createFile(path, std.fs.File.CreateFlags{ .read = true });
+        return try std.fs.cwd().createFile(path, std.fs.File.CreateFlags{ .read = true });
     }
     return try std.fs.cwd().openFile(path, std.fs.File.OpenFlags{ .mode = .read_write });
 }
 
 pub fn openCDir(path: []const u8) !std.fs.Dir {
     if (!checkDirExists(path)) {
-        const parent = std.fs.path.dirname(path) orelse "";
-        try std.fs.cwd().makePath(parent);
-        _ = try std.fs.cwd().makeDir(path);
+        try std.fs.cwd().makePath(path);
     }
     return try std.fs.cwd().openDir(path, std.fs.Dir.OpenDirOptions{ .iterate = true });
 }
 
 pub fn openDir(path: []const u8) !std.fs.Dir {
     if (!checkDirExists(path)) {
-        _ = try std.fs.cwd().makeDir(path);
+        try std.fs.cwd().makeDir(path);
     }
     return try std.fs.cwd().openDir(path, std.fs.Dir.OpenDirOptions{ .iterate = true });
 }
