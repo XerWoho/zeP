@@ -5,6 +5,7 @@ mkdir -p release
 mkdir -p release/w
 mkdir -p release/l
 
+# 536b43b67b18ce160a8043065523c8d5a198745da9d4fd86abd2bbe50499fea4
 
 versionName=$1
 if [ $# -eq 0 ]

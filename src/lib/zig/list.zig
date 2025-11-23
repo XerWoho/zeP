@@ -48,17 +48,36 @@ pub const ZigLister = struct {
             std.process.exit(0);
             return;
         }
-        const dir = try std.fs.cwd().openDir(versionsDir, std.fs.Dir.OpenDirOptions{ .iterate = true });
+
+        var dir = try UtilsFs.openDir(versionsDir);
+        defer dir.close();
         var it = dir.iterate();
+
         while (try it.next()) |entry| {
             if (entry.kind != .directory) continue;
 
             const versionName = try self.allocator.dupe(u8, entry.name);
-            // Mark version as in-use if it matches the manifest
-            if (std.mem.containsAtLeast(u8, manifest.value.path, 1, versionName)) {
-                try self.printer.append("{s} (in-use)\n", .{versionName}, .{});
-            } else {
-                try self.printer.append("{s}\n", .{versionName}, .{});
+            const versionPath = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ versionsDir, versionName });
+            defer self.allocator.free(versionPath);
+
+            var versionDir = try UtilsFs.openDir(versionPath);
+            defer versionDir.close();
+
+            const inUseVersion = std.mem.containsAtLeast(u8, manifest.value.path, 1, versionName);
+            try self.printer.append("{s}{s}\n", .{ versionName, if (inUseVersion) " (in-use)" else "" }, .{});
+
+            var versionIt = versionDir.iterate();
+            var hasTargets: bool = false;
+
+            while (try versionIt.next()) |versionEntry| {
+                hasTargets = true;
+                const targetName = try self.allocator.dupe(u8, versionEntry.name);
+                const inUseTarget = std.mem.containsAtLeast(u8, manifest.value.path, 1, targetName);
+                try self.printer.append("  > {s}{s}\n", .{ targetName, if (inUseVersion and inUseTarget) " (in-use)" else "" }, .{});
+            }
+
+            if (!hasTargets) {
+                try self.printer.append("  NO TARGETS AVAILABLE\n", .{}, .{ .color = 31 });
             }
         }
 
