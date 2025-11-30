@@ -66,22 +66,18 @@ pub const Zig = struct {
         var client = std.http.Client{ .allocator = self.allocator };
         defer client.deinit();
 
+        var buffer: [4096]u8 = undefined;
         const uri = try std.Uri.parse(Constants.Default.zig_download_index);
-
-        var server_buf: [4096 * 4]u8 = undefined;
-        var req = try client.open(.GET, uri, .{ .server_header_buffer = &server_buf });
+        var req = try client.open(.GET, uri, .{ .server_header_buffer = &buffer });
         defer req.deinit();
 
-        try self.printer.append("Sending request...\n", .{}, .{});
         try req.send();
         try req.finish();
-        try self.printer.append("Waiting for response...\n", .{}, .{});
         try req.wait();
 
         var reader = req.reader();
-        const data = try reader.readAllAlloc(self.allocator, Constants.Default.mb * 10);
-        defer self.allocator.free(data);
-        const parsed = try std.json.parseFromSlice(std.json.Value, self.allocator, data, .{});
+        const body = try reader.readAllAlloc(self.allocator, Constants.Default.mb * 50);
+        const parsed = try std.json.parseFromSlice(std.json.Value, self.allocator, body, .{});
         const obj = parsed.value.object;
 
         if (std.mem.eql(u8, targetVersion, "latest") or targetVersion.len == 0) {
@@ -151,10 +147,8 @@ pub const Zig = struct {
             try self.printer.append("Use 'zeP zig switch x.x.x' to update.\n\n", .{}, .{});
             return;
         }
-        self.installer.install(version.name, version.tarball, version.version, target) catch {
-            try self.printer.append("Installing {s} failed...\n\n", .{version.version}, .{ .color = 31 });
-            return;
-        };
+
+        try self.installer.install(version.name, version.tarball, version.version, target);
     }
 
     // ------------------------
@@ -168,10 +162,7 @@ pub const Zig = struct {
             return;
         }
 
-        self.uninstaller.uninstall(version.path) catch {
-            try self.printer.append("Uninstalling {s} failed...\n\n", .{version.version}, .{ .color = 31 });
-            return;
-        };
+        try self.uninstaller.uninstall(version.path);
     }
 
     // ------------------------
@@ -185,19 +176,13 @@ pub const Zig = struct {
             return;
         }
 
-        self.switcher.switchVersion(version.name, version.version, target) catch {
-            try self.printer.append("Switching to {s} failed...\n\n", .{version.version}, .{ .color = 31 });
-            return;
-        };
+        try self.switcher.switchVersion(version.name, version.version, target);
     }
 
     // ------------------------
     // List installed Zig versions
     // ------------------------
     pub fn list(self: *Zig) !void {
-        self.lister.listVersions() catch {
-            try self.printer.append("Listing versions failed...\n\n", .{}, .{ .color = 31 });
-            return;
-        };
+        try self.lister.listVersions();
     }
 };

@@ -79,35 +79,34 @@ pub const ZigInstaller = struct {
         var client = std.http.Client{ .allocator = self.allocator };
         defer client.deinit();
 
-        var server_buf: [4096 * 4]u8 = undefined;
-        var req = try client.open(.GET, uri, .{ .server_header_buffer = &server_buf });
+        var server_header_buffer: [4096]u8 = undefined;
+        var req = try client.open(.GET, uri, .{ .server_header_buffer = &server_header_buffer });
         defer req.deinit();
 
         try self.printer.append("Sending request...\n", .{}, .{});
         try req.send();
         try req.finish();
-        try self.printer.append("Waiting for response...\n", .{}, .{});
+        try self.printer.append("Waiting for response", .{}, .{});
         try req.wait();
 
         var reader = req.reader();
+        var outFile = try Fs.openOrCreateFile(out_path);
+        defer outFile.close();
 
-        var output_file = try Fs.openOrCreateFile(out_path);
-        defer output_file.close();
-
-        var buffer_writer = std.io.bufferedWriter(output_file.writer());
-
+        var buffered_writer = std.io.bufferedWriter(outFile.writer());
         defer {
-            buffer_writer.flush() catch {
+            buffered_writer.flush() catch {
                 self.printer.append("\nFailed to flush buffer!\n", .{}, .{ .color = 31 }) catch {};
             };
         }
 
+        var read_buffer: [4096 * 4]u8 = undefined;
         var line_counter: u32 = 0;
         var dot_counter: u8 = 0;
         while (true) {
-            const n = try reader.readAllAlloc(self.allocator, 4096 * 4);
-            if (n.len == 0) break;
-            _ = try buffer_writer.write(n);
+            const n = try reader.read(&read_buffer);
+            if (n == 0) break;
+            try buffered_writer.writer().writeAll(read_buffer[0..n]);
 
             line_counter += 1;
             if (line_counter > 200) {

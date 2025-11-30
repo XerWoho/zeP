@@ -65,9 +65,7 @@ pub const Zep = struct {
             return;
         }
 
-        self.installer.install(targetVersion) catch {
-            try self.printer.append("Installing {s} failed...\n\n", .{targetVersion}, .{ .color = 31 });
-        };
+        try self.installer.install(targetVersion);
     }
 
     // ------------------------
@@ -87,9 +85,7 @@ pub const Zep = struct {
             return;
         }
 
-        self.uninstaller.uninstall(targetVersion) catch {
-            try self.printer.append("Uninstalling {s} failed...\n\n", .{targetVersion}, .{ .color = 31 });
-        };
+        try self.uninstaller.uninstall(targetVersion);
     }
 
     // ------------------------
@@ -109,17 +105,13 @@ pub const Zep = struct {
             return;
         }
 
-        self.switcher.switchVersion(targetVersion) catch {
-            try self.printer.append("Switching to {s} failed...\n\n", .{targetVersion}, .{ .color = 31 });
-        };
+        try self.switcher.switchVersion(targetVersion);
     }
 
     // ------------------------
     // List installed Zep versions
     // ------------------------
     pub fn list(self: *Zep) !void {
-        self.lister.listVersions() catch {
-            try self.printer.append("Listing versions failed...\n\n", .{}, .{ .color = 31 });
-        };
+        try self.lister.listVersions();
     }
 };

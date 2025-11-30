@@ -79,8 +79,8 @@ pub const Downloader = struct {
         defer client.deinit();
 
         const uri = try std.Uri.parse(url);
-        var server_buf: [4096 * 4]u8 = undefined;
-        var req = try client.open(.GET, uri, .{ .server_header_buffer = &server_buf });
+        var server_header_buffer: [4096]u8 = undefined;
+        var req = try client.open(.GET, uri, .{ .server_header_buffer = &server_header_buffer });
         defer req.deinit();
 
         try self.printer.append("Sending request...\n", .{}, .{});

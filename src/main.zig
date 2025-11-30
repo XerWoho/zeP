@@ -372,7 +372,8 @@ pub fn main() !void {
             const version = try nextArg(&args, &printer, " > zeP zig {install|switch|uninstall} [version] [target?]");
             const target = args.next() orelse resolveDefaultTarget();
             if (std.mem.eql(u8, mode, "install")) {
-                zig.install(version, target) catch {
+                zig.install(version, target) catch |err| {
+                    try printer.append("\n{any}\n", .{err}, .{ .color = 31 });
                     try printer.append("\nInstalling zig version {s} has failed...\n\n", .{version}, .{ .color = 31 });
                 };
             } else if (std.mem.eql(u8, mode, "uninstall")) {

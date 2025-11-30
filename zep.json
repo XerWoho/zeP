@@ -1,22 +1,22 @@
 {
-  "author": "Xerrs",
-  "tags": [],
-  "zig_version": "0.14.0",
-  "repo": "https://github.com/XerWoho/zeP",
-  "name": "zeP",
-  "cmd": [
-    {
-      "name": "release_windows",
-      "cmd": "zig build -Doptimize=ReleaseFast -freference-trace -Dtarget=x86_64-windows-msvc -p tempR/w"
-    }
-  ],
-  "description": "A new zig Package manager, and version manager for zig.",
-  "version": "0.4",
-  "license": "MIT",
-  "packages": [],
-  "dev_packages": [],
-  "build": {
-    "entry": "/src/main.zig",
-    "target": "x86_64-windows-msvc"
-  }
+	"author": "Xerrs",
+	"tags": [],
+	"zig_version": "0.14.0",
+	"repo": "https://github.com/XerWoho/zeP",
+	"name": "zeP",
+	"cmd": [
+		{
+			"name": "release_windows",
+			"cmd": "zig build -Doptimize=ReleaseFast -freference-trace -Dtarget=x86_64-windows-msvc -p tempR/w"
+		}
+	],
+	"description": "A new zig Package manager, and version manager for zig.",
+	"version": "0.4",
+	"license": "MIT",
+	"packages": [],
+	"dev_packages": [],
+	"build": {
+		"entry": "/src/main.zig",
+		"target": "x86_64-windows-msvc"
+	}
 }
