@@ -29,6 +29,7 @@ MANIFEST_ZEP="$ZEP_DIR/zep/manifest.json"
 TEMP_DIR="/tmp/zeP"
 TEMP_ZEP_TAR_FILE="$TEMP_DIR/$TARGET.tar"
 
+sudo rm -rf "$TEMP_DIR"
 mkdir -p "$TEMP_DIR"
 
 ###

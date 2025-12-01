@@ -135,19 +135,14 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "pkg")) {
-        if (!isRoot(&printer)) return;
         const mode = try nextArg(&args, &printer, " > zeP pkg [command]");
 
         if (std.mem.eql(u8, mode, "add")) {
-            if (!isRoot(&printer)) return;
-
             var custom = CustomPackage.init(allocator, &printer);
             try custom.requestPackage();
             return;
         }
         if (std.mem.eql(u8, mode, "remove")) {
-            if (!isRoot(&printer)) return;
-
             const target = args.next();
             var custom = CustomPackage.init(allocator, &printer);
             if (target == null) {
@@ -159,8 +154,6 @@ pub fn main() !void {
         }
 
         if (std.mem.eql(u8, mode, "list")) {
-            if (!isRoot(&printer)) return;
-
             const target = args.next();
             if (target) |package| {
                 var split = std.mem.splitScalar(u8, package, '@');
@@ -195,8 +188,6 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "install")) {
-        if (!isRoot(&printer)) return;
-
         const target = args.next();
         if (target) |package| {
             var split = std.mem.splitScalar(u8, package, '@');
@@ -226,8 +217,6 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "uninstall")) {
-        if (!isRoot(&printer)) return;
-
         const target = try nextArg(&args, &printer, " > zeP uninstall [target]");
         var split = std.mem.splitScalar(u8, target, '@');
         const package_name = split.first();
@@ -253,8 +242,6 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "global-uninstall")) {
-        if (!isRoot(&printer)) return;
-
         const target = try nextArg(&args, &printer, " > zeP global-uninstall [target]@[version]");
         var split = std.mem.splitScalar(u8, target, '@');
         const package_name = split.first();
@@ -280,8 +267,6 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "fglobal-uninstall")) {
-        if (!isRoot(&printer)) return;
-
         const target = try nextArg(&args, &printer, " > zeP global-uninstall [target]@[version]");
         var split = std.mem.splitScalar(u8, target, '@');
         const package_name = split.first();
@@ -309,8 +294,6 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "purge")) {
-        if (!isRoot(&printer)) return;
-
         const mode = try nextArg(&args, &printer, " > zeP purge [pkg|cache]");
         var purger = try Purger.init(allocator, &printer);
         if (std.mem.eql(u8, mode, "pkg")) {
@@ -347,8 +330,6 @@ pub fn main() !void {
                 };
             }
         } else if (std.mem.eql(u8, mode, "delete")) {
-            if (!isRoot(&printer)) return;
-
             const name = try nextArg(&args, &printer, " > zeP prebuilt delete [name]");
             prebuilt.delete(name) catch {
                 try printer.append("\nDeleting prebuilt has failed...\n\n", .{}, .{ .color = 31 });
@@ -426,7 +407,6 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "cmd")) {
-        if (!isRoot(&printer)) return;
         const mode = try nextArg(&args, &printer, " > zeP cmd [run|add|remove|list] <cmd>");
         var commander = try Command.init(allocator, &printer);
 
