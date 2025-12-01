@@ -10,7 +10,7 @@ pub fn paths(allocator: std.mem.Allocator) !Paths {
         base = "C:\\Users\\Public\\AppData\\Local";
     } else {
         const home = std.posix.getenv("HOME") orelse return error.MissingHome;
-        base = try std.fs.path.join(allocator, &.{ home, ".local", "zep" });
+        base = try std.fs.path.join(allocator, &.{ home, ".local" });
     }
     return .{
         .allocator = allocator,
