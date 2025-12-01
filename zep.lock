@@ -13,7 +13,7 @@
 			}
 		],
 		"description": "A new zig Package manager, and version manager for zig.",
-		"version": "0.4",
+		"version": "0.5",
 		"license": "MIT",
 		"packages": [],
 		"dev_packages": [],

@@ -70,10 +70,13 @@ pub const Uninstaller = struct {
         const symbolic_link_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ Constants.Extras.package_files.zep_folder, self.package_name });
         defer self.allocator.free(symbolic_link_path);
         if (Fs.existsDir(symbolic_link_path)) {
+            std.fs.cwd().deleteDir(symbolic_link_path) catch {};
+            std.fs.cwd().deleteFile(symbolic_link_path) catch {};
+
             const cwd = try std.fs.cwd().realpathAlloc(self.allocator, ".");
             defer self.allocator.free(cwd);
 
-            const absolute_path = try std.fs.path.resolve(self.allocator, &[_][]const u8{ cwd, symbolic_link_path });
+            const absolute_path = try std.fs.path.join(self.allocator, &.{ cwd, symbolic_link_path });
             defer self.allocator.free(absolute_path);
 
             // ! Handles the deletion of the package
@@ -86,7 +89,6 @@ pub const Uninstaller = struct {
                 self.package.id,
                 absolute_path,
             );
-            try std.fs.cwd().deleteDir(symbolic_link_path);
         }
         try self.removePackageFromJson();
         try self.printer.append("Successfully deleted - {s}\n\n", .{self.package_name}, .{ .color = 32 });

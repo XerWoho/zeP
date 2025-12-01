@@ -4,7 +4,14 @@ const builtin = @import("builtin");
 /// Returns absolute paths of specific
 /// operating system.
 pub fn paths(allocator: std.mem.Allocator) !Paths {
-    const base = if (builtin.os.tag == .windows) "C:/Users/Public/AppData/Local" else "/lib";
+    var base: []const u8 = undefined;
+
+    if (builtin.os.tag == .windows) {
+        base = "C:\\Users\\Public\\AppData\\Local";
+    } else {
+        const home = std.posix.getenv("HOME") orelse return error.MissingHome;
+        base = try std.fs.path.join(allocator, &.{ home, ".local", "zep" });
+    }
     return .{
         .allocator = allocator,
         .base = base,

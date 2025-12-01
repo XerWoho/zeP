@@ -52,8 +52,8 @@ fn stringInArray(haystack: [][]const u8, needle: []const u8) bool {
 /// Adds a symbolic link path into the manifest
 pub fn addPathToManifest(
     json: *Json,
-    packageId: []const u8,
-    linkedPath: []const u8,
+    package_id: []const u8,
+    linked_path: []const u8,
 ) !void {
     const allocator = std.heap.page_allocator;
 
@@ -70,14 +70,14 @@ pub fn addPathToManifest(
     defer list_path.deinit();
 
     for (package_manifest.value.packages) |p| {
-        if (std.mem.eql(u8, p.name, packageId)) {
+        if (std.mem.eql(u8, p.name, package_id)) {
             for (p.paths) |path| try list_path.append(path);
             continue;
         }
         try list.append(p);
     }
-    if (!stringInArray(list_path.items, linkedPath)) try list_path.append(linkedPath);
-    try list.append(Structs.Manifests.PackagePaths{ .name = packageId, .paths = list_path.items });
+    if (!stringInArray(list_path.items, linked_path)) try list_path.append(linked_path);
+    try list.append(Structs.Manifests.PackagePaths{ .name = package_id, .paths = list_path.items });
     package_manifest.value.packages = list.items;
 
     try json.writePretty(paths.pkg_manifest, package_manifest.value);

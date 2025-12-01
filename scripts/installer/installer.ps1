@@ -1,4 +1,4 @@
-$Target = "0.3" # latest version
+$Target = "0.5" # latest version
 if (-not ($args.Length -eq 0)) {
     $Target = $args[0]
 }
@@ -24,7 +24,6 @@ $ExeZepDir = Join-Path $ZepDir "zep/e/"
 $ExeZepFile = Join-Path $ExeZepDir "zeP.exe"
 
 $ExeZigDir = Join-Path $ZepDir "zig/e/"
-$ExeZigFile = Join-Path $ExeZigDir "zig.exe"
 
 
 

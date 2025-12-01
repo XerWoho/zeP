@@ -147,7 +147,7 @@ pub const Installer = struct {
         const cwd = try std.fs.cwd().realpathAlloc(self.allocator, ".");
         defer self.allocator.free(cwd);
 
-        const absolute_symbolic_link_path = try std.fs.path.resolve(self.allocator, &[_][]const u8{ cwd, relative_symbolic_link_path });
+        const absolute_symbolic_link_path = try std.fs.path.join(self.allocator, &.{ cwd, relative_symbolic_link_path });
         defer self.allocator.free(absolute_symbolic_link_path);
         try std.fs.cwd().symLink(target_path, relative_symbolic_link_path, .{ .is_directory = true });
         Manifest.addPathToManifest(

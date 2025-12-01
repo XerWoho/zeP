@@ -23,6 +23,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Read version
+        id: version
+        run: echo "version=$(jq -r .version zep.json)" >> "$GITHUB_OUTPUT"
+
       - name: Setup Zig
         run: |
           cd
@@ -33,14 +37,14 @@ jobs:
           sudo mv zig-linux-x86_64-0.14.0/lib /usr/local/bin/lib
 
       - name: Build Releases
-        run: sh ./release.sh 0.4
+        run: sh ./release.sh ${{ steps.version.outputs.version }}
 
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}
-          tag: "0.4"
+          tag: "${{ steps.version.outputs.version }}"
         run: |
           gh release create "$tag" ./release/**/* \
               --repo="$GITHUB_REPOSITORY" \
-              --title="zep 0.4" \
+              --title="zep ${{ steps.version.outputs.version }}" \
               --generate-notes

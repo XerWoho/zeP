@@ -1,17 +1,27 @@
 #!/bin/bash
-set -e
 
 USR_LOCAL_BIN="/usr/local/bin"
-LIB="/lib"
+LOCAL_ZEP="$HOME/.local"
+if ! [ -e "$LOCAL_ZEP" ]; then
+    mkdir -p "${LOCAL_ZEP}"
+fi
 
-TARGET="0.3"
+OLD_LOCAL_ZEP="/lib/zeP"
+if [ -e "$OLD_LOCAL_ZEP" ]; then
+    sudo mv "${OLD_LOCAL_ZEP}" "${LOCAL_ZEP}"
+fi
+
+
+
+
+TARGET="0.5"
 if [ $# -gt 0 ]; then
     TARGET="$1"
 fi
 
 ZEP_EXE="$USR_LOCAL_BIN/zeP"
 ZIG_EXE="$USR_LOCAL_BIN/zig"
-ZEP_DIR="$LIB/zeP"
+ZEP_DIR="$LOCAL_ZEP/zeP"
 ZEP_ZIG_DIR="$ZEP_DIR/zig"
 ZEP_VERSION_DIR="$ZEP_DIR/zep/v/$TARGET"
 MANIFEST_ZEP="$ZEP_DIR/zep/manifest.json"
@@ -25,9 +35,7 @@ mkdir -p "$TEMP_DIR"
 # Clear everything FIRST
 ###
 clean_up() {
-    rm -rf "$ZEP_VERSION_DIR"
-    rm -f "$ZEP_EXE"
-    rm -f "$ZIG_EXE"
+    sudo rm -rf "$ZEP_VERSION_DIR"
 }
 clean_up
 
@@ -54,14 +62,15 @@ curl -L "https://github.com/XerWoho/zeP/releases/download/$TARGET/linux_$TARGET.
 
 echo "Extracting..."
 tar -xvf "$TEMP_ZEP_TAR_FILE" -C "$ZEP_VERSION_DIR"
-
 chmod 755 "$ZEP_VERSION_DIR/zeP"
 
 echo "Installation complete."
 echo "Setting up zeP now."
 
-ln -s "$ZEP_VERSION_DIR/zeP" "$ZEP_EXE"
-chmod 755 "$ZEP_EXE"
+sudo rm -rf "$ZEP_EXE"
+
+sudo ln -s "$ZEP_VERSION_DIR/zeP" "$ZEP_EXE"
+sudo chmod 755 "$ZEP_VERSION_DIR/zeP"
 "$ZEP_EXE" setup
 
 echo "Setup complete."

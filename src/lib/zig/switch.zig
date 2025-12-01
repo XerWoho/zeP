@@ -38,7 +38,9 @@ pub const ZigSwitcher = struct {
         defer paths.deinit();
 
         try self.printer.append("Modifying Manifest...\n", .{}, .{});
-        const path = try std.fmt.allocPrint(self.allocator, "{s}/d/{s}/{s}", .{ paths.zig_root, version, target });
+        const path = try std.fs.path.join(self.allocator, &.{ paths.zig_root, "d", version, target });
+        defer self.allocator.free(path);
+
         Manifest.writeManifest(
             Structs.Manifests.ZigManifest,
             self.allocator,

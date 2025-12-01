@@ -37,7 +37,8 @@ pub const ZepSwitcher = struct {
         var paths = try Constants.Paths.paths(self.allocator);
         defer paths.deinit();
 
-        const path = try std.fmt.allocPrint(self.allocator, "{s}/v/{s}/", .{ paths.zep_root, version });
+        const path = try std.fs.path.join(self.allocator, &.{ paths.zep_root, "v", version });
+        defer self.allocator.free(path);
         Manifest.writeManifest(
             Structs.Manifests.ZepManifest,
             self.allocator,

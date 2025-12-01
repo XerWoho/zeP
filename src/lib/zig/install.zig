@@ -79,27 +79,28 @@ pub const ZigInstaller = struct {
         var client = std.http.Client{ .allocator = self.allocator };
         defer client.deinit();
 
-        var server_header_buffer: [4096]u8 = undefined;
+        var server_header_buffer: [Constants.Default.kb * 4]u8 = undefined;
         var req = try client.open(.GET, uri, .{ .server_header_buffer = &server_header_buffer });
         defer req.deinit();
 
         try self.printer.append("Sending request...\n", .{}, .{});
         try req.send();
         try req.finish();
-        try self.printer.append("Waiting for response", .{}, .{});
+        try self.printer.append("Waiting for response...\n", .{}, .{});
         try req.wait();
 
         var reader = req.reader();
-        var outFile = try Fs.openOrCreateFile(out_path);
-        defer outFile.close();
+        var out_file = try Fs.openOrCreateFile(out_path);
+        defer out_file.close();
 
-        var buffered_writer = std.io.bufferedWriter(outFile.writer());
+        var buffered_writer = std.io.bufferedWriter(out_file.writer());
         defer {
             buffered_writer.flush() catch {
                 self.printer.append("\nFailed to flush buffer!\n", .{}, .{ .color = 31 }) catch {};
             };
         }
 
+        try self.printer.append("Reading data", .{}, .{});
         var read_buffer: [4096 * 4]u8 = undefined;
         var line_counter: u32 = 0;
         var dot_counter: u8 = 0;
@@ -160,7 +161,7 @@ pub const ZigInstaller = struct {
         var symbolic_link_buffer: [std.fs.max_path_bytes]u8 = undefined;
         var tar_iterator = std.tar.iterator(decompressed_reader, .{ .file_name_buffer = &filename_buffer, .link_name_buffer = &symbolic_link_buffer });
 
-        const firstFile = tar_iterator.next() catch {
+        const firt_file = tar_iterator.next() catch {
             self.printer.append("\nInvalid tar file!\n", .{}, .{ .color = 31 }) catch {};
             return;
         } orelse {
@@ -168,7 +169,7 @@ pub const ZigInstaller = struct {
             return;
         };
 
-        const extracted_name = firstFile.name;
+        const extracted_name = firt_file.name;
 
         const new_target = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ decompressed_path, target });
         if (Fs.existsDir(new_target)) {
@@ -176,10 +177,10 @@ pub const ZigInstaller = struct {
             return;
         }
 
-        const extractTarget = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ decompressed_path, extracted_name });
+        const extract_target = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ decompressed_path, extracted_name });
         try std.tar.pipeToFileSystem(dir, decompressed_reader, .{ .mode_mode = .ignore });
         try self.printer.append("Extracted!\n\n", .{}, .{});
-        try std.fs.cwd().rename(extractTarget, new_target);
+        try std.fs.cwd().rename(extract_target, new_target);
 
         const zig_exe_path = try std.fmt.allocPrint(self.allocator, "{s}/zig", .{new_target});
         defer self.allocator.free(zig_exe_path);
@@ -198,7 +199,9 @@ pub const ZigInstaller = struct {
         var paths = try Constants.Paths.paths(self.allocator);
         defer paths.deinit();
 
-        const path = try std.fmt.allocPrint(self.allocator, "{s}/d/{s}/{s}", .{ paths.zig_root, version, target });
+        const path = try std.fs.path.join(self.allocator, &.{ paths.zig_root, "d", version, target });
+        defer self.allocator.free(path);
+
         Manifest.writeManifest(
             Structs.Manifests.ZigManifest,
             self.allocator,
