@@ -1,9 +1,8 @@
 .zig-cache
-
 release
+
 zig-out
+zep-out
 
 .zep/*
 !.zep/injector.zig
-
-push.sh

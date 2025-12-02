@@ -9,8 +9,8 @@ const Manifest = @import("core").Manifest;
 const Json = @import("core").Json.Json;
 const Printer = @import("cli").Printer;
 
-const Uninstall = @import("uninstall.zig");
-const Init = @import("init.zig");
+const Uninstaller = @import("uninstall.zig").Uninstaller;
+const Init = @import("init.zig").Init;
 
 /// Handles purging of packages and cache/hashes
 pub const Purger = struct {
@@ -33,20 +33,20 @@ pub const Purger = struct {
 
         if (!Fs.existsFile(Constants.Extras.package_files.manifest)) {
             // Initialize zep.json if missing
-            var initter = try Init.Init.init(self.allocator);
+            try self.printer.append("zep.json not initialized.\n", .{}, .{});
+            var initter = try Init.init(self.allocator, self.printer, true);
             try initter.commitInit();
-            try self.printer.append("zep.json not initialized. Initializing...\n", .{}, .{});
             try self.printer.append("Nothing to uninstall.\n", .{}, .{});
             return;
         }
         var package_json = try Manifest.readManifest(Structs.ZepFiles.PackageJsonStruct, self.allocator, Constants.Extras.package_files.manifest);
-
         defer package_json.deinit();
+
         for (package_json.value.packages) |package_id| {
             var split = std.mem.splitScalar(u8, package_id, '@');
             const package_name = split.first();
             try self.printer.append(" > Uninstalling - {s}...\n", .{package_id}, .{ .verbosity = 0 });
-            var uninstaller = try Uninstall.Uninstaller.init(self.allocator, package_name, self.printer);
+            var uninstaller = try Uninstaller.init(self.allocator, package_name, self.printer);
             try uninstaller.uninstall();
             try self.printer.append(" >> done!\n", .{}, .{ .verbosity = 0, .color = 32 });
 

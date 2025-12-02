@@ -18,7 +18,7 @@ pub const Injector = struct {
         return Injector{ .allocator = allocator, .package_name = package_name, .printer = printer };
     }
 
-    fn injector(self: *Injector, package_name: []const u8, pathName: []const u8) ![]u8 {
+    fn injector(self: *Injector, package_name: []const u8, path_name: []const u8) ![]u8 {
         const template =
             \\ 
             \\ // {name} MODULE 
@@ -30,7 +30,7 @@ pub const Injector = struct {
             \\
         ;
 
-        const replaced_path = try std.mem.replaceOwned(u8, self.allocator, template, "{path}", pathName);
+        const replaced_path = try std.mem.replaceOwned(u8, self.allocator, template, "{path}", path_name);
         defer self.allocator.free(replaced_path);
 
         const replaced_name = try std.mem.replaceOwned(u8, self.allocator, replaced_path, "{name}", package_name);

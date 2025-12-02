@@ -21,14 +21,17 @@ const CustomPackage = @import("lib/packages/custom.zig").CustomPackage;
 const PreBuilt = @import("lib/functions/pre_built.zig").PreBuilt;
 const Command = @import("lib/functions/command.zig").Command;
 const PackageFiles = @import("lib/functions/package_files.zig").PackageFiles;
+const Builder = @import("lib/functions/builder.zig").Builder;
+const Runner = @import("lib/functions/runner.zig").Runner;
 
 /// Print the usage and the legend of zeP.
 fn printUsage(printer: *Printer) !void {
     try printer.append("\nUsage:\n", .{}, .{});
     try printer.append(" Legend:\n  > []  # required\n  > ()  # optional\n\n", .{}, .{});
     try printer.append("--- SIMPLE COMMANDS ---\n  zeP version\n  zeP help\n zeP debug\n\n", .{}, .{});
+    try printer.append("--- BUILD COMMANDS ---\n  zeP runner (args)\n  zeP build\n\n", .{}, .{});
     try printer.append("--- MANIFEST COMMANDS ---\n  zeP init\n  zeP lock\n zeP json\n\n", .{}, .{});
-    try printer.append("--- CMD COMMANDS ---\n  zeP cmd run <cmd>\nzeP cmd add\nzeP cmd remove <cmd>\nzeP cmd list\n\n", .{}, .{});
+    try printer.append("--- CMD COMMANDS ---\n  zeP cmd run [cmd]\nzeP cmd add\nzeP cmd remove <cmd>\nzeP cmd list\n\n", .{}, .{});
     try printer.append("--- PACKAGE COMMANDS ---\n  zeP install (target)@(version)\n  zeP uninstall [target]\n", .{}, .{});
     try printer.append("  zeP purge [pkg|cache]\n", .{}, .{});
     try printer.append("  zeP pkg list [target]\n  zeP pkg remove [custom package name]\n  zeP pkg add\n\n", .{}, .{});
@@ -156,8 +159,26 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "init")) {
-        var initter = try Init.init(allocator);
+        var initter = try Init.init(allocator, &printer, false);
         try initter.commitInit();
+        return;
+    }
+
+    if (std.mem.eql(u8, subcommand, "build")) {
+        var builder = try Builder.init(allocator, &printer);
+        _ = try builder.build();
+        return;
+    }
+
+    if (std.mem.eql(u8, subcommand, "runner")) {
+        var arguments = std.ArrayList([]const u8).init(allocator);
+        defer arguments.deinit();
+        while (args.next()) |arg| {
+            try arguments.append(arg);
+        }
+
+        var runner = try Runner.init(allocator, &printer);
+        try runner.run(arguments.items);
         return;
     }
 
