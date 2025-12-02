@@ -186,7 +186,7 @@ pub const ZigInstaller = struct {
         defer self.allocator.free(zig_exe_path);
         const zig_exe_file = try Fs.openFile(zig_exe_path);
         defer zig_exe_file.close();
-        try zig_exe_file.chmod(755);
+        try zig_exe_file.chmod(0o755);
     }
 
     // ------------------------
@@ -201,7 +201,6 @@ pub const ZigInstaller = struct {
 
         const path = try std.fs.path.join(self.allocator, &.{ paths.zig_root, "d", version, target });
         defer self.allocator.free(path);
-
         Manifest.writeManifest(
             Structs.Manifests.ZigManifest,
             self.allocator,

@@ -56,7 +56,7 @@ pub fn updateLink() !void {
 
         const zig_target = try Fs.openFile(zig_path);
         defer zig_target.close();
-        try zig_target.chmod(755);
+        try zig_target.chmod(0o755);
 
         const sym_link_path = try std.fs.path.join(allocator, &.{ paths.base, "bin", "zig" });
         defer allocator.free(sym_link_path);

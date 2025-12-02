@@ -174,7 +174,7 @@ pub const ZepInstaller = struct {
         defer self.allocator.free(zep_exe_path);
         const zep_exe_file = try Fs.openFile(zep_exe_path);
         defer zep_exe_file.close();
-        try zep_exe_file.chmod(755);
+        try zep_exe_file.chmod(0o755);
     }
 
     // ------------------------
