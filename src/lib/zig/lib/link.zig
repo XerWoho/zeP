@@ -27,34 +27,41 @@ pub fn updateLink() !void {
     defer allocator.free(absolute_path);
 
     if (builtin.os.tag == .windows) {
-        const zig_exe = try std.fmt.allocPrint(allocator, "{s}/zig.exe", .{absolute_path});
-        defer allocator.free(zig_exe);
-        if (!Fs.existsFile(zig_exe)) return;
-
-        const link_exe_path_directory = try std.fmt.allocPrint(allocator, "{s}/e/", .{paths.zig_root});
-        if (!Fs.existsDir(link_exe_path_directory)) {
-            try std.fs.cwd().makePath(link_exe_path_directory);
+        const zig_path = try std.fmt.allocPrint(allocator, "{s}/zig.exe", .{absolute_path});
+        defer allocator.free(zig_path);
+        if (!Fs.existsFile(zig_path)) {
+            std.debug.print("\nZig file does not exists! {s}\n", .{zig_path});
+            std.process.exit(0);
+            return;
         }
 
-        const link_exe_path = try std.fmt.allocPrint(allocator, "{s}/e/zig.exe", .{paths.zig_root});
-        defer allocator.free(link_exe_path);
-        if (Fs.existsFile(link_exe_path)) {
-            try std.fs.cwd().deleteFile(link_exe_path);
+        const sym_link_path_directory = try std.fmt.allocPrint(allocator, "{s}/e/", .{paths.zig_root});
+        if (!Fs.existsDir(sym_link_path_directory)) {
+            try std.fs.cwd().makePath(sym_link_path_directory);
         }
 
-        try std.fs.cwd().symLink(zig_exe, link_exe_path, .{ .is_directory = false });
+        const sym_link_path = try std.fmt.allocPrint(allocator, "{s}/e/zig.exe", .{paths.zig_root});
+        defer allocator.free(sym_link_path);
+        try Fs.deleteFileIfExists(sym_link_path);
+
+        try std.fs.cwd().symLink(zig_path, sym_link_path, .{ .is_directory = false });
     } else {
-        const zig_exe = try std.fmt.allocPrint(allocator, "{s}/zig", .{absolute_path});
-        defer allocator.free(zig_exe);
-        if (!Fs.existsFile(zig_exe)) return;
+        const zig_path = try std.fmt.allocPrint(allocator, "{s}/zig", .{absolute_path});
+        defer allocator.free(zig_path);
+        if (!Fs.existsFile(zig_path)) {
+            std.debug.print("\nZig file does not exists! {s}\n", .{zig_path});
+            std.process.exit(0);
+            return;
+        }
 
-        const zig_exe_target = try std.fs.cwd().openFile(zig_exe, .{});
-        defer zig_exe_target.close();
-        try zig_exe_target.chmod(755);
+        const zig_target = try Fs.openFile(zig_path);
+        defer zig_target.close();
+        try zig_target.chmod(755);
 
         const sym_link_path = try std.fs.path.join(allocator, &.{ paths.base, "bin", "zig" });
         defer allocator.free(sym_link_path);
+        try Fs.deleteFileIfExists(sym_link_path);
 
-        try std.fs.cwd().symLink(zig_exe, sym_link_path, .{ .is_directory = false });
+        try std.fs.cwd().symLink(zig_path, sym_link_path, .{ .is_directory = false });
     }
 }

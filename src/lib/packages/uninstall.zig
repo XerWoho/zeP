@@ -70,8 +70,8 @@ pub const Uninstaller = struct {
         const symbolic_link_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ Constants.Extras.package_files.zep_folder, self.package_name });
         defer self.allocator.free(symbolic_link_path);
         if (Fs.existsDir(symbolic_link_path)) {
-            std.fs.cwd().deleteDir(symbolic_link_path) catch {};
-            std.fs.cwd().deleteFile(symbolic_link_path) catch {};
+            Fs.deleteTreeIfExists(symbolic_link_path) catch {};
+            Fs.deleteFileIfExists(symbolic_link_path) catch {};
 
             const cwd = try std.fs.cwd().realpathAlloc(self.allocator, ".");
             defer self.allocator.free(cwd);

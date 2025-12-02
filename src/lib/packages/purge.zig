@@ -65,7 +65,7 @@ pub const Purger = struct {
         var paths = try Constants.Paths.paths(self.allocator);
         defer paths.deinit();
         if (Fs.existsDir(paths.zepped)) {
-            try std.fs.cwd().deleteTree(paths.zepped);
+            try Fs.deleteTreeIfExists(paths.zepped);
         }
 
         try self.printer.append("\nPurged cache!\n", .{}, .{ .verbosity = 0, .color = 32 });

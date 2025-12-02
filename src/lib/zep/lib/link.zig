@@ -40,15 +40,13 @@ pub fn updateLink() !void {
 
         const symbolic_link_zep_exe = try std.fmt.allocPrint(allocator, "{s}/zep.exe", .{symbolic_link_zep_exe_directory});
         defer allocator.free(symbolic_link_zep_exe);
-        if (Fs.existsFile(symbolic_link_zep_exe)) {
-            try std.fs.cwd().deleteFile(symbolic_link_zep_exe);
-        }
+        try Fs.deleteFileIfExists(symbolic_link_zep_exe);
         try std.fs.cwd().symLink(zep_exe_path, symbolic_link_zep_exe, .{ .is_directory = false });
     } else {
         const zep_exe_path = try std.fmt.allocPrint(allocator, "{s}/zeP", .{parsed_manifest.value.path});
         defer allocator.free(zep_exe_path);
 
-        const zep_exe_target = try std.fs.cwd().openFile(zep_exe_path, .{});
+        const zep_exe_target = try Fs.openFile(zep_exe_path);
         defer zep_exe_target.close();
         try zep_exe_target.chmod(755);
 

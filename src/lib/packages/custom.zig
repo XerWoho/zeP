@@ -116,7 +116,7 @@ pub const CustomPackage = struct {
 
     fn addPackage(self: CustomPackage, custom_package_path: []const u8, package_json: Structs.Packages.PackageStruct) !void {
         if (Fs.existsFile(custom_package_path)) {
-            try std.fs.cwd().deleteFile(custom_package_path);
+            try Fs.deleteFileIfExists(custom_package_path);
         }
 
         const package_file = try Fs.openOrCreateFile(custom_package_path);
@@ -162,7 +162,7 @@ pub const CustomPackage = struct {
 
         if (Fs.existsFile(custom_package_path)) {
             try self.printer.append("Package found...\n", .{}, .{});
-            try std.fs.cwd().deleteFile(custom_package_path);
+            try Fs.deleteFileIfExists(custom_package_path);
             try self.printer.append("Deleted.\n\n", .{}, .{});
         } else {
             try self.printer.append("Package not found...\n\n", .{}, .{});

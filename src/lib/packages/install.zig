@@ -140,8 +140,8 @@ pub const Installer = struct {
         defer self.allocator.free(target_path);
 
         const relative_symbolic_link_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ Constants.Extras.package_files.zep_folder, package.package_name });
-        std.fs.cwd().deleteDir(relative_symbolic_link_path) catch {};
-        std.fs.cwd().deleteFile(relative_symbolic_link_path) catch {};
+        Fs.deleteTreeIfExists(relative_symbolic_link_path) catch {};
+        Fs.deleteFileIfExists(relative_symbolic_link_path) catch {};
         defer self.allocator.free(relative_symbolic_link_path);
 
         const cwd = try std.fs.cwd().realpathAlloc(self.allocator, ".");

@@ -24,7 +24,7 @@ pub const Json = struct {
         if (!Fs.existsFile(path))
             return null;
 
-        var file = try std.fs.cwd().openFile(path, .{});
+        var file = try Fs.openFile(path);
         defer file.close();
 
         const data = try file.readToEndAlloc(self.allocator, max);

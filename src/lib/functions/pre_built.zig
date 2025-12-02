@@ -64,7 +64,7 @@ pub const PreBuilt = struct {
 
         if (Fs.existsFile(path)) {
             try self.printer.append("Pre-Built already exists! Overwriting it now...\n\n", .{}, .{});
-            try std.fs.cwd().deleteFile(path);
+            try Fs.deleteFileIfExists(path);
         }
 
         try self.printer.append("Compressing {s} now...", .{target_path}, .{});
@@ -86,7 +86,7 @@ pub const PreBuilt = struct {
 
         if (Fs.existsFile(path)) {
             try self.printer.append("Pre-Built found!\n", .{}, .{});
-            try std.fs.cwd().deleteFile(path);
+            try Fs.deleteFileIfExists(path);
             try self.printer.append("Deleted.\n\n", .{}, .{});
         }
     }

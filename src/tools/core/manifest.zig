@@ -33,7 +33,7 @@ pub fn readManifest(comptime ManifestType: type, allocator: std.mem.Allocator, p
 
     const data = try f.readToEndAlloc(allocator, 10 * Constants.Default.mb);
     const parsed = std.json.parseFromSlice(ManifestType, allocator, data, .{}) catch {
-        try std.fs.cwd().deleteFile(path);
+        try Fs.deleteFileIfExists(path);
         return try readManifest(ManifestType, allocator, path);
     };
 
@@ -122,7 +122,7 @@ pub fn removePathFromManifest(
         const package_path = try std.fmt.allocPrint(allocator, "{s}/{s}/", .{ paths.pkg_root, package_id });
         defer allocator.free(package_path);
         if (Fs.existsDir(package_path)) {
-            std.fs.cwd().deleteTree(package_path) catch {};
+            Fs.deleteTreeIfExists(package_path) catch {};
         }
     }
 

@@ -96,7 +96,7 @@ pub const Cacher = struct {
         var temporary_directory = try Fs.openOrCreateDir(temporary_output_path);
         defer {
             temporary_directory.close();
-            std.fs.cwd().deleteTree(TEMPORARY_DIRECTORY_PATH) catch {
+            Fs.deleteTreeIfExists(TEMPORARY_DIRECTORY_PATH) catch {
                 self.printer.append("\nFailed to delete {s}!\n", .{TEMPORARY_DIRECTORY_PATH}, .{ .color = 31 }) catch {};
             };
             self.allocator.free(temporary_output_path);

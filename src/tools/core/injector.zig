@@ -88,7 +88,7 @@ pub const Injector = struct {
             try self.printer.append("Initted!\n\n", .{}, .{});
         }
 
-        var file = try std.fs.cwd().openFile(path, .{ .mode = .read_write });
+        var file = try Fs.openFile(path);
         defer file.close();
 
         const content = try file.readToEndAlloc(self.allocator, Constants.Default.mb * 2);
