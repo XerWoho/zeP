@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const Structs = @import("structs");
 const Constants = @import("constants");
@@ -34,13 +35,13 @@ pub const Command = struct {
                 continue;
             }
 
-            line = read_line[0 .. read_line.len - 1];
+            line = if (builtin.os.tag == .windows) read_line[0 .. read_line.len - 1] else read_line;
             break;
         }
 
         if (!required) {
             var read_line = try stdin.readUntilDelimiterAlloc(self.allocator, '\n', Constants.Default.kb);
-            line = read_line[0 .. read_line.len - 1];
+            line = if (builtin.os.tag == .windows) read_line[0 .. read_line.len - 1] else read_line;
         }
 
         try self.printer.append("{s}\n", .{line}, .{});

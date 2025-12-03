@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const Constants = @import("constants");
 const Structs = @import("structs");
@@ -21,7 +22,7 @@ fn promptInput(stdin: anytype, prompt: []const u8, required: bool, printer: *Pri
             continue;
         }
 
-        line = read_line[0 .. read_line.len - 1];
+        line = if (builtin.os.tag == .windows) read_line[0 .. read_line.len - 1] else read_line;
         break;
     }
 

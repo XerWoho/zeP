@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const Constants = @import("constants");
 const Structs = @import("structs");
@@ -95,19 +96,19 @@ pub const CustomPackage = struct {
                     continue;
                 }
                 if (validate) |v| {
-                    if (!v(read_line[0 .. read_line.len - 1])) {
+                    if (!v(if (builtin.os.tag == .windows) read_line[0 .. read_line.len - 1] else read_line)) {
                         self.allocator.free(read_line);
                         try self.printer.print();
                         continue;
                     }
                 }
 
-                line = read_line[0 .. read_line.len - 1];
+                line = if (builtin.os.tag == .windows) read_line[0 .. read_line.len - 1] else read_line;
                 break;
             }
         } else {
             var read_line = try stdin.readUntilDelimiterAlloc(self.allocator, '\n', Constants.Default.kb);
-            line = read_line[0 .. read_line.len - 1];
+            line = if (builtin.os.tag == .windows) read_line[0 .. read_line.len - 1] else read_line;
         }
 
         try self.printer.append("{s}\n", .{line}, .{});
