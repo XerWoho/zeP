@@ -16,7 +16,6 @@ fi
 zip -j release/w/windows_$versionName.zip tempR/w/bin/zeP.exe
 zip -r release/w/windows_$versionName.zip packages/
 
-tar -C tempR/l/bin -cvf release/l/linux_$versionName.tar zeP
-tar -rf release/l/linux_$versionName.tar packages/
+tar -C tempR/l/bin -cJf release/l/linux_$versionName.tar.xz zeP ../../../packages/
 
 rm -r tempR/

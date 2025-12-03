@@ -141,15 +141,19 @@ pub const ZepInstaller = struct {
     }
 
     // ------------------------
-    // Decompress for POSIX (.tar)
+    // Decompress for POSIX (.tar.xz)
     // ------------------------
     fn decompressPosix(self: *ZepInstaller, reader: std.fs.File.Reader, decompressed_path: []const u8) !void {
         var dir = try Fs.openOrCreateDir(decompressed_path);
         defer dir.close();
 
+        var decompressed = try std.compress.xz.decompress(self.allocator, reader);
+        defer decompressed.deinit();
+        const decompressed_reader = decompressed.reader();
+
         var filename_buffer: [std.fs.max_path_bytes]u8 = undefined;
         var symbolic_link_buffer: [std.fs.max_path_bytes]u8 = undefined;
-        var tar_iterator = std.tar.iterator(reader, .{ .file_name_buffer = &filename_buffer, .link_name_buffer = &symbolic_link_buffer });
+        var tar_iterator = std.tar.iterator(decompressed_reader, .{ .file_name_buffer = &filename_buffer, .link_name_buffer = &symbolic_link_buffer });
 
         const firt_file = tar_iterator.next() catch {
             self.printer.append("\nInvalid tar file!\n", .{}, .{ .color = 31 }) catch {};
@@ -162,7 +166,7 @@ pub const ZepInstaller = struct {
         const extracted_name = firt_file.name;
 
         const extract_target = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ decompressed_path, extracted_name });
-        try std.tar.pipeToFileSystem(dir, reader, .{ .mode_mode = .ignore });
+        try std.tar.pipeToFileSystem(dir, decompressed_reader, .{ .mode_mode = .ignore });
         try self.printer.append("Extracted!\n\n", .{}, .{});
         try std.fs.cwd().rename(extract_target, decompressed_path);
 
@@ -180,7 +184,7 @@ pub const ZepInstaller = struct {
         const url = if (builtin.os.tag == .windows)
             try std.fmt.allocPrint(self.allocator, "https://github.com/XerWoho/zeP/releases/download/{s}/windows_{s}.zip", .{ version, version })
         else
-            try std.fmt.allocPrint(self.allocator, "https://github.com/XerWoho/zeP/releases/download/{s}/linux_{s}.tar", .{ version, version });
+            try std.fmt.allocPrint(self.allocator, "https://github.com/XerWoho/zeP/releases/download/{s}/linux_{s}.tar.xz", .{ version, version });
         defer self.allocator.free(url);
 
         try self.fetchData(url, version);
