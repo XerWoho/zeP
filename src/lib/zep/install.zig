@@ -151,26 +151,13 @@ pub const ZepInstaller = struct {
         defer decompressed.deinit();
         const decompressed_reader = decompressed.reader();
 
-        var filename_buffer: [std.fs.max_path_bytes]u8 = undefined;
-        var symbolic_link_buffer: [std.fs.max_path_bytes]u8 = undefined;
-        var tar_iterator = std.tar.iterator(decompressed_reader, .{ .file_name_buffer = &filename_buffer, .link_name_buffer = &symbolic_link_buffer });
-
-        const firt_file = tar_iterator.next() catch {
-            self.printer.append("\nInvalid tar file!\n", .{}, .{ .color = 31 }) catch {};
-            return;
-        } orelse {
-            self.printer.append("\nInvalid tar file!\n", .{}, .{ .color = 31 }) catch {};
-            return;
-        };
-
-        const extracted_name = firt_file.name;
-
-        const extract_target = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ decompressed_path, extracted_name });
-        try std.tar.pipeToFileSystem(dir, decompressed_reader, .{ .mode_mode = .ignore });
+        var diagnostics = std.tar.Diagnostics{ .allocator = self.allocator };
+        try std.tar.pipeToFileSystem(dir, decompressed_reader, .{ .mode_mode = .ignore, .diagnostics = &diagnostics });
         try self.printer.append("Extracted!\n\n", .{}, .{});
-        try std.fs.cwd().rename(extract_target, decompressed_path);
+        const extract_target = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ decompressed_path, diagnostics.root_dir });
 
-        const zep_exe_path = try std.fmt.allocPrint(self.allocator, "{s}/zep", .{decompressed_path});
+        try std.fs.cwd().rename(extract_target, decompressed_path);
+        const zep_exe_path = try std.fmt.allocPrint(self.allocator, "{s}/zeP", .{decompressed_path});
         defer self.allocator.free(zep_exe_path);
         const zep_exe_file = try Fs.openFile(zep_exe_path);
         defer zep_exe_file.close();

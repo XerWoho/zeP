@@ -29,7 +29,7 @@ pub fn updateLink() !void {
     defer parsed_manifest.deinit();
 
     if (builtin.os.tag == .windows) {
-        const zep_exe_path = try std.fmt.allocPrint(allocator, "{s}/zep.exe", .{parsed_manifest.value.path});
+        const zep_exe_path = try std.fmt.allocPrint(allocator, "{s}/zeP.exe", .{parsed_manifest.value.path});
         defer allocator.free(zep_exe_path);
 
         const symbolic_link_zep_exe_directory = try std.fmt.allocPrint(allocator, "{s}/e", .{paths.zep_root});
@@ -38,10 +38,10 @@ pub fn updateLink() !void {
             try std.fs.cwd().makePath(symbolic_link_zep_exe_directory);
         }
 
-        const symbolic_link_zep_exe = try std.fmt.allocPrint(allocator, "{s}/zep.exe", .{symbolic_link_zep_exe_directory});
-        defer allocator.free(symbolic_link_zep_exe);
-        try Fs.deleteFileIfExists(symbolic_link_zep_exe);
-        try std.fs.cwd().symLink(zep_exe_path, symbolic_link_zep_exe, .{ .is_directory = false });
+        const sym_link_path = try std.fmt.allocPrint(allocator, "{s}/zeP.exe", .{symbolic_link_zep_exe_directory});
+        defer allocator.free(sym_link_path);
+        try Fs.deleteFileIfExists(sym_link_path);
+        try std.fs.cwd().symLink(zep_exe_path, sym_link_path, .{ .is_directory = false });
     } else {
         const zep_exe_path = try std.fmt.allocPrint(allocator, "{s}/zeP", .{parsed_manifest.value.path});
         defer allocator.free(zep_exe_path);
@@ -53,6 +53,7 @@ pub fn updateLink() !void {
         const sym_link_path = try std.fs.path.join(allocator, &.{ paths.base, "bin", "zeP" });
         defer allocator.free(sym_link_path);
 
+        try Fs.deleteFileIfExists(sym_link_path);
         try std.fs.cwd().symLink(zep_exe_path, sym_link_path, .{ .is_directory = false });
     }
 }
