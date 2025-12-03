@@ -7,6 +7,8 @@ const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
 const Manifest = @import("manifest.zig");
 
+const ZigInit = @import("zig_init.zig");
+
 /// Injects package imports into build.zig.
 /// package_name is required!
 pub const Injector = struct {
@@ -76,18 +78,14 @@ pub const Injector = struct {
     }
 
     pub fn injectIntoBuildZig(self: *Injector) !void {
-        const path = "build.zig";
-        if (!Fs.existsFile(path)) {
-            try self.printer.append("\nbuild.zig does not exist! Initting zig project\n(Make sure zig is installed [zeP zig install x.x.x])\n", .{}, .{});
-            // init zig
-            const argv = &[2][]const u8{ "zig", "init" };
-            var process = std.process.Child.init(argv, self.allocator);
-            try process.spawn();
-            _ = try process.wait();
-            _ = try process.kill();
-            try self.printer.append("Initted!\n\n", .{}, .{});
-        }
+        const child = try std.process.Child.run(.{
+            .allocator = self.allocator,
+            .argv = &[_][]const u8{ "zig", "version" },
+        });
+        const zig_version = child.stdout[0 .. child.stdout.len - 1];
+        try ZigInit.createZigProject(self.printer, self.allocator, "myproject", zig_version);
 
+        const path = "build.zig";
         var file = try Fs.openFile(path);
         defer file.close();
 
