@@ -43,7 +43,7 @@ jobs:
           zeP install
 
       - name: Build Releases
-        run: sh ./release.sh ${{ steps.version.outputs.version }}
+        run: bash ./release.sh ${{ steps.version.outputs.version }}
 
       - name: Create release
         env:
