@@ -14,7 +14,7 @@
 		],
 		"description": "A new zig Package manager, and version manager for zig.",
 		"version": "0.6",
-		"license": "MIT",
+		"license": "GPLv3",
 		"packages": [
 			"clap@0.10.0"
 		],
