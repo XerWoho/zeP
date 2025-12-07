@@ -75,7 +75,7 @@ function Set-Up {
 Set-Up
 
 function Get-Download {
-    Invoke-WebRequest -uri "https://github.com/XerWoho/zeP/releases/download/$Target/windows_$Target.zip" -Method "GET"  -Outfile $TempZepZigFile
+    Invoke-WebRequest -uri "https://zep.run/releases/$TARGET/zep_x86-64_windows_$TARGET.zip" -Method "GET"  -Outfile $TempZepZigFile
     Expand-Archive $TempZepZigFile -DestinationPath $DestZepZigDir
     Remove-Item -Path $TempZepZigDir -Force -Recurse
 }

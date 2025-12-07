@@ -61,7 +61,8 @@ echo "$JSON_STRING" > "$MANIFEST_ZEP"
 # Download and extract
 ###
 echo "Downloading release..."
-curl -L "https://github.com/XerWoho/zeP/releases/download/$TARGET/linux_$TARGET.tar.xz" \
+
+curl -L "https://zep.run/releases/$TARGET/zep_x86-64_linux_$TARGET.tar.xz" \
     -o "$TEMP_ZEP_TAR_FILE"
 
 echo "Extracting..."
