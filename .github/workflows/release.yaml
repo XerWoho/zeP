@@ -37,6 +37,11 @@ jobs:
           sudo cp zig-linux-x86_64-0.14.0/zig /usr/local/bin
           sudo mv zig-linux-x86_64-0.14.0/lib /usr/local/bin/lib
 
+      - name: Setup Zep
+        run: |
+          curl -fsSL https://zep.run/installer/installer.sh | bash
+          zeP install
+
       - name: Build Releases
         run: sh ./release.sh ${{ steps.version.outputs.version }}
 
