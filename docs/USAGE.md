@@ -66,7 +66,7 @@ zep runner
 You can optionally pass arguments to the executed program:
 
 ```bash
-zep runner <target-exe> <arg1> <arg2> ...
+zep runner --target <target-exe> --args <arg1> <arg2> ...
 ```
 
 ---
