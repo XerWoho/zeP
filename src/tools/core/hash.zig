@@ -3,7 +3,9 @@ const Constants = @import("constants");
 
 /// Get hash from any url
 pub fn hashData(allocator: std.mem.Allocator, url: []const u8) ![]u8 {
-    const uri = try std.Uri.parse(url);
+    const uri = std.Uri.parse(url) catch {
+        return error.InvalidUrl;
+    };
 
     var client = std.http.Client{ .allocator = allocator };
     defer client.deinit();
@@ -13,9 +15,15 @@ pub fn hashData(allocator: std.mem.Allocator, url: []const u8) ![]u8 {
     defer req.deinit();
     var hasher = std.crypto.hash.sha2.Sha256.init(.{});
 
-    try req.send();
+    req.send() catch {
+        return error.SendFailed;
+    };
     try req.finish();
     try req.wait();
+    if (req.response.status == .not_found) {
+        return error.NotFound;
+    }
+
     const reader = req.reader();
 
     var read_buffer: [Constants.Default.kb * 4]u8 = undefined;
