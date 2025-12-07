@@ -97,7 +97,3 @@ zep runner
 
 - zeP automatically manages project-specific dependencies under `.zep/`.
 - Versions prior to 0.5 were MIT licensed; starting 0.5, the project uses GPLv3.
-
-```
-
-```

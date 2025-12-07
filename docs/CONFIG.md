@@ -1,3 +1,5 @@
+## **docs/CONFIG.md**
+
 # zeP – Configuration Guide
 
 zeP is designed to be zero-configuration for most projects.
