@@ -177,7 +177,7 @@ fn printUsage(printer: *Printer) !void {
     try printer.append("--- BUILD COMMANDS ---\n  zeP runner (--target <target>) (--args <args>)\n  zeP build\n  zeP bootstrap (--zig <zig-version>) (--deps <package1,package2>)\n\n", .{}, .{});
     try printer.append("--- MANIFEST COMMANDS ---\n  zeP init\n  zeP lock\n  zeP json\n\n", .{}, .{});
     try printer.append("--- CMD COMMANDS ---\n  zeP cmd run [cmd]\n  zeP cmd add\n  zeP cmd remove <cmd>\n  zeP cmd list\n\n", .{}, .{});
-    try printer.append("--- PACKAGE COMMANDS ---\n  zeP install (target)@(version)\n  zeP uninstall [target]\n", .{}, .{});
+    try printer.append("--- PACKAGE COMMANDS ---\n  zeP install (target)@(version)\n  zeP uninstall [target]\n  zeP info [target]@[version]\n", .{}, .{});
     try printer.append("  zeP purge [pkg|cache]\n", .{}, .{});
     try printer.append("  zeP pkg list [target]\n  zeP pkg remove [custom package name]\n  zeP pkg add\n\n", .{}, .{});
     try printer.append("--- PREBUILT COMMANDS ---\n  zeP prebuilt [build|use] [name] (target)\n", .{}, .{});
@@ -369,6 +369,27 @@ pub fn main() !void {
             }
         };
         try package_files.json();
+        return;
+    }
+
+    if (std.mem.eql(u8, subcommand, "info")) {
+        const target = try nextArg(&args, &printer, " > zeP info [target]@[version]\n");
+        var split = std.mem.splitScalar(u8, target, '@');
+        const package_name = split.first();
+        const package_version = split.next() orelse {
+            std.debug.print(" > zeP info [target]@[version]\n", .{});
+            std.debug.print("Version is required, when trying to info of package!\n", .{});
+            return;
+        };
+
+        const package = try Package.init(allocator, package_name, package_version, &printer);
+        std.debug.print("Package Name: {s}\n", .{package_name});
+        std.debug.print("Version: {s}\n", .{package.package.version});
+        std.debug.print("Sha256Sum: {s}\n", .{package.package.sha256sum});
+        std.debug.print("Url: {s}\n", .{package.package.url});
+        std.debug.print("Root File: {s}\n", .{package.package.root_file});
+        std.debug.print("Zig Version: {s}\n", .{package.package.zig_version});
+        std.debug.print("\n", .{});
         return;
     }
 
