@@ -13,7 +13,7 @@
       }
     ],
     "description": "A new zig Package manager, and version manager for zig.",
-    "version": "0.5",
+    "version": "0.6",
     "license": "MIT",
     "packages": [
       "clap@0.10.0"
