@@ -9,6 +9,7 @@ const Setup = @import("cli").Setup;
 const Fs = @import("io").Fs;
 const Manifest = @import("core").Manifest;
 const Package = @import("core").Package.Package;
+const Json = @import("core").Json.Json;
 
 const Init = @import("lib/packages/init.zig").Init;
 const Installer = @import("lib/packages/install.zig").Installer;
@@ -22,6 +23,7 @@ const PackageFiles = @import("lib/functions/package_files.zig").PackageFiles;
 const Builder = @import("lib/functions/builder.zig").Builder;
 const Runner = @import("lib/functions/runner.zig").Runner;
 const Bootstrap = @import("lib/functions/bootstrap.zig");
+const Doctor = @import("lib/functions/doctor.zig");
 
 const Artifact = @import("lib/artifact/artifact.zig").Artifact;
 
@@ -171,7 +173,7 @@ fn parseRunner(allocator: std.mem.Allocator) !RunnerArgs {
 fn printUsage(printer: *Printer) !void {
     try printer.append("\nUsage:\n", .{}, .{});
     try printer.append(" Legend:\n  > []  # required\n  > ()  # optional\n\n", .{}, .{});
-    try printer.append("--- SIMPLE COMMANDS ---\n  zeP version\n  zeP help\n  zeP debug\n\n", .{}, .{});
+    try printer.append("--- SIMPLE COMMANDS ---\n  zeP version\n  zeP help\n  zeP paths\n  zeP doctor\n\n", .{}, .{});
     try printer.append("--- BUILD COMMANDS ---\n  zeP runner (--target <target>) (--args <args>)\n  zeP build\n  zeP bootstrap (--zig <zig-version>) (--deps <package1,package2>)\n\n", .{}, .{});
     try printer.append("--- MANIFEST COMMANDS ---\n  zeP init\n  zeP lock\n  zeP json\n\n", .{}, .{});
     try printer.append("--- CMD COMMANDS ---\n  zeP cmd run [cmd]\n  zeP cmd add\n  zeP cmd remove <cmd>\n  zeP cmd list\n\n", .{}, .{});
@@ -209,7 +211,7 @@ pub fn main() !void {
     _ = args.skip(); // skip program name
 
     const data = std.ArrayList(Structs.Extras.PrinterData).init(allocator);
-    var printer = Printer.init(data);
+    var printer = Printer.init(data, allocator);
     defer printer.deinit();
     try printer.append("\n", .{}, .{});
 
@@ -231,7 +233,8 @@ pub fn main() !void {
         try printer.append("zeP Version 0.6\n\n", .{}, .{});
         return;
     }
-    if (std.mem.eql(u8, subcommand, "debug")) {
+
+    if (std.mem.eql(u8, subcommand, "paths")) {
         var paths = try Constants.Paths.paths(allocator);
         defer paths.deinit();
         try printer.append("\n--- ZEP PATHS ---\n\nBase: {s}\nCustom: {s}\nRoot: {s}\nPrebuilt: {s}\nZepped: {s}\nPackage-Manifest: {s}\nPackge-Root: {s}\nZep-Manifest: {s}\nZep-Root: {s}\nZig-Manifest: {s}\nZig-Root: {s}\n\n", .{
@@ -250,6 +253,11 @@ pub fn main() !void {
             paths.zig_manifest,
             paths.zig_root,
         }, .{});
+        return;
+    }
+
+    if (std.mem.eql(u8, subcommand, "doctor")) {
+        try Doctor.doctor(allocator, &printer);
         return;
     }
 
