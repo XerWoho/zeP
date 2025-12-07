@@ -38,10 +38,7 @@ pub const Installer = struct {
             return error.NoPackageSpecified;
         }
 
-        const package = try Package.init(allocator, package_name.?, package_version_target, printer) orelse {
-            return error.PackageNotFound;
-        };
-
+        const package = try Package.init(allocator, package_name.?, package_version_target, printer);
         const cacher = try Cacher.init(allocator, package, printer);
         const downloader = try Downloader.init(allocator, package, cacher, printer);
         const json = try Json.init(allocator);
