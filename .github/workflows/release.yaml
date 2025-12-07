@@ -1,56 +1,55 @@
-name: Release zeP
+name: CURRENTLY-DISABLED Release zeP
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "src/**"
-      - "scripts/p/*"
-      - "packages/*"
-      - "release.sh"
-      - ".zep"
-      - "zep.json"
-      - "zep.lock"
+  # push:
+  #     branches:
+  #       - main
+  #     paths:
+  #       - "src/**"
+  #       - "scripts/p/*"
+  #       - "packages/*"
+  #       - "release.sh"
+  #       - ".zep"
+  #       - "zep.json"
+  #       - "zep.lock"
   workflow_dispatch:
-
-permissions:
-  contents: write
+# permissions:
+#   contents: write
 
 jobs:
   deploy_production:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Read version
-        id: version
-        run: echo "version=$(jq -r .version zep.json)" >> "$GITHUB_OUTPUT"
+#       - name: Read version
+#         id: version
+#         run: echo "version=$(jq -r .version zep.json)" >> "$GITHUB_OUTPUT"
 
-      - name: Setup Zig
-        run: |
-          cd
-          sudo apt install wget
-          wget https://ziglang.org/download/0.14.0/zig-linux-x86_64-0.14.0.tar.xz
-          tar xf zig-linux-x86_64-0.14.0.tar.xz
-          sudo cp zig-linux-x86_64-0.14.0/zig /usr/local/bin
-          sudo mv zig-linux-x86_64-0.14.0/lib /usr/local/bin/lib
+#       - name: Setup Zig
+#         run: |
+#           cd
+#           sudo apt install wget
+#           wget https://ziglang.org/download/0.14.0/zig-linux-x86_64-0.14.0.tar.xz
+#           tar xf zig-linux-x86_64-0.14.0.tar.xz
+#           sudo cp zig-linux-x86_64-0.14.0/zig /usr/local/bin
+#           sudo mv zig-linux-x86_64-0.14.0/lib /usr/local/bin/lib
 
-      - name: Setup Zep
-        run: |
-          curl -fsSL https://zep.run/installer/installer.sh | bash
-          zeP install
+#       - name: Setup Zep
+#         run: |
+#           curl -fsSL https://zep.run/installer/installer.sh | bash
+#           zeP install
 
-      - name: Build Releases
-        run: bash ./release.sh ${{ steps.version.outputs.version }}
+#       - name: Build Releases
+#         run: bash ./release.sh ${{ steps.version.outputs.version }}
 
-      - name: Create release
-        env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
-          tag: "${{ steps.version.outputs.version }}"
-        run: |
-          gh release create "$tag" ./release/**/* \
-              --repo="$GITHUB_REPOSITORY" \
-              --title="zep ${{ steps.version.outputs.version }}" \
-              --generate-notes
+#       - name: Create release
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.TOKEN }}
+#           tag: "${{ steps.version.outputs.version }}"
+#         run: |
+#           gh release create "$tag" ./release/**/* \
+#               --repo="$GITHUB_REPOSITORY" \
+#               --title="zep ${{ steps.version.outputs.version }}" \
+#               --generate-notes
