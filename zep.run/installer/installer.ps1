@@ -27,7 +27,7 @@ $ExeZigDir = Join-Path $ZepDir "zig/e/"
 
 
 
-$DestZepZigDir = Join-Path $ZepDir "zep/v/$Target"
+$DestZepZigDir = Join-Path $ZepDir "zep/d/$Target"
 if (Test-Path $DestZepZigDir -PathType Container) {
     Remove-Item -Path $DestZepZigDir -Force -Recurse
 }
