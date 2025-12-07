@@ -20,9 +20,9 @@ pub const Json = struct {
         comptime T: type,
         path: []const u8,
         max: usize,
-    ) !?std.json.Parsed(T) {
+    ) !std.json.Parsed(T) {
         if (!Fs.existsFile(path))
-            return null;
+            return error.FileNotFound;
 
         var file = try Fs.openFile(path);
         defer file.close();
@@ -49,24 +49,39 @@ pub const Json = struct {
         _ = try file.write(str);
     }
 
-    pub fn parsePackage(self: *Json, package_name: []const u8) !?std.json.Parsed(Structs.Packages.PackageStruct) {
-        var paths = try Constants.Paths.paths(self.allocator);
-        defer paths.deinit();
-        const manifest = try Manifest.readManifest(Structs.Manifests.ZepManifest, self.allocator, paths.zep_manifest);
-        defer manifest.deinit();
-        if (manifest.value.path.len == 0) {
-            std.debug.print("\nManifest path is not defined! Use\n $ zep zep switch <current-version>\nOr re-install to fix!\n", .{});
-            std.process.exit(0);
-            return null;
-        }
+    pub fn parsePackage(self: *Json, package_name: []const u8) !std.json.Parsed(Structs.Packages.PackageStruct) {
+        var client = std.http.Client{ .allocator = self.allocator };
+        defer client.deinit();
 
-        var local_path = try std.fmt.allocPrint(self.allocator, "{s}/packages/{s}.json", .{ manifest.value.path, package_name });
-        defer self.allocator.free(local_path);
-        if (!Fs.existsFile(local_path)) {
-            local_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.json", .{ paths.custom, package_name });
+        var server_header_buffer: [Constants.Default.kb * 8]u8 = undefined;
+
+        const url = try std.fmt.allocPrint(
+            self.allocator,
+            "https://zep.run/packages/{s}.json",
+            .{package_name},
+        );
+        defer self.allocator.free(url);
+        const uri = try std.Uri.parse(url);
+
+        var req = try client.open(.GET, uri, .{ .server_header_buffer = &server_header_buffer });
+        defer req.deinit();
+
+        try req.send();
+        try req.finish();
+        try req.wait();
+
+        if (req.response.status == .not_found) {
+            var paths = try Constants.Paths.paths(self.allocator);
+            defer paths.deinit();
+
+            const local_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.json", .{ paths.custom, package_name });
             if (!Fs.existsFile(local_path)) return error.PackageNotFound;
+            const parsed = try self.parseJsonFromFile(Structs.Packages.PackageStruct, local_path, Constants.Default.mb * 10);
+            return parsed;
         }
 
-        return try self.parseJsonFromFile(Structs.Packages.PackageStruct, local_path, Constants.Default.mb * 10);
+        var reader = req.reader();
+        const body = try reader.readAllAlloc(self.allocator, Constants.Default.mb * 10);
+        return try std.json.parseFromSlice(Structs.Packages.PackageStruct, self.allocator, body, .{});
     }
 };
