@@ -29,6 +29,50 @@ const Artifact = @import("lib/artifact/artifact.zig").Artifact;
 
 const clap = @import("clap");
 
+const DoctorArgs = struct {
+    fix: bool,
+};
+fn parseDoctor(allocator: std.mem.Allocator) !DoctorArgs {
+    const params = [_]clap.Param(u8){
+        .{
+            .id = 'f',
+            .names = .{ .short = 'f', .long = "fix" },
+            .takes_value = .none,
+        },
+    };
+
+    var iter = try std.process.ArgIterator.initWithAllocator(allocator);
+    defer iter.deinit();
+
+    // skip .exe and command
+    _ = iter.next();
+    _ = iter.next();
+    var diag = clap.Diagnostic{};
+    var parser = clap.streaming.Clap(u8, std.process.ArgIterator){
+        .params = &params,
+        .iter = &iter,
+        .diagnostic = &diag,
+    };
+
+    var fix: bool = false;
+    // Because we use a streaming parser, we have to consume each argument parsed individually.
+    while (parser.next() catch |err| {
+        return err;
+    }) |arg| {
+        // arg.param will point to the parameter which matched the argument.
+        switch (arg.param.id) {
+            'f' => {
+                fix = true;
+            },
+            else => continue,
+        }
+    }
+
+    return DoctorArgs{
+        .fix = fix,
+    };
+}
+
 const BootstrapArgs = struct {
     zig: []const u8,
     deps: [][]const u8,
@@ -257,7 +301,8 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "doctor")) {
-        try Doctor.doctor(allocator, &printer);
+        const doctor_args = try parseDoctor(allocator);
+        try Doctor.doctor(allocator, &printer, doctor_args.fix);
         return;
     }
 
