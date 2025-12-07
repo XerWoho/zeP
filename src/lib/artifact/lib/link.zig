@@ -25,8 +25,7 @@ pub fn updateLink(artifact_type: Structs.Extras.ArtifactType) !void {
         } else {
             std.debug.print("\nManifest path is not defined! Use\n $ zep zep switch <zep-version>\nTo fix!\n", .{});
         }
-        std.process.exit(0);
-        return;
+        return error.ManifestNotFound;
     }
 
     defer manifest.deinit();
@@ -48,8 +47,7 @@ pub fn updateLink(artifact_type: Structs.Extras.ArtifactType) !void {
             } else {
                 std.debug.print("\nZep file does not exists! {s}\n", .{artifact_path});
             }
-            std.process.exit(0);
-            return;
+            return error.ManifestNotFound;
         }
 
         const sym_link_path_directory = try std.fs.path.join(
@@ -86,8 +84,7 @@ pub fn updateLink(artifact_type: Structs.Extras.ArtifactType) !void {
             } else {
                 std.debug.print("\nZep file does not exists! {s}\n", .{artifact_path});
             }
-            std.process.exit(0);
-            return;
+            return error.ManifestNotFound;
         }
 
         const artifact_target = try Fs.openFile(artifact_path);

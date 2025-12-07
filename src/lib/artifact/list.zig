@@ -58,8 +58,7 @@ pub const ArtifactLister = struct {
             } else {
                 std.debug.print("\nManifest path is not defined! Use\n $ zep zig switch <zig-version>\nTo fix!\n", .{});
             }
-            std.process.exit(0);
-            return;
+            return error.ManifestNotFound;
         }
 
         var dir = try Fs.openDir(versions_directory);

@@ -107,11 +107,7 @@ pub const Artifact = struct {
         var paths = try Constants.Paths.paths(self.allocator);
         defer paths.deinit();
 
-        const version_data = self.fetchVersion(target_version) catch |err| {
-            try self.printer.append("Version not found...\n\n", .{}, .{});
-            std.debug.print("{any}\n", .{err});
-            std.process.exit(0);
-        };
+        const version_data = try self.fetchVersion(target_version);
 
         const obj = version_data.object;
         const url_value = obj.get(target) orelse {
