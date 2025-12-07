@@ -35,13 +35,11 @@ pub const Installer = struct {
             try installAll(allocator, printer);
 
             Locales.VERBOSITY_MODE = previous_verbosity;
-            std.process.exit(0);
-            return .NoPackageSpecified;
+            return error.NoPackageSpecified;
         }
 
         const package = try Package.init(allocator, package_name.?, package_version_target, printer) orelse {
-            std.process.exit(0);
-            return .PackageNotFound;
+            return error.PackageNotFound;
         };
 
         const cacher = try Cacher.init(allocator, package, printer);
@@ -84,7 +82,7 @@ pub const Installer = struct {
                     return error.AlreadyInstalled;
                 }
 
-                std.debug.print("MATCHED UNINSTALLING", .{});
+                try self.printer.append("MATCHED UNINSTALLING\n", .{}, .{ .color = 31 });
                 const previous_verbosity = Locales.VERBOSITY_MODE;
                 Locales.VERBOSITY_MODE = 0;
 
@@ -136,7 +134,11 @@ pub const Installer = struct {
         try injector.initInjector();
 
         // symbolic link
-        const target_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}@{s}", .{ paths.pkg_root, package.package_name, package.package_version });
+        const target_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}@{s}", .{
+            paths.pkg_root,
+            package.package_name,
+            package.package_version,
+        });
         defer self.allocator.free(target_path);
 
         const relative_symbolic_link_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ Constants.Extras.package_files.zep_folder, package.package_name });
@@ -165,10 +167,128 @@ pub const Installer = struct {
 
         defer package_json.deinit();
         defer lock_json.deinit();
-        try self.package.manifestAdd(&package_json.value);
-        try self.package.lockAdd(&lock_json.value);
+        try manifestAdd(&package_json.value, self.package.package_name, self.package.id, &self.json);
+        try lockAdd(&lock_json.value, self.package, &self.json);
     }
 };
+
+fn appendUnique(
+    comptime T: type,
+    list: []const T,
+    new_item: T,
+    allocator: std.mem.Allocator,
+    matchFn: fn (a: T, b: T) bool,
+) ![]T {
+    var arr = std.ArrayList(T).init(allocator);
+    defer arr.deinit();
+
+    for (list) |item| {
+        try arr.append(item);
+        if (matchFn(item, new_item))
+            return arr.toOwnedSlice();
+    }
+
+    try arr.append(new_item);
+    return arr.toOwnedSlice();
+}
+
+fn filterOut(
+    allocator: std.mem.Allocator,
+    list: anytype,
+    filter: []const u8,
+    comptime T: type,
+    matchFn: fn (a: T, b: []const u8) bool,
+) ![]T {
+    var out = std.ArrayList(T).init(allocator);
+    defer out.deinit();
+
+    for (list) |item| {
+        if (!matchFn(item, filter))
+            try out.append(item);
+    }
+
+    return out.toOwnedSlice();
+}
+
+fn manifestAdd(
+    pkg: *Structs.ZepFiles.PackageJsonStruct,
+    package_name: []const u8,
+    package_id: []const u8,
+    json: *Json,
+) !void {
+    const allocator = std.heap.page_allocator;
+
+    pkg.packages = try filterOut(
+        allocator,
+        pkg.packages,
+        package_name,
+        []const u8,
+        struct {
+            fn match(a: []const u8, b: []const u8) bool {
+                return std.mem.startsWith(u8, a, b); // first remove the previous package Name
+            }
+        }.match,
+    );
+
+    pkg.packages = try appendUnique(
+        []const u8,
+        pkg.packages,
+        package_id,
+        allocator,
+        struct {
+            fn match(a: []const u8, b: []const u8) bool {
+                return std.mem.startsWith(u8, a, b);
+            }
+        }.match,
+    );
+
+    try json.writePretty(Constants.Extras.package_files.manifest, pkg);
+}
+
+fn lockAdd(
+    lock: *Structs.ZepFiles.PackageLockStruct,
+    package: Package,
+    json: *Json,
+) !void {
+    const new_entry = Structs.ZepFiles.LockPackageStruct{
+        .name = package.id,
+        .hash = package.package_hash,
+        .source = package.package.url,
+        .zig_version = package.package.zig_version,
+        .root_file = package.package.root_file,
+    };
+
+    const allocator = std.heap.page_allocator;
+    lock.packages = try filterOut(
+        allocator,
+        lock.packages,
+        package.package_name,
+        Structs.ZepFiles.LockPackageStruct,
+        struct {
+            fn match(item: Structs.ZepFiles.LockPackageStruct, ctx: []const u8) bool {
+                return std.mem.startsWith(u8, item.name, ctx);
+            }
+        }.match,
+    );
+
+    lock.packages = try appendUnique(
+        Structs.ZepFiles.LockPackageStruct,
+        lock.packages,
+        new_entry,
+        allocator,
+        struct {
+            fn match(item: Structs.ZepFiles.LockPackageStruct, ctx: Structs.ZepFiles.LockPackageStruct) bool {
+                return std.mem.startsWith(u8, item.name, ctx.name);
+            }
+        }.match,
+    );
+
+    var package_json = try Manifest.readManifest(Structs.ZepFiles.PackageJsonStruct, allocator, Constants.Extras.package_files.manifest);
+    defer package_json.deinit();
+    lock.root = package_json.value;
+
+    try json.writePretty(Constants.Extras.package_files.lock, lock);
+}
 
 fn installAll(allocator: std.mem.Allocator, printer: *Printer) anyerror!void {
     var package_json = try Manifest.readManifest(Structs.ZepFiles.PackageJsonStruct, allocator, Constants.Extras.package_files.manifest);

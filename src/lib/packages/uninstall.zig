@@ -6,7 +6,6 @@ const Structs = @import("structs");
 
 const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
-const Package = @import("core").Package.Package;
 const Injector = @import("core").Injector.Injector;
 const Manifest = @import("core").Manifest;
 const Json = @import("core").Json.Json;
@@ -18,7 +17,7 @@ pub const Uninstaller = struct {
     printer: *Printer,
     package_name: []const u8,
     package_version: []const u8,
-    package: Package,
+    package_id: []const u8,
 
     /// Initialize the uninstaller with allocator, package name, and printer
     pub fn init(allocator: std.mem.Allocator, package_name: []const u8, printer: *Printer) !Uninstaller {
@@ -45,17 +44,18 @@ pub const Uninstaller = struct {
         if (package_version.len == 0) {
             return error.NotInstalled;
         }
-        const package = try Package.init(allocator, package_name, package_version, printer);
-        if (package == null) {
-            try printer.append("{s} is invalid!\n\n", .{package_name}, .{ .color = 31 });
-            return error.InvalidPackage;
-        }
-
-        return Uninstaller{ .allocator = allocator, .package_name = package_name, .package_version = package_version, .package = package.?, .json = json, .printer = printer };
+        return Uninstaller{
+            .allocator = allocator,
+            .package_name = package_name,
+            .package_version = package_version,
+            .package_id = try std.fmt.allocPrint(allocator, "{s}@{s}", .{ package_name, package_version }),
+            .json = json,
+            .printer = printer,
+        };
     }
 
     pub fn deinit(self: *Uninstaller) void {
-        self.package.deinit();
+        self.allocator.free(self.package_id);
     }
 
     /// Main uninstallation routine
@@ -86,7 +86,7 @@ pub const Uninstaller = struct {
             try Manifest.removePathFromManifest(
                 &self.json,
                 self.package_name,
-                self.package.id,
+                self.package_id,
                 absolute_path,
             );
         }
@@ -104,8 +104,74 @@ pub const Uninstaller = struct {
 
         const previous_verbosity = Locales.VERBOSITY_MODE;
         Locales.VERBOSITY_MODE = 0;
-        try self.package.manifestRemove(&package_json.value);
-        try self.package.lockRemove(&lock_json.value);
+        try manifestRemove(&package_json.value, self.package_name, &self.json);
+        try lockRemove(&lock_json.value, self.package_name, &self.json);
         Locales.VERBOSITY_MODE = previous_verbosity;
     }
 };
+
+fn filterOut(
+    allocator: std.mem.Allocator,
+    list: anytype,
+    filter: []const u8,
+    comptime T: type,
+    matchFn: fn (a: T, b: []const u8) bool,
+) ![]T {
+    var out = std.ArrayList(T).init(allocator);
+    defer out.deinit();
+
+    for (list) |item| {
+        if (!matchFn(item, filter))
+            try out.append(item);
+    }
+
+    return out.toOwnedSlice();
+}
+
+fn lockRemove(
+    lock: *Structs.ZepFiles.PackageLockStruct,
+    package_name: []const u8,
+    json: *Json,
+) !void {
+    const allocator = std.heap.page_allocator;
+
+    lock.packages = try filterOut(
+        allocator,
+        lock.packages,
+        package_name,
+        Structs.ZepFiles.LockPackageStruct,
+        struct {
+            fn match(item: Structs.ZepFiles.LockPackageStruct, ctx: []const u8) bool {
+                return std.mem.startsWith(u8, item.name, ctx);
+            }
+        }.match,
+    );
+
+    var package_json = try Manifest.readManifest(Structs.ZepFiles.PackageJsonStruct, allocator, Constants.Extras.package_files.manifest);
+    defer package_json.deinit();
+    lock.root = package_json.value;
+
+    try json.writePretty(Constants.Extras.package_files.lock, lock);
+}
+
+fn manifestRemove(
+    pkg: *Structs.ZepFiles.PackageJsonStruct,
+    package_name: []const u8,
+    json: *Json,
+) !void {
+    const allocator = std.heap.page_allocator;
+
+    pkg.packages = try filterOut(
+        allocator,
+        pkg.packages,
+        package_name,
+        []const u8,
+        struct {
+            fn match(item: []const u8, ctx: []const u8) bool {
+                return std.mem.startsWith(u8, item, ctx);
+            }
+        }.match,
+    );
+
+    try json.writePretty(Constants.Extras.package_files.manifest, pkg);
+}
