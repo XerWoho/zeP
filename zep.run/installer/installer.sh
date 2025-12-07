@@ -17,7 +17,7 @@ fi
 
 
 
-TARGET="0.5"
+TARGET="0.6"
 if [ $# -gt 0 ]; then
     TARGET="$1"
 fi
