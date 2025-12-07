@@ -117,6 +117,7 @@ pub const ArtifactInstaller = struct {
                 decompressed_directory,
                 temporary_directory,
                 target,
+                artifact_type,
             );
         }
     }
