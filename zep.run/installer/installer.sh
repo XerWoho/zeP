@@ -1,6 +1,10 @@
 #!/bin/bash
 
 USR_LOCAL_BIN="$HOME/.local/bin"
+export PATH="$USR_LOCAL_BIN:$PATH"
+grep -qxF "export PATH=\"$USR_LOCAL_BIN:\$PATH\"" "$HOME/.bashrc" || echo "export PATH=\"$USR_LOCAL_BIN:\$PATH\"" >> "$HOME/.bashrc"
+
+
 LOCAL_ZEP="$HOME/.local"
 if ! [ -e "$LOCAL_ZEP" ]; then
     mkdir -p "${LOCAL_ZEP}"
