@@ -33,7 +33,7 @@ pub fn createZigProject(printer: *Printer, allocator: std.mem.Allocator, name: [
     const zig_build_path = "build.zig";
     const zig_build_zon_path = "build.zig.zon";
 
-    try printer.append("Initting Zig project...\n", .{}, .{});
+    try printer.append("Initing Zig project...\n", .{}, .{});
 
     const zig_main =
         \\
