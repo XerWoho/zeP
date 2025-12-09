@@ -30,4 +30,15 @@ for element in "${linux_targets[@]}"; do
 	tar -C tempR/$element/bin -cJf release/$element/zep_${element}_$versionName.tar.xz zeP
 done
 
+# macOS targets
+macos_targets=("x86_64-macos" "aarch64-macos")
+
+for element in "${macos_targets[@]}"; do
+    mkdir -p release/$element
+
+    zig build -Doptimize=ReleaseFast -freference-trace -Dtarget=$element -p tempR/$element
+
+	tar -C tempR/$element/bin -cJf release/$element/zep_${element}_$versionName.tar.xz zeP
+done
+
 rm -r tempR/
