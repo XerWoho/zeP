@@ -32,7 +32,7 @@ pub const Package = struct {
         package_version: ?[]const u8,
         printer: *Printer,
     ) !Package {
-        try printer.append("\nFinding the package...\n", .{}, .{});
+        try printer.append("Finding the package...\n", .{}, .{});
 
         // JSON context
         var json = try Json.init(allocator);
