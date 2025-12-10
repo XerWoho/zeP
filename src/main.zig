@@ -4,6 +4,7 @@ const Constants = @import("constants");
 const Locales = @import("locales");
 const Structs = @import("structs");
 
+const Prompt = @import("cli").Prompt;
 const Printer = @import("cli").Printer;
 const Setup = @import("cli").Setup;
 const Fs = @import("io").Fs;
@@ -265,6 +266,51 @@ pub fn main() !void {
         return;
     };
 
+    var paths = try Constants.Paths.paths(allocator);
+    defer paths.deinit();
+
+    const create_paths = [5][]const u8{
+        paths.root,
+        paths.zep_root,
+        paths.zepped,
+        paths.pkg_root,
+        paths.zig_root,
+    };
+
+    var is_created = true;
+    for (create_paths) |p| {
+        is_created = Fs.existsDir(p);
+        if (!is_created) break;
+    }
+
+    if (!is_created) {
+        const stdin = std.io.getStdIn().reader();
+        try printer.append("\nNo setup detected. Run '$ zeP setup'?\n", .{}, .{});
+        const answer = try Prompt.input(allocator, &printer, stdin, "(Y/n) > ", .{});
+        if (answer.len == 0 or
+            std.mem.startsWith(u8, answer, "y") or
+            std.mem.startsWith(u8, answer, "Y"))
+        {
+            try Setup.setup(allocator, &printer);
+        }
+    }
+
+    const zep_version_exists = Fs.existsFile(paths.zep_manifest);
+    if (!zep_version_exists) {
+        const stdin = std.io.getStdIn().reader();
+        try printer.append("\nzeP appears to be running outside fitting directory. Run '$ zeP zep install'?\n", .{}, .{});
+        const answer = try Prompt.input(allocator, &printer, stdin, "(Y/n) > ", .{});
+        if (answer.len == 0 or
+            std.mem.startsWith(u8, answer, "y") or
+            std.mem.startsWith(u8, answer, "Y"))
+        {
+            var zep = try Artifact.init(allocator, &printer, .zep);
+            defer zep.deinit();
+            const target = resolveDefaultTarget();
+            try zep.install("latest", target);
+        }
+    }
+
     if (std.mem.eql(u8, subcommand, "setup")) {
         try Setup.setup(allocator, &printer);
         return;
@@ -279,8 +325,6 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "paths")) {
-        var paths = try Constants.Paths.paths(allocator);
-        defer paths.deinit();
         try printer.append("\n--- ZEP PATHS ---\n\nBase: {s}\nCustom: {s}\nRoot: {s}\nPrebuilt: {s}\nZepped: {s}\nPackage-Manifest: {s}\nPackge-Root: {s}\nZep-Manifest: {s}\nZep-Root: {s}\nZig-Manifest: {s}\nZig-Root: {s}\n\n", .{
             paths.base,
             paths.custom,
@@ -456,7 +500,7 @@ pub fn main() !void {
                         try printer.append("\nHASH MISMATCH!\nPLEASE REPORT!\n\n", .{}, .{ .color = 31 });
                     },
                     else => {
-                        try printer.append("\nInstalling {s} has failed...\n\n", .{package}, .{ .color = 31 });
+                        try printer.append("\nInstalling {s} has failed...\n{any}\n", .{ package, err }, .{ .color = 31 });
                     },
                 }
             };
