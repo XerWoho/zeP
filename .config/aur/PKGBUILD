@@ -15,7 +15,7 @@ package() {
 }
 
 post_install() {
-    echo "--- PROPERTY ZEP CONFIG REQUIRED ---"
+    echo "--- ZEP CONFIG REQUIRED ---"
     echo " ==> Run 'zeP setup' to configure zeP"
     echo " ==> Then run: zeP zep install 0.7"
 }
