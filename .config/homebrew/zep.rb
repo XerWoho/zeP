@@ -1,7 +1,7 @@
 class Zep < Formula
   desc "Fast package manager for Zig"
   homepage "https://github.com/XerWoho/zeP"
-  license "MIT"
+  license "GPLv3"
 
   on_macos do
     url "https://zep.run/releases/0.7/zep_x86_64-macos_0.7.tar.xz"
