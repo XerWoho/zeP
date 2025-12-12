@@ -46,5 +46,6 @@ pub fn build(builder: *std.Build) void {
     zep_executeable_mod.root_module.addImport("cli", clisMod);
 
     @import(".zep/injector.zig").injectExtraImports(builder, zep_executeable_mod);
+    @import(".zep/injector.zig").injectExtraImports(builder, zep_executeable_mod);
     builder.installArtifact(zep_executeable_mod);
 }

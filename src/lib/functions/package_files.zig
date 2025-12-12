@@ -16,7 +16,7 @@ pub const PackageFiles = struct {
     pub fn init(allocator: std.mem.Allocator, printer: *Printer) !PackageFiles {
         const runner = PackageFiles{ .allocator = allocator, .printer = printer };
         if (!Fs.existsFile(Constants.Extras.package_files.manifest)) {
-            try printer.append("\nNo zep.json file!\n", .{}, .{ .color = 31 });
+            try printer.append("\nNo zep.json file!\n", .{}, .{ .color = .red });
             return error.ManifestMissing;
         }
 
@@ -28,8 +28,11 @@ pub const PackageFiles = struct {
         defer zep_json.deinit();
 
         const stdin = std.io.getStdIn().reader();
-        try self.printer.append("--- MODIFYING JSON MODE ---\n", .{}, .{ .color = 33 });
-        try self.printer.append("(leave empty to keep same)\n\n", .{}, .{ .color = 33 });
+        try self.printer.append("--- MODIFYING JSON MODE ---\n", .{}, .{
+            .color = .yellow,
+            .weight = .bold,
+        });
+        try self.printer.append("(leave empty to keep same)\n\n", .{}, .{ .color = .yellow });
         const author = try Prompt.input(
             self.allocator,
             self.printer,
@@ -116,7 +119,7 @@ pub const PackageFiles = struct {
         zep_lock.value.root = zep_json.value;
 
         try Manifest.writeManifest(Structs.ZepFiles.PackageLockStruct, self.allocator, Constants.Extras.package_files.lock, zep_lock.value);
-        try self.printer.append("\nSuccessfully modified zep.json!\n\n", .{}, .{ .color = 32 });
+        try self.printer.append("\nSuccessfully modified zep.json!\n\n", .{}, .{ .color = .green });
         return;
     }
 
@@ -129,7 +132,7 @@ pub const PackageFiles = struct {
         zep_lock.value.root = zep_json.value;
         try Manifest.writeManifest(Structs.ZepFiles.PackageLockStruct, self.allocator, Constants.Extras.package_files.lock, zep_lock.value);
 
-        try self.printer.append("Successfully moved zep.json into zep.lock!\n\n", .{}, .{ .color = 32 });
+        try self.printer.append("Successfully moved zep.json into zep.lock!\n\n", .{}, .{ .color = .green });
         return;
     }
 };

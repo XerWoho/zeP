@@ -26,7 +26,7 @@ pub const Runner = struct {
     /// Initializes a Child Processor, and executes specified file
     pub fn run(self: *Runner, target_exe: []const u8, args: [][]const u8) !void {
         var builder = try Builder.init(self.allocator, self.printer);
-        try self.printer.append("\nBuilding executeable...\n\n", .{}, .{ .color = 32 });
+        try self.printer.append("\nBuilding executeable...\n\n", .{}, .{ .color = .green });
         const target_files = try builder.build();
         defer target_files.deinit();
 
@@ -56,7 +56,7 @@ pub const Runner = struct {
         self.printer.pop(50);
         const cmd = try std.mem.join(self.allocator, " ", exec_args.items);
         defer self.allocator.free(cmd);
-        try self.printer.append("\nRunning...\n $ {s}\n\n\n", .{cmd}, .{ .color = 32 });
+        try self.printer.append("\nRunning...\n $ {s}\n\n\n", .{cmd}, .{ .color = .green });
         var process = std.process.Child.init(exec_args.items, self.allocator);
         _ = process.spawnAndWait() catch {};
     }

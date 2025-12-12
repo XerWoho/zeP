@@ -15,35 +15,31 @@ pub const Cacher = struct {
     package: Package,
     compressor: Compressor,
     printer: *Printer,
+    paths: *Constants.Paths.Paths,
 
     pub fn init(
         allocator: std.mem.Allocator,
         package: Package,
         printer: *Printer,
+        paths: *Constants.Paths.Paths,
     ) !Cacher {
         return .{
             .allocator = allocator,
             .package = package,
-            .compressor = Compressor.init(allocator, printer),
+            .compressor = Compressor.init(allocator, printer, paths),
             .printer = printer,
+            .paths = paths,
         };
     }
 
     pub fn deinit(_: *Cacher) void {}
 
-    // ---------------------------
-    // PATH HELPERS
-    // ---------------------------
-
     fn cacheFilePath(self: *Cacher) ![]u8 {
-        var paths = try Constants.Paths.paths(self.allocator);
-        defer paths.deinit();
-
         return try std.fmt.allocPrint(
             self.allocator,
             "{s}/{s}@{s}.zep",
             .{
-                try self.allocator.dupe(u8, paths.zepped),
+                try self.allocator.dupe(u8, self.paths.zepped),
                 self.package.package_name,
                 self.package.package_version,
             },
@@ -51,14 +47,11 @@ pub const Cacher = struct {
     }
 
     fn extractPath(self: *Cacher) ![]u8 {
-        var paths = try Constants.Paths.paths(self.allocator);
-        defer paths.deinit();
-
         return try std.fmt.allocPrint(
             self.allocator,
             "{s}/{s}@{s}",
             .{
-                try self.allocator.dupe(u8, paths.pkg_root),
+                try self.allocator.dupe(u8, self.paths.pkg_root),
                 self.package.package_name,
                 self.package.package_version,
             },
@@ -73,20 +66,12 @@ pub const Cacher = struct {
         );
     }
 
-    // ---------------------------
-    // CACHE CHECK
-    // ---------------------------
-
     pub fn isPackageCached(self: *Cacher) !bool {
         const path = try self.cacheFilePath();
         defer self.allocator.free(path);
 
         return Fs.existsFile(path);
     }
-
-    // ---------------------------
-    // EXTRACT FROM CACHE
-    // ---------------------------
 
     pub fn getPackageFromCache(self: *Cacher) !bool {
         const is_cached = try self.isPackageCached();
@@ -97,7 +82,7 @@ pub const Cacher = struct {
         defer {
             temporary_directory.close();
             Fs.deleteTreeIfExists(TEMPORARY_DIRECTORY_PATH) catch {
-                self.printer.append("\nFailed to delete {s}!\n", .{TEMPORARY_DIRECTORY_PATH}, .{ .color = 31 }) catch {};
+                self.printer.append("\nFailed to delete {s}!\n", .{TEMPORARY_DIRECTORY_PATH}, .{ .color = .red }) catch {};
             };
             self.allocator.free(temporary_output_path);
         }
@@ -116,20 +101,13 @@ pub const Cacher = struct {
     }
 
     pub fn deletePackageFromCache(self: *Cacher) !void {
-        var paths = try Constants.Paths.paths(self.allocator);
-        defer paths.deinit();
-
-        const path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.zep", .{ paths.zepped, self.package.id });
+        const path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.zep", .{ self.paths.zepped, self.package.id });
         defer self.allocator.free(path);
 
         if (Fs.existsFile(path)) {
             try Fs.deleteFileIfExists(path);
         }
     }
-
-    // ---------------------------
-    // WRITE CACHE METADATA / LOG
-    // ---------------------------
 
     pub fn cachePackage(self: *Cacher) !void {
         try self.printer.append(

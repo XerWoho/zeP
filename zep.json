@@ -8,12 +8,18 @@
     {
       "name": "release_windows",
       "cmd": "zig build -Doptimize=ReleaseFast -freference-trace -Dtarget=x86_64-windows-msvc -p tempR/w"
+    },
+    {
+      "name": "release_linux",
+      "cmd": "zig build -Doptimize=ReleaseFast -freference-trace -Dtarget=x86_64-linux -p tempR/l"
     }
   ],
   "description": "A new zig Package manager, and version manager for zig.",
   "version": "0.7",
   "license": "GPLv3",
-  "packages": ["clap@0.10.0"],
+  "packages": [
+    "clap@0.10.0"
+  ],
   "dev_packages": [],
   "build": {
     "entry": "/src/main.zig",

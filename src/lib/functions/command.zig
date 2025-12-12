@@ -16,7 +16,7 @@ pub const Command = struct {
     pub fn init(allocator: std.mem.Allocator, printer: *Printer) !Command {
         const runner = Command{ .allocator = allocator, .printer = printer };
         if (!Fs.existsFile(Constants.Extras.package_files.manifest)) {
-            try printer.append("\nNo zep.json file!\n", .{}, .{ .color = 31 });
+            try printer.append("\nNo zep.json file!\n", .{}, .{ .color = .red });
             return error.ManifestNotFound;
         }
 
@@ -31,7 +31,10 @@ pub const Command = struct {
         defer cmds.deinit();
         const stdin = std.io.getStdIn().reader();
 
-        try self.printer.append("--- ADDING COMMAND MODE ---\n\n", .{}, .{ .color = 33 });
+        try self.printer.append("--- ADDING COMMAND MODE ---\n\n", .{}, .{
+            .color = .yellow,
+            .weight = .bold,
+        });
 
         const command_name = try Prompt.input(
             self.allocator,
@@ -45,7 +48,31 @@ pub const Command = struct {
         defer self.allocator.free(command_name);
         for (zep_json.value.cmd) |c| {
             if (std.mem.eql(u8, c.name, command_name)) {
-                try self.printer.append("\n(Command already exists, overwriting)\n", .{}, .{ .color = 31 });
+                try self.printer.append("\nCommand already exists! Overwrite? (Y/n)", .{}, .{
+                    .color = .red,
+                    .weight = .bold,
+                });
+
+                const input = try Prompt.input(
+                    self.allocator,
+                    self.printer,
+                    stdin,
+                    "",
+                    .{},
+                );
+
+                if (std.mem.startsWith(u8, input, "n") or std.mem.startsWith(u8, input, "N")) {
+                    try self.printer.append("Exiting...\n\n", .{}, .{
+                        .color = .white,
+                        .weight = .bold,
+                    });
+                    return;
+                }
+                try self.printer.append("Overwriting...\n\n", .{}, .{
+                    .color = .white,
+                    .weight = .bold,
+                });
+
                 continue;
             }
             try cmds.append(c);
@@ -72,7 +99,7 @@ pub const Command = struct {
         defer zep_lock.deinit();
         zep_lock.value.root = zep_json.value;
         try Manifest.writeManifest(Structs.ZepFiles.PackageLockStruct, self.allocator, Constants.Extras.package_files.lock, zep_lock.value);
-        try self.printer.append("Successfully added command!\n\n", .{}, .{ .color = 32 });
+        try self.printer.append("Successfully added command!\n\n", .{}, .{ .color = .green });
         return;
     }
 
@@ -104,7 +131,7 @@ pub const Command = struct {
         zep_lock.value.root = zep_json.value;
         try Manifest.writeManifest(Structs.ZepFiles.PackageLockStruct, self.allocator, Constants.Extras.package_files.lock, zep_lock.value);
 
-        try self.printer.append("Successfully removed command!\n\n", .{}, .{ .color = 32 });
+        try self.printer.append("Successfully removed command!\n\n", .{}, .{ .color = .green });
         return;
     }
 
@@ -114,23 +141,23 @@ pub const Command = struct {
 
         for (zep_json.value.cmd) |c| {
             if (std.mem.eql(u8, c.name, key)) {
-                try self.printer.append("Command was found!\n", .{}, .{ .color = 32 });
+                try self.printer.append("Command was found!\n", .{}, .{ .color = .green });
                 var args = std.ArrayList([]const u8).init(self.allocator);
                 defer args.deinit();
                 var split = std.mem.splitAny(u8, c.cmd, " ");
                 while (split.next()) |arg| {
                     try args.append(arg);
                 }
-                try self.printer.append("Executing:\n $ {s}\n\n", .{c.cmd}, .{ .color = 32 });
+                try self.printer.append("Executing:\n $ {s}\n\n", .{c.cmd}, .{ .color = .green });
                 var exec_cmd = std.process.Child.init(args.items, self.allocator);
                 _ = exec_cmd.spawnAndWait() catch {};
 
-                try self.printer.append("\nFinished executing!\n", .{}, .{ .color = 32 });
+                try self.printer.append("\nFinished executing!\n", .{}, .{ .color = .green });
                 return;
             }
             continue;
         }
-        try self.printer.append("\nCommand not found!\n", .{}, .{ .color = 31 });
+        try self.printer.append("\nCommand not found!\n", .{}, .{ .color = .red });
         return;
     }
 };

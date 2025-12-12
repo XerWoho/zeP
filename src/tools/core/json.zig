@@ -10,9 +10,16 @@ const Manifest = @import("manifest.zig");
 /// writing into files.
 pub const Json = struct {
     allocator: std.mem.Allocator,
+    paths: *Constants.Paths.Paths,
 
-    pub fn init(allocator: std.mem.Allocator) !Json {
-        return Json{ .allocator = allocator };
+    pub fn init(
+        allocator: std.mem.Allocator,
+        paths: *Constants.Paths.Paths,
+    ) !Json {
+        return Json{
+            .allocator = allocator,
+            .paths = paths,
+        };
     }
 
     pub fn parseJsonFromFile(
@@ -71,10 +78,7 @@ pub const Json = struct {
         try req.wait();
 
         if (req.response.status == .not_found) {
-            var paths = try Constants.Paths.paths(self.allocator);
-            defer paths.deinit();
-
-            const local_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.json", .{ paths.custom, package_name });
+            const local_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.json", .{ self.paths.custom, package_name });
             if (!Fs.existsFile(local_path)) return error.PackageNotFound;
             const parsed = try self.parseJsonFromFile(Structs.Packages.PackageStruct, local_path, Constants.Default.mb * 10);
             return parsed;

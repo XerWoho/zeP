@@ -13,16 +13,21 @@ const Json = @import("core").Json.Json;
 /// Handles the uninstallation of a package
 pub const Uninstaller = struct {
     allocator: std.mem.Allocator,
-    json: Json,
     printer: *Printer,
+    paths: *Constants.Paths.Paths,
+    json: *Json,
     package_name: []const u8,
     package_version: []const u8,
     package_id: []const u8,
 
     /// Initialize the uninstaller with allocator, package name, and printer
-    pub fn init(allocator: std.mem.Allocator, package_name: []const u8, printer: *Printer) !Uninstaller {
-        const json = try Json.init(allocator);
-
+    pub fn init(
+        allocator: std.mem.Allocator,
+        printer: *Printer,
+        json: *Json,
+        paths: *Constants.Paths.Paths,
+        package_name: []const u8,
+    ) !Uninstaller {
         const lock = try Manifest.readManifest(Structs.ZepFiles.PackageLockStruct, allocator, Constants.Extras.package_files.lock);
         var package_version: []const u8 = "";
         for (lock.value.packages) |package| {
@@ -51,6 +56,7 @@ pub const Uninstaller = struct {
             .package_id = try std.fmt.allocPrint(allocator, "{s}@{s}", .{ package_name, package_version }),
             .json = json,
             .printer = printer,
+            .paths = paths,
         };
     }
 
@@ -84,14 +90,15 @@ pub const Uninstaller = struct {
             // ! if no other project uses it
             // !
             try Manifest.removePathFromManifest(
-                &self.json,
+                self.json,
                 self.package_name,
                 self.package_id,
                 absolute_path,
+                self.paths,
             );
         }
         try self.removePackageFromJson();
-        try self.printer.append("Successfully deleted - {s}\n\n", .{self.package_name}, .{ .color = 32 });
+        try self.printer.append("Successfully deleted - {s}\n\n", .{self.package_name}, .{ .color = .green });
     }
 
     /// Remove package from `zep.json` and `zep.lock`
@@ -104,8 +111,8 @@ pub const Uninstaller = struct {
 
         const previous_verbosity = Locales.VERBOSITY_MODE;
         Locales.VERBOSITY_MODE = 0;
-        try manifestRemove(&package_json.value, self.package_name, &self.json);
-        try lockRemove(&lock_json.value, self.package_name, &self.json);
+        try manifestRemove(&package_json.value, self.package_name, self.json);
+        try lockRemove(&lock_json.value, self.package_name, self.json);
         Locales.VERBOSITY_MODE = previous_verbosity;
     }
 };

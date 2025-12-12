@@ -8,11 +8,11 @@ const Fs = @import("io").Fs;
 const Manifest = @import("core").Manifest;
 
 /// Updates the symbolic link to point to the currently active Artifact installation
-pub fn updateLink(artifact_type: Structs.Extras.ArtifactType) !void {
+pub fn updateLink(
+    artifact_type: Structs.Extras.ArtifactType,
+    paths: *Constants.Paths.Paths,
+) !void {
     var allocator = std.heap.page_allocator;
-    var paths = try Constants.Paths.paths(allocator);
-    defer paths.deinit();
-
     // Load manifest and get absolute path
     const manifest = try Manifest.readManifest(
         Structs.Manifests.ArtifactManifest,

@@ -230,9 +230,9 @@ fn printUsage(printer: *Printer) !void {
     try printer.append("--- PREBUILT COMMANDS ---\n  zep prebuilt [build|use] [name] (target)\n", .{}, .{});
     try printer.append("  zep prebuilt delete [name]\n  zep prebuilt list\n\n", .{}, .{});
     try printer.append("--- ZIG COMMANDS ---\n  zep zig [uninstall|switch] [version]\n", .{}, .{});
-    try printer.append("  zep zig install [version] (target)\n  zep zig list\n\n", .{}, .{});
+    try printer.append("  zep zig install [version] (target)\n  zep zig list\n  zep zig prune\n\n", .{}, .{});
     try printer.append("--- zep COMMANDS ---\n  zep zep [uninstall|switch] [version]\n", .{}, .{});
-    try printer.append("  zep zep install [version] (target)\n  zep zep list\n\n", .{}, .{});
+    try printer.append("  zep zep install [version] (target)\n  zep zep list\n  zep zep prune\n\n", .{}, .{});
 }
 
 /// Fetch the next argument or print an error and exit out of the process.
@@ -257,8 +257,7 @@ pub fn main() !void {
     defer args.deinit();
     _ = args.skip(); // skip program name
 
-    const data = std.ArrayList(Structs.Extras.PrinterData).init(allocator);
-    var printer = Printer.init(data, allocator);
+    var printer = Printer.init(allocator);
     defer printer.deinit();
     try printer.append("\n", .{}, .{});
 
@@ -270,6 +269,7 @@ pub fn main() !void {
 
     var paths = try Constants.Paths.paths(allocator);
     defer paths.deinit();
+    var json = try Json.init(allocator, &paths);
 
     const create_paths = [5][]const u8{
         paths.root,
@@ -293,7 +293,7 @@ pub fn main() !void {
             std.mem.startsWith(u8, answer, "y") or
             std.mem.startsWith(u8, answer, "Y"))
         {
-            try Setup.setup(allocator, &printer);
+            try Setup.setup(allocator, &printer, &paths);
         }
     }
 
@@ -301,12 +301,23 @@ pub fn main() !void {
     if (!zep_version_exists) {
         const stdin = std.io.getStdIn().reader();
         try printer.append("\nzep appears to be running outside fitting directory. Run '$ zep zep install'?\n", .{}, .{});
-        const answer = try Prompt.input(allocator, &printer, stdin, "(Y/n) > ", .{});
+        const answer = try Prompt.input(
+            allocator,
+            &printer,
+            stdin,
+            "(Y/n) > ",
+            .{},
+        );
         if (answer.len == 0 or
             std.mem.startsWith(u8, answer, "y") or
             std.mem.startsWith(u8, answer, "Y"))
         {
-            var zep = try Artifact.init(allocator, &printer, .zep);
+            var zep = try Artifact.init(
+                allocator,
+                &printer,
+                &paths,
+                .zep,
+            );
             defer zep.deinit();
             const target = resolveDefaultTarget();
             try zep.install("latest", target);
@@ -314,7 +325,11 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "setup")) {
-        try Setup.setup(allocator, &printer);
+        try Setup.setup(
+            allocator,
+            &printer,
+            &paths,
+        );
         return;
     }
     if (std.mem.eql(u8, subcommand, "help")) {
@@ -327,7 +342,7 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "paths")) {
-        try printer.append("\n--- zep PATHS ---\n\nBase: {s}\nCustom: {s}\nRoot: {s}\nPrebuilt: {s}\nzepped: {s}\nPackage-Manifest: {s}\nPackge-Root: {s}\nzep-Manifest: {s}\nzep-Root: {s}\nZig-Manifest: {s}\nZig-Root: {s}\n\n", .{
+        try printer.append("\n--- ZEP PATHS ---\n\nBase: {s}\nCustom: {s}\nRoot: {s}\nPrebuilt: {s}\nzepped: {s}\nPackage-Manifest: {s}\nPackge-Root: {s}\nzep-Manifest: {s}\nzep-Root: {s}\nZig-Manifest: {s}\nZig-Root: {s}\n\n", .{
             paths.base,
             paths.custom,
             paths.root,
@@ -356,19 +371,39 @@ pub fn main() !void {
         var bootstrap_args = try parseBootstrap(allocator);
         defer bootstrap_args.deinit(allocator);
 
-        try Bootstrap.bootstrap(allocator, &printer, bootstrap_args.zig, bootstrap_args.deps);
+        try Bootstrap.bootstrap(
+            allocator,
+            &printer,
+            &json,
+            &paths,
+            bootstrap_args.zig,
+            bootstrap_args.deps,
+        );
         return;
     }
 
     if (std.mem.eql(u8, subcommand, "new")) {
         const new_package_name = try nextArg(&args, &printer, " > zep new <name>");
-        try New.new(allocator, &printer, new_package_name);
+        try New.new(
+            allocator,
+            &printer,
+            new_package_name,
+            &json,
+        );
         return;
     }
 
     if (std.mem.eql(u8, subcommand, "cache")) {
-        const cache_subcommand = try nextArg(&args, &printer, " > zep cache [list|clean|size] (package_id)");
-        var cache = try Cache.init(allocator, &printer);
+        const cache_subcommand = try nextArg(
+            &args,
+            &printer,
+            " > zep cache [list|clean|size] (package_id)",
+        );
+        var cache = try Cache.init(
+            allocator,
+            &printer,
+            &paths,
+        );
         defer cache.deinit();
         if (std.mem.eql(u8, cache_subcommand, "list") or std.mem.eql(u8, cache_subcommand, "ls")) {
             try cache.list();
@@ -391,7 +426,7 @@ pub fn main() !void {
         const lock = try Manifest.readManifest(Structs.ZepFiles.PackageLockStruct, allocator, Constants.Extras.package_files.lock);
         defer lock.deinit();
         if (lock.value.schema != Constants.Extras.package_files.lock_schema_version) {
-            try printer.append("Lock file schema is NOT matching with zep version.\nConsider removing them, and re-initing!\n", .{}, .{ .color = 31 });
+            try printer.append("Lock file schema is NOT matching with zep version.\nConsider removing them, and re-initing!\n", .{}, .{ .color = .red });
             return;
         }
     }
@@ -400,7 +435,11 @@ pub fn main() !void {
         const mode = try nextArg(&args, &printer, " > zep pkg [command]");
 
         if (std.mem.eql(u8, mode, "add")) {
-            var custom = CustomPackage.init(allocator, &printer);
+            var custom = CustomPackage.init(
+                allocator,
+                &printer,
+                &paths,
+            );
             try custom.requestPackage();
             return;
         }
@@ -409,7 +448,11 @@ pub fn main() !void {
                 try printer.append("No target specified!\n\n", .{}, .{});
                 return;
             };
-            var custom = CustomPackage.init(allocator, &printer);
+            var custom = CustomPackage.init(
+                allocator,
+                &printer,
+                &paths,
+            );
             try custom.removePackage(target);
             return;
         }
@@ -419,19 +462,24 @@ pub fn main() !void {
             if (target) |package| {
                 var split = std.mem.splitScalar(u8, package, '@');
                 const package_name = split.first();
-                var lister = try Lister.init(allocator, &printer, package_name);
+                var lister = Lister.init(
+                    allocator,
+                    &printer,
+                    &json,
+                    package_name,
+                );
                 lister.list() catch {
-                    try printer.append("\nListing {s} has failed...\n\n", .{package_name}, .{ .color = 31 });
+                    try printer.append("\nListing {s} has failed...\n\n", .{package_name}, .{ .color = .red });
                 };
             } else {
-                try printer.append("Missing argument;\nzep list [target]\n\n", .{}, .{ .color = 31 });
+                try printer.append("Missing argument;\nzep list [target]\n\n", .{}, .{ .color = .red });
             }
             return;
         }
     }
 
     if (std.mem.eql(u8, subcommand, "init")) {
-        var initer = try Init.init(allocator, &printer, false);
+        var initer = try Init.init(allocator, &printer, &json, false);
         try initer.commitInit();
         return;
     }
@@ -456,11 +504,11 @@ pub fn main() !void {
         var package_files = PackageFiles.init(allocator, &printer) catch |err| {
             switch (err) {
                 error.ManifestMissing => {
-                    try printer.append("zep.json manifest is missing!\n $ zep init\nto get started!\n\n", .{}, .{ .color = 31 });
+                    try printer.append("zep.json manifest is missing!\n $ zep init\nto get started!\n\n", .{}, .{ .color = .red });
                     return;
                 },
                 else => {
-                    try printer.append("Moving zep.json failed!\n\n", .{}, .{ .color = 31 });
+                    try printer.append("Moving zep.json failed!\n\n", .{}, .{ .color = .red });
                     return;
                 },
             }
@@ -473,11 +521,11 @@ pub fn main() !void {
         var package_files = PackageFiles.init(allocator, &printer) catch |err| {
             switch (err) {
                 error.ManifestMissing => {
-                    try printer.append("zep.json manifest is missing!\n $ zep init\nto get started!\n\n", .{}, .{ .color = 31 });
+                    try printer.append("zep.json manifest is missing!\n $ zep init\nto get started!\n\n", .{}, .{ .color = .red });
                     return;
                 },
                 else => {
-                    try printer.append("Moving zep.json failed!\n\n", .{}, .{ .color = 31 });
+                    try printer.append("Moving zep.json failed!\n\n", .{}, .{ .color = .red });
                     return;
                 },
             }
@@ -496,7 +544,14 @@ pub fn main() !void {
             return;
         };
 
-        const package = try Package.init(allocator, package_name, package_version, &printer);
+        const package = try Package.init(
+            allocator,
+            &printer,
+            &json,
+            &paths,
+            package_name,
+            package_version,
+        );
         std.debug.print("Package Name: {s}\n", .{package_name});
         std.debug.print("Version: {s}\n", .{package.package.version});
         std.debug.print("Sha256Sum: {s}\n", .{package.package.sha256sum});
@@ -514,27 +569,41 @@ pub fn main() !void {
             const package_name = split.first();
             const package_version = split.next();
 
-            var installer = try Installer.init(allocator, &printer, package_name, package_version);
+            var installer = try Installer.init(
+                allocator,
+                &printer,
+                &json,
+                &paths,
+                package_name,
+                package_version,
+            );
             defer installer.deinit();
             installer.install() catch |err| {
                 switch (err) {
                     error.AlreadyInstalled => {
-                        try printer.append("\nAlready installed!\n\n", .{}, .{ .color = 33 });
+                        try printer.append("\nAlready installed!\n\n", .{}, .{ .color = .yellow });
                     },
                     error.HashMismatch => {
-                        try printer.append("\nHASH MISMATCH!\nPLEASE REPORT!\n\n", .{}, .{ .color = 31 });
+                        try printer.append("\nHASH MISMATCH!\nPLEASE REPORT!\n\n", .{}, .{ .color = .red });
                     },
                     else => {
-                        try printer.append("\nInstalling {s} has failed...\n{any}\n", .{ package, err }, .{ .color = 31 });
+                        try printer.append("\nInstalling {s} has failed...\n{any}\n", .{ package, err }, .{ .color = .red });
                     },
                 }
             };
         } else {
-            var installer = Installer.init(allocator, &printer, null, null) catch |err| {
+            var installer = Installer.init(
+                allocator,
+                &printer,
+                &json,
+                &paths,
+                null,
+                null,
+            ) catch |err| {
                 switch (err) {
                     error.NoPackageSpecified => {},
                     else => {
-                        try printer.append("\nInstalling all packages has failed.\n", .{}, .{ .color = 31 });
+                        try printer.append("\nInstalling all packages has failed.\n", .{}, .{ .color = .red });
                     },
                 }
                 return;
@@ -549,21 +618,27 @@ pub fn main() !void {
         var split = std.mem.splitScalar(u8, target, '@');
         const package_name = split.first();
 
-        var uninstaller = Uninstaller.init(allocator, package_name, &printer) catch |err| {
+        var uninstaller = Uninstaller.init(
+            allocator,
+            &printer,
+            &json,
+            &paths,
+            package_name,
+        ) catch |err| {
             switch (err) {
                 error.NotInstalled => {
-                    try printer.append("{s} is not installed!\n", .{package_name}, .{ .color = 31 });
-                    try printer.append("(locally) => If you wanna uninstall it globally, use\n $ zep global-uninstall {s}@<version>\n\n", .{package_name}, .{ .color = 34 });
+                    try printer.append("{s} is not installed!\n", .{package_name}, .{ .color = .red });
+                    try printer.append("(locally) => If you wanna uninstall it globally, use\n $ zep global-uninstall {s}@<version>\n\n", .{package_name}, .{ .color = .blue });
                 },
                 else => {
-                    try printer.append("\nUninstalling {s} has failed...\n\n", .{package_name}, .{ .color = 31 });
+                    try printer.append("\nUninstalling {s} has failed...\n\n", .{package_name}, .{ .color = .red });
                 },
             }
             return;
         };
         defer uninstaller.deinit();
         uninstaller.uninstall() catch {
-            try printer.append("\nUninstalling {s} has failed...\n\n", .{package_name}, .{ .color = 31 });
+            try printer.append("\nUninstalling {s} has failed...\n\n", .{package_name}, .{ .color = .red });
         };
         return;
     }
@@ -573,25 +648,32 @@ pub fn main() !void {
         var split = std.mem.splitScalar(u8, target, '@');
         const package_name = split.first();
         const package_version = split.next() orelse {
-            try printer.append("\nVersion is required for global uninstalls.\n\n", .{}, .{ .color = 31 });
+            try printer.append("\nVersion is required for global uninstalls.\n\n", .{}, .{ .color = .red });
             return;
         };
-        try printer.append("\nNon-Force global uninstalling {s}@{s}...\n", .{ package_name, package_version }, .{ .color = 34 });
+        try printer.append("\nNon-Force global uninstalling {s}@{s}...\n", .{ package_name, package_version }, .{ .color = .blue });
 
         const previous_verbosity = Locales.VERBOSITY_MODE;
         Locales.VERBOSITY_MODE = 0;
-        var package = Package.init(allocator, package_name, package_version, &printer) catch |err| {
+        var package = Package.init(
+            allocator,
+            &printer,
+            &json,
+            &paths,
+            package_name,
+            package_version,
+        ) catch |err| {
             switch (err) {
                 error.PackageNotFound => {
-                    try printer.append("\nPackage not found.\n\n", .{}, .{ .color = 31 });
+                    try printer.append("\nPackage not found.\n\n", .{}, .{ .color = .red });
                     return;
                 },
                 error.PackageVersion => {
-                    try printer.append("\nPackage version not found.\n\n", .{}, .{ .color = 31 });
+                    try printer.append("\nPackage version not found.\n\n", .{}, .{ .color = .red });
                     return;
                 },
                 else => {
-                    try printer.append("\nPackage not found.\n\n", .{}, .{ .color = 31 });
+                    try printer.append("\nPackage not found.\n\n", .{}, .{ .color = .red });
                     return;
                 },
             }
@@ -599,7 +681,7 @@ pub fn main() !void {
         Locales.VERBOSITY_MODE = previous_verbosity;
 
         package.deletePackage(false) catch {
-            try printer.append("\nDeleting failed.\n\n", .{}, .{ .color = 31 });
+            try printer.append("\nDeleting failed.\n\n", .{}, .{ .color = .red });
             return;
         };
         return;
@@ -611,25 +693,32 @@ pub fn main() !void {
         const package_name = split.first();
 
         const package_version = split.next() orelse {
-            try printer.append("\nVersion is required for global uninstalls.\n\n", .{}, .{ .color = 31 });
+            try printer.append("\nVersion is required for global uninstalls.\n\n", .{}, .{ .color = .red });
             return;
         };
-        try printer.append("\nForce global uninstalling {s}@{s}...\n", .{ package_name, package_version }, .{ .color = 34 });
+        try printer.append("\nForce global uninstalling {s}@{s}...\n", .{ package_name, package_version }, .{ .color = .blue });
 
         const previous_verbosity = Locales.VERBOSITY_MODE;
         Locales.VERBOSITY_MODE = 0;
-        var package = Package.init(allocator, package_name, package_version, &printer) catch |err| {
+        var package = Package.init(
+            allocator,
+            &printer,
+            &json,
+            &paths,
+            package_name,
+            package_version,
+        ) catch |err| {
             switch (err) {
                 error.PackageNotFound => {
-                    try printer.append("\nPackage not found.\n\n", .{}, .{ .color = 31 });
+                    try printer.append("\nPackage not found.\n\n", .{}, .{ .color = .red });
                     return;
                 },
                 error.PackageVersion => {
-                    try printer.append("\nPackage version not found.\n\n", .{}, .{ .color = 31 });
+                    try printer.append("\nPackage version not found.\n\n", .{}, .{ .color = .red });
                     return;
                 },
                 else => {
-                    try printer.append("\nPackage not found.\n\n", .{}, .{ .color = 31 });
+                    try printer.append("\nPackage not found.\n\n", .{}, .{ .color = .red });
                     return;
                 },
             }
@@ -637,7 +726,7 @@ pub fn main() !void {
         Locales.VERBOSITY_MODE = previous_verbosity;
 
         package.deletePackage(true) catch {
-            try printer.append("\nDeleting failed.\n\n", .{}, .{ .color = 31 });
+            try printer.append("\nDeleting failed.\n\n", .{}, .{ .color = .red });
             return;
         };
         try printer.append("\nPackage deleted, consequences ignored.\n\n", .{}, .{});
@@ -645,13 +734,22 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "purge")) {
-        try Purger.purge(&printer, allocator);
+        try Purger.purge(
+            allocator,
+            &printer,
+            &json,
+            &paths,
+        );
         return;
     }
 
     if (std.mem.eql(u8, subcommand, "prebuilt")) {
         const mode = try nextArg(&args, &printer, " > zep prebuilt [build|use|delete] [name]");
-        var prebuilt = try PreBuilt.init(allocator, &printer);
+        var prebuilt = try PreBuilt.init(
+            allocator,
+            &printer,
+            &paths,
+        );
 
         if (std.mem.eql(u8, mode, "build") or std.mem.eql(u8, mode, "use")) {
             const name = try nextArg(&args, &printer, " > zep prebuilt {build|use} [name] [target?]");
@@ -661,17 +759,17 @@ pub fn main() !void {
             };
             if (std.mem.eql(u8, mode, "build")) {
                 prebuilt.build(name, target) catch {
-                    try printer.append("\nBuilding prebuilt has failed...\n\n", .{}, .{ .color = 31 });
+                    try printer.append("\nBuilding prebuilt has failed...\n\n", .{}, .{ .color = .red });
                 };
             } else {
                 prebuilt.use(name, target) catch {
-                    try printer.append("\nUsing prebuilt has failed...\n\n", .{}, .{ .color = 31 });
+                    try printer.append("\nUsing prebuilt has failed...\n\n", .{}, .{ .color = .red });
                 };
             }
         } else if (std.mem.eql(u8, mode, "delete")) {
             const name = try nextArg(&args, &printer, " > zep prebuilt delete [name]");
             prebuilt.delete(name) catch {
-                try printer.append("\nDeleting prebuilt has failed...\n\n", .{}, .{ .color = 31 });
+                try printer.append("\nDeleting prebuilt has failed...\n\n", .{}, .{ .color = .red });
             };
         } else if (std.mem.eql(u8, mode, "list")) {
             try prebuilt.list();
@@ -683,7 +781,12 @@ pub fn main() !void {
 
     if (std.mem.eql(u8, subcommand, "zig")) {
         const mode = try nextArg(&args, &printer, " > zep zig [install|switch|uninstall|list] [version]");
-        var zig = try Artifact.init(allocator, &printer, .zig);
+        var zig = try Artifact.init(
+            allocator,
+            &printer,
+            &paths,
+            .zig,
+        );
         defer zig.deinit();
 
         if (std.mem.eql(u8, mode, "install") or std.mem.eql(u8, mode, "uninstall") or std.mem.eql(u8, mode, "switch")) {
@@ -692,34 +795,80 @@ pub fn main() !void {
             if (std.mem.eql(u8, mode, "install")) {
                 zig.install(version, target) catch |err| {
                     switch (err) {
-                        error.NotFound => {
-                            try printer.append("\nVersion {s} not found...\n\n", .{version}, .{ .color = 31 });
+                        error.VersionNotInstalled => {
+                            try printer.append(
+                                "\nVersion {s} is not installed...\n\n",
+                                .{version},
+                                .{ .color = .red },
+                            );
+                        },
+                        error.VersionNotFound => {
+                            try printer.append(
+                                "\nVersion {s} not found...\n\n",
+                                .{version},
+                                .{ .color = .red },
+                            );
+                        },
+                        error.VersionHasNoPath => {
+                            try printer.append(
+                                "\nVersion {s} has no given path...\n\n",
+                                .{version},
+                                .{ .color = .red },
+                            );
+                        },
+                        error.TarballNotFound => {
+                            try printer.append(
+                                "\nTarball for version {s} not found...\n\n",
+                                .{version},
+                                .{ .color = .red },
+                            );
                         },
                         else => {
-                            try printer.append("\nInstalling zig version {s} has failed...\n\n", .{version}, .{ .color = 31 });
+                            try printer.append("\nInstalling zep version {s} has failed...\n\n", .{version}, .{ .color = .red });
                         },
                     }
                 };
             } else if (std.mem.eql(u8, mode, "uninstall")) {
                 zig.uninstall(version, target) catch {
-                    try printer.append("\nUninstalling zig version {s} has failed...\n\n", .{version}, .{ .color = 31 });
+                    try printer.append("\nUninstalling zig version {s} has failed...\n\n", .{version}, .{ .color = .red });
                 };
             } else {
                 zig.switchVersion(version, target) catch |err| {
                     switch (err) {
-                        error.NotFound => {
-                            try printer.append("\nVersion {s} not found...\n\n", .{version}, .{ .color = 31 });
+                        error.VersionNotInstalled => {
+                            try printer.append("\nVersion {s} is not installed...\n\n", .{version}, .{ .color = .red });
+                        },
+                        error.ManifestUpdateFailed => {
+                            try printer.append("\nUpdating Manifest failed...\n\n", .{}, .{ .color = .red });
+                        },
+                        error.LockUpdateFailed => {
+                            try printer.append("\nUpdating zep.lock failed...\n\n", .{}, .{ .color = .red });
+                        },
+                        error.JsonUpdateFailed => {
+                            try printer.append("\nUpdating zep.json failed...\n\n", .{}, .{ .color = .red });
+                        },
+                        error.LinkUpdateFailed => {
+                            try printer.append("\nUpdating symbolic link failed...\n\n", .{}, .{ .color = .red });
                         },
                         else => {
-                            try printer.append("\nSwitching zig version {s} has failed...\n\n", .{version}, .{ .color = 31 });
+                            try printer.append("\nSwitching zig version {s} has failed...\n\n", .{version}, .{ .color = .red });
                         },
                     }
                 };
             }
         } else if (std.mem.eql(u8, mode, "list")) {
-            zig.list() catch {
-                try printer.append("\nListing zig versions has failed...\n\n", .{}, .{ .color = 31 });
+            zig.list() catch |err| {
+                switch (err) {
+                    error.ManifestNotFound => {
+                        try printer.append("\nManifest path is not defined! Use\n $ zep zig switch <zig-version>\nTo fix!\n", .{}, .{ .color = .red });
+                    },
+                    else => {
+                        try printer.append("\nListing zig versions has failed...\n\n", .{}, .{ .color = .red });
+                    },
+                }
             };
+        } else if (std.mem.eql(u8, mode, "prune")) {
+            try zig.prune();
         } else {
             try printer.append("Invalid mode: {s}\n\n", .{mode}, .{});
         }
@@ -728,7 +877,12 @@ pub fn main() !void {
 
     if (std.mem.eql(u8, subcommand, "zep")) {
         const mode = try nextArg(&args, &printer, " > zep zep [install|switch|uninstall|list] [version]");
-        var zep = try Artifact.init(allocator, &printer, .zep);
+        var zep = try Artifact.init(
+            allocator,
+            &printer,
+            &paths,
+            .zep,
+        );
         defer zep.deinit();
 
         if (std.mem.eql(u8, mode, "install") or std.mem.eql(u8, mode, "uninstall") or std.mem.eql(u8, mode, "switch")) {
@@ -738,32 +892,68 @@ pub fn main() !void {
             if (std.mem.eql(u8, mode, "install")) {
                 zep.install(version, target) catch |err| {
                     switch (err) {
-                        error.NotFound => {
-                            try printer.append("\nVersion {s} not found...\n\n", .{version}, .{ .color = 31 });
+                        error.VersionNotInstalled => {
+                            try printer.append(
+                                "\nVersion {s} is not installed...\n\n",
+                                .{version},
+                                .{ .color = .red },
+                            );
+                        },
+                        error.VersionNotFound => {
+                            try printer.append(
+                                "\nVersion {s} not found...\n\n",
+                                .{version},
+                                .{ .color = .red },
+                            );
+                        },
+                        error.VersionHasNoPath => {
+                            try printer.append(
+                                "\nVersion {s} has no given path...\n\n",
+                                .{version},
+                                .{ .color = .red },
+                            );
+                        },
+                        error.TarballNotFound => {
+                            try printer.append(
+                                "\nTarball for version {s} not found...\n\n",
+                                .{version},
+                                .{ .color = .red },
+                            );
                         },
                         else => {
-                            try printer.append("\nInstalling zep version {s} has failed...\n\n", .{version}, .{ .color = 31 });
+                            try printer.append("\nInstalling zep version {s} has failed...\n\n", .{version}, .{ .color = .red });
                         },
                     }
                 };
             } else if (std.mem.eql(u8, mode, "uninstall")) {
                 zep.uninstall(version, target) catch {
-                    try printer.append("\nUninstalling zep version {s} has failed...\n\n", .{version}, .{ .color = 31 });
+                    try printer.append("\nUninstalling zep version {s} has failed...\n\n", .{version}, .{ .color = .red });
                 };
             } else {
                 zep.switchVersion(version, target) catch |err| {
                     switch (err) {
                         error.NotFound => {
-                            try printer.append("\nVersion {s} not found...\n\n", .{version}, .{ .color = 31 });
+                            try printer.append("\nVersion {s} not found...\n\n", .{version}, .{ .color = .red });
                         },
                         else => {
-                            try printer.append("\nSwitching zep version {s} has failed...\n\n", .{version}, .{ .color = 31 });
+                            try printer.append("\nSwitching zep version {s} has failed...\n\n", .{version}, .{ .color = .red });
                         },
                     }
                 };
             }
         } else if (std.mem.eql(u8, mode, "list")) {
-            try zep.list();
+            zep.list() catch |err| {
+                switch (err) {
+                    error.ManifestNotFound => {
+                        try printer.append("\nManifest path is not defined! Use\n $ zep zep switch <zep-version>\nTo fix!\n", .{}, .{ .color = .red });
+                    },
+                    else => {
+                        try printer.append("\nListing zep versions has failed...\n\n", .{}, .{ .color = .red });
+                    },
+                }
+            };
+        } else if (std.mem.eql(u8, mode, "prune")) {
+            try zep.prune();
         } else {
             try printer.append("Invalid mode: {s}\n\n", .{mode}, .{});
         }
@@ -775,11 +965,11 @@ pub fn main() !void {
         var commander = Command.init(allocator, &printer) catch |err| {
             switch (err) {
                 error.ManifestNotFound => {
-                    try printer.append("zep.json manifest was not found!\n\n", .{}, .{ .color = 31 });
+                    try printer.append("zep.json manifest was not found!\n\n", .{}, .{ .color = .red });
                     return;
                 },
                 else => {
-                    try printer.append("Commander initing failed!\n\n", .{}, .{ .color = 31 });
+                    try printer.append("Commander initing failed!\n\n", .{}, .{ .color = .red });
                     return;
                 },
             }

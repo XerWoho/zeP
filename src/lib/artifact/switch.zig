@@ -13,25 +13,26 @@ const Json = @import("core").Json.Json;
 pub const ArtifactSwitcher = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
+    paths: *Constants.Paths.Paths,
 
-    // ------------------------
-    // Initialize ArtifactSwitcher
-    // ------------------------
-    pub fn init(allocator: std.mem.Allocator, printer: *Printer) !ArtifactSwitcher {
-        return ArtifactSwitcher{ .allocator = allocator, .printer = printer };
+    pub fn init(
+        allocator: std.mem.Allocator,
+        printer: *Printer,
+        paths: *Constants.Paths.Paths,
+    ) !ArtifactSwitcher {
+        return ArtifactSwitcher{
+            .allocator = allocator,
+            .printer = printer,
+            .paths = paths,
+        };
     }
 
-    // ------------------------
-    // Deinitialize ArtifactSwitcher
-    // ------------------------
     pub fn deinit(_: *ArtifactSwitcher) void {
         // currently no deinit required
     }
 
-    // ------------------------
-    // Switch active Artifact version
-    // Updates manifest and system PATH
-    // ------------------------
+    /// Switch active Artifact version
+    /// Updates manifest and system PATH
     pub fn switchVersion(
         self: *ArtifactSwitcher,
         name: []const u8,
@@ -40,12 +41,9 @@ pub const ArtifactSwitcher = struct {
         artifact_type: Structs.Extras.ArtifactType,
     ) !void {
         // Update manifest with new version
-        var paths = try Constants.Paths.paths(self.allocator);
-        defer paths.deinit();
-
         try self.printer.append("Modifying Manifest...\n", .{}, .{});
         const path = try std.fs.path.join(self.allocator, &.{
-            if (artifact_type == .zig) paths.zig_root else paths.zep_root,
+            if (artifact_type == .zig) self.paths.zig_root else self.paths.zep_root,
             "d",
             version,
             target,
@@ -56,17 +54,18 @@ pub const ArtifactSwitcher = struct {
         Manifest.writeManifest(
             Structs.Manifests.ArtifactManifest,
             self.allocator,
-            if (artifact_type == .zig) paths.zig_manifest else paths.zep_manifest,
+            if (artifact_type == .zig) self.paths.zig_manifest else self.paths.zep_manifest,
             Structs.Manifests.ArtifactManifest{ .name = name, .path = path },
         ) catch {
-            try self.printer.append("Updating Manifest failed!\n", .{}, .{ .color = 31 });
+            return error.ManifestUpdateFailed;
+            // try self.printer.append("Updating Manifest failed!\n", .{}, .{ .color = .red });
         };
 
         // Update zep.json and zep.lock
         blk: {
             if (artifact_type == .zep) break :blk;
 
-            // all need to match for it to be in a zeP project
+            // all need to match for it to be in a zep project
             if (!Fs.existsFile(Constants.Extras.package_files.lock) or
                 !Fs.existsFile(Constants.Extras.package_files.manifest) or
                 !Fs.existsDir(Constants.Extras.package_files.zep_folder)) break :blk;
@@ -84,7 +83,7 @@ pub const ArtifactSwitcher = struct {
                 Constants.Extras.package_files.manifest,
                 manifest.value,
             ) catch {
-                try self.printer.append("Updating Json Manifest failed!\n", .{}, .{ .color = 31 });
+                return error.JsonUpdateFailed;
             };
             Manifest.writeManifest(
                 Structs.ZepFiles.PackageLockStruct,
@@ -92,7 +91,7 @@ pub const ArtifactSwitcher = struct {
                 Constants.Extras.package_files.lock,
                 lock.value,
             ) catch {
-                try self.printer.append("Updating Lock Manifest failed!\n", .{}, .{ .color = 31 });
+                return error.LockUpdateFailed;
             };
             break :blk;
         }
@@ -101,27 +100,22 @@ pub const ArtifactSwitcher = struct {
 
         // Update system PATH to point to new version
         try self.printer.append("Switching to installed version...\n", .{}, .{});
-        Link.updateLink(artifact_type) catch {
-            try self.printer.append("Updating Link has failed!\n", .{}, .{ .color = 31 });
+        Link.updateLink(artifact_type, self.paths) catch {
+            return error.LinkUpdateFailed;
         };
 
-        try self.printer.append("Switched to installed version successfully!\n", .{}, .{ .color = 32 });
+        try self.printer.append("Switched to installed version successfully!\n", .{}, .{ .color = .green });
     }
 
-    // ------------------------
-    // Switch active Artifact version
-    // Updates manifest and system PATH
-    // ------------------------
+    /// Switch active Artifact version
+    /// Updates manifest and system PATH
     pub fn getLatestVersion(self: *ArtifactSwitcher, artifact_type: Structs.Extras.ArtifactType, skip_version: []const u8) !LatestArtifact {
         // Update manifest with new version
-        var paths = try Constants.Paths.paths(self.allocator);
-        defer paths.deinit();
-
         const artifact_root_path = try std.fs.path.join(self.allocator, &.{
             if (artifact_type == .zig)
-                paths.zig_root
+                self.paths.zig_root
             else
-                paths.zep_root,
+                self.paths.zep_root,
             "d",
         });
         defer self.allocator.free(artifact_root_path);
@@ -141,9 +135,9 @@ pub const ArtifactSwitcher = struct {
         const version_name = try self.allocator.dupe(u8, open_artifact_version.name);
         const entry_version = try std.fs.path.join(self.allocator, &.{
             if (artifact_type == .zig)
-                paths.zig_root
+                self.paths.zig_root
             else
-                paths.zep_root,
+                self.paths.zep_root,
             "d",
             version_name,
         });

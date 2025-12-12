@@ -88,8 +88,6 @@ def main():
     data = load_json()
     # clear master, as we update master with the "new" release
     data["master"] = {}
-
-    ensure_entry(data, "master")
     ensure_entry(data, version)
 
     files = os.listdir(release_path)
@@ -111,12 +109,11 @@ def main():
             "size": str(size)
         }
 
-        # write into master first
-        data["master"][target] = entry
-
         # write into <version>
         data[version][target] = entry
-    
+
+    data["master"] = data[version]
+
     data = sort_versions(data)
     save_json(data)
     print(f"Updated download.json for version {version}")

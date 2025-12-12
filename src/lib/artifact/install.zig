@@ -14,30 +14,24 @@ const Manifest = @import("core").Manifest;
 pub const ArtifactInstaller = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
+    paths: *Constants.Paths.Paths,
 
-    // ------------------------
-    // Initialize ArtifactInstaller
-    // ------------------------
     pub fn init(
         allocator: std.mem.Allocator,
         printer: *Printer,
+        paths: *Constants.Paths.Paths,
     ) !ArtifactInstaller {
         return ArtifactInstaller{
             .allocator = allocator,
             .printer = printer,
+            .paths = paths,
         };
     }
 
-    // ------------------------
-    // Deinitialize
-    // ------------------------
     pub fn deinit(_: *ArtifactInstaller) void {
         // currently no deinit required
     }
 
-    // ------------------------
-    // Fetch and extract Artifact archive
-    // ------------------------
     fn fetchData(
         self: *ArtifactInstaller,
         name: []const u8,
@@ -46,9 +40,6 @@ pub const ArtifactInstaller = struct {
         target: []const u8,
         artifact_type: Structs.Extras.ArtifactType,
     ) !void {
-        var paths = try Constants.Paths.paths(self.allocator);
-        defer paths.deinit();
-
         var tarball_split_iter = std.mem.splitAny(u8, tarball, ".");
         var tarball_extension = tarball_split_iter.next();
         while (tarball_split_iter.next()) |e| {
@@ -62,9 +53,9 @@ pub const ArtifactInstaller = struct {
             self.allocator,
             &.{
                 if (artifact_type == .zig)
-                    paths.zig_root
+                    self.paths.zig_root
                 else
-                    paths.zep_root,
+                    self.paths.zep_root,
                 "z",
                 version,
                 cached_file,
@@ -86,19 +77,19 @@ pub const ArtifactInstaller = struct {
 
         const decompressed_directory = try std.fs.path.join(
             self.allocator,
-            &.{ if (artifact_type == .zig) paths.zig_root else paths.zep_root, "d", version },
+            &.{ if (artifact_type == .zig) self.paths.zig_root else self.paths.zep_root, "d", version },
         );
         _ = try Fs.openOrCreateDir(decompressed_directory);
 
         const main_temporary_directory = try std.fs.path.join(
             self.allocator,
-            &.{ if (artifact_type == .zig) paths.zig_root else paths.zep_root, "temp" },
+            &.{ if (artifact_type == .zig) self.paths.zig_root else self.paths.zep_root, "temp" },
         );
         _ = try Fs.openOrCreateDir(main_temporary_directory);
 
         const temporary_directory = try std.fs.path.join(
             self.allocator,
-            &.{ if (artifact_type == .zig) paths.zig_root else paths.zep_root, "temp", version },
+            &.{ if (artifact_type == .zig) self.paths.zig_root else self.paths.zep_root, "temp", version },
         );
 
         defer Fs.deleteTreeIfExists(main_temporary_directory) catch {};
@@ -122,9 +113,6 @@ pub const ArtifactInstaller = struct {
         }
     }
 
-    // ------------------------
-    // Download file via HTTP
-    // ------------------------
     fn downloadFile(self: *ArtifactInstaller, raw_uri: []const u8, out_path: []const u8) !void {
         try self.printer.append("Parsing URI...\n", .{}, .{});
         const uri = try std.Uri.parse(raw_uri);
@@ -148,7 +136,7 @@ pub const ArtifactInstaller = struct {
         var buffered_writer = std.io.bufferedWriter(out_file.writer());
         defer {
             buffered_writer.flush() catch {
-                self.printer.append("\nFailed to flush buffer!\n", .{}, .{ .color = 31 }) catch {};
+                self.printer.append("\nFailed to flush buffer!\n", .{}, .{ .color = .red }) catch {};
             };
         }
 
@@ -175,9 +163,7 @@ pub const ArtifactInstaller = struct {
         try self.printer.append("\n", .{}, .{});
     }
 
-    // ------------------------
-    // Decompress for Windows (.zip)
-    // ------------------------
+    /// Decompress for Windows (.zip)
     fn decompressWindows(
         self: *ArtifactInstaller,
         reader: std.fs.File.SeekableStream,
@@ -208,9 +194,7 @@ pub const ArtifactInstaller = struct {
         try std.fs.cwd().rename(extract_target, new_target);
     }
 
-    // ------------------------
-    // Decompress for POSIX (.tar.xz)
-    // ------------------------
+    /// Decompress for POSIX (.tar.xz)
     fn decompressPosix(
         self: *ArtifactInstaller,
         reader: std.fs.File.Reader,
@@ -268,9 +252,6 @@ pub const ArtifactInstaller = struct {
         try artifact_exe_file.chmod(0o755);
     }
 
-    // ------------------------
-    // Public install function
-    // ------------------------
     pub fn install(
         self: *ArtifactInstaller,
         name: []const u8,
@@ -282,11 +263,8 @@ pub const ArtifactInstaller = struct {
         try self.fetchData(name, tarball, version, target, artifact_type);
         try self.printer.append("Modifying Manifest...\n", .{}, .{});
 
-        var paths = try Constants.Paths.paths(self.allocator);
-        defer paths.deinit();
-
         const path = try std.fs.path.join(self.allocator, &.{
-            if (artifact_type == .zig) paths.zig_root else paths.zep_root,
+            if (artifact_type == .zig) self.paths.zig_root else self.paths.zep_root,
             "d",
             version,
             target,
@@ -296,22 +274,22 @@ pub const ArtifactInstaller = struct {
             Structs.Manifests.ArtifactManifest,
             self.allocator,
             if (artifact_type == .zig)
-                paths.zig_manifest
+                self.paths.zig_manifest
             else
-                paths.zep_manifest,
+                self.paths.zep_manifest,
             Structs.Manifests.ArtifactManifest{
                 .name = name,
                 .path = path,
             },
         ) catch {
-            try self.printer.append("Updating Manifest failed!\n", .{}, .{ .color = 31 });
+            try self.printer.append("Updating Manifest failed!\n", .{}, .{ .color = .red });
         };
 
         try self.printer.append("Manifest Up to Date!\n", .{}, .{});
 
         try self.printer.append("Switching to installed version...\n", .{}, .{});
-        Link.updateLink(artifact_type) catch {
-            try self.printer.append("Updating Link has failed!\n", .{}, .{ .color = 31 });
+        Link.updateLink(artifact_type, self.paths) catch {
+            try self.printer.append("Updating Link has failed!\n", .{}, .{ .color = .red });
         };
         try self.printer.append("Switched to installed version!\n", .{}, .{});
     }

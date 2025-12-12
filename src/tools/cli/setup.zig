@@ -33,10 +33,11 @@ fn setupEnviromentPath(tmp_path: []const u8) !void {
 /// Runs on install.
 /// Sets up basic folders for faster
 /// usage.
-pub fn setup(allocator: std.mem.Allocator, printer: *Printer) !void {
-    var paths = try Constants.Paths.paths(allocator);
-    defer paths.deinit();
-
+pub fn setup(
+    allocator: std.mem.Allocator,
+    printer: *Printer,
+    paths: *Constants.Paths.Paths,
+) !void {
     const create_paths = [5][]const u8{
         paths.root,
         paths.zep_root,

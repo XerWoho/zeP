@@ -77,20 +77,20 @@ pub const Injector = struct {
         self.injectIntoBuildZig() catch |err| {
             switch (err) {
                 error.BuildFnNotFound => {
-                    try self.printer.append("Build function not found in build.zig\n", .{}, .{ .color = 31 });
+                    try self.printer.append("Build function not found in build.zig\n", .{}, .{ .color = .red });
                 },
                 error.MissingInstallCall => {
-                    try self.printer.append("No install call in build.zig\n", .{}, .{ .color = 31 });
+                    try self.printer.append("No install call in build.zig\n", .{}, .{ .color = .red });
                 },
                 error.InvalidInstallCall => {
-                    try self.printer.append("Invalid install call in build.zig\n", .{}, .{ .color = 31 });
+                    try self.printer.append("Invalid install call in build.zig\n", .{}, .{ .color = .red });
                 },
                 error.InvalidBuildSignature => {
-                    try self.printer.append("Build parameter appears to be invalid\n", .{}, .{ .color = 31 });
+                    try self.printer.append("Build parameter appears to be invalid\n", .{}, .{ .color = .red });
                 },
                 else => {
-                    try self.printer.append("Injecting into build.zig has failed.\n", .{}, .{ .color = 31 });
-                    try self.printer.append("\nSUGGESTION:\n", .{}, .{ .color = 34 });
+                    try self.printer.append("Injecting into build.zig has failed.\n", .{}, .{ .color = .red });
+                    try self.printer.append("\nSUGGESTION:\n", .{}, .{ .color = .blue });
                     try self.printer.append(" - Delete build.zig\n $ zep init\n\n", .{}, .{});
                 },
             }

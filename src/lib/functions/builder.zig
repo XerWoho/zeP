@@ -35,26 +35,26 @@ pub const Builder = struct {
         const execs = try std.fmt.allocPrint(self.allocator, "-Dtarget={s}", .{target});
         defer self.allocator.free(execs);
         const args = [_][]const u8{ "zig", "build", "-Doptimize=ReleaseSmall", execs, "-p", "zep-out/" };
-        try self.printer.append("\nExecuting: \n$ {s}!\n\n", .{try std.mem.join(self.allocator, " ", &args)}, .{ .color = 32 });
+        try self.printer.append("\nExecuting: \n$ {s}!\n\n", .{try std.mem.join(self.allocator, " ", &args)}, .{ .color = .green });
 
         var process = std.process.Child.init(&args, self.allocator);
         _ = process.spawnAndWait() catch |err| {
             switch (err) {
                 error.FileNotFound => {
-                    try self.printer.append("Zig is not installed!\nExiting!\n\n", .{}, .{ .color = 31 });
-                    try self.printer.append("\nSUGGESTION:\n", .{}, .{ .color = 34 });
+                    try self.printer.append("Zig is not installed!\nExiting!\n\n", .{}, .{ .color = .red });
+                    try self.printer.append("\nSUGGESTION:\n", .{}, .{ .color = .blue });
                     try self.printer.append(" - Install zig\n $ zep zig install <version>\n\n", .{}, .{});
                     std.process.exit(0);
                     return;
                 },
                 else => {
-                    try self.printer.append("\nZig building failed!\nExiting.\n\n", .{}, .{ .color = 31 });
+                    try self.printer.append("\nZig building failed!\nExiting.\n\n", .{}, .{ .color = .red });
                     std.process.exit(0);
                     return;
                 },
             }
         };
-        try self.printer.append("\nFinished executing!\n", .{}, .{ .color = 32 });
+        try self.printer.append("\nFinished executing!\n", .{}, .{ .color = .green });
 
         const target_directory = try std.fs.path.join(self.allocator, &.{ "zep-out", "bin" });
         defer self.allocator.free(target_directory);

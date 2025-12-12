@@ -13,9 +13,9 @@ pub fn doctor(
 ) !void {
     var is_there_issues = false;
 
-    // First verify that we are in zeP project
+    // First verify that we are in zep project
     if (!Fs.existsFile(Constants.Extras.package_files.lock)) {
-        try printer.append("Lock file schema is missing.\n", .{}, .{ .color = 31 });
+        try printer.append("Lock file schema is missing.\n", .{}, .{ .color = .red });
     }
 
     var lock = try Manifest.readManifest(Structs.ZepFiles.PackageLockStruct, allocator, Constants.Extras.package_files.lock);
@@ -25,18 +25,18 @@ pub fn doctor(
     defer manifest.deinit();
 
     if (lock.value.schema == Constants.Extras.package_files.lock_schema_version) {
-        try printer.append("Lock file schema is fine.\n", .{}, .{ .color = 32 });
+        try printer.append("Lock file schema is fine.\n", .{}, .{ .color = .green });
     } else if (fix_issues) {
-        try printer.append("Lock file schema is NOT matching with zeP version.\n", .{}, .{ .color = 31 });
+        try printer.append("Lock file schema is NOT matching with zep version.\n", .{}, .{ .color = .red });
 
         lock.value.root = manifest.value;
         lock.value.schema = Constants.Extras.package_files.lock_schema_version;
 
         try Manifest.writeManifest(Structs.ZepFiles.PackageLockStruct, allocator, Constants.Extras.package_files.lock, lock.value);
-        try printer.append("Fixed.\n", .{}, .{ .color = 32 });
+        try printer.append("Fixed.\n", .{}, .{ .color = .green });
     } else {
         is_there_issues = true;
-        try printer.append("Lock file schema is NOT matching with zeP version.\n", .{}, .{ .color = 31 });
+        try printer.append("Lock file schema is NOT matching with zep version.\n", .{}, .{ .color = .red });
     }
 
     const lock_packages = lock.value.packages;
@@ -48,14 +48,14 @@ pub fn doctor(
             try printer.append(
                 "{s} zigs version mismatches\n > Package Zig {s}\n > Project Zig {s}\n",
                 .{ pkg.name, pkg.zig_version, manifest_zig_version },
-                .{ .color = 31 },
+                .{ .color = .red },
             );
             mismatch_zig_version = true;
         }
     }
 
     if (!mismatch_zig_version) {
-        try printer.append("No issues with zig versions mismatch [packages]!\n", .{}, .{ .color = 32 });
+        try printer.append("No issues with zig versions mismatch [packages]!\n", .{}, .{ .color = .green });
     }
 
     const lock_root_json = try std.json.stringifyAlloc(allocator, lock.value.root, .{});
@@ -64,15 +64,15 @@ pub fn doctor(
     const manifest_from_lock = std.hash.Wyhash.hash(0, lock_root_json);
     const manifest_main = std.hash.Wyhash.hash(0, manifest_root_json);
     if (manifest_from_lock == manifest_main) {
-        try printer.append("Lock root matches zep.json.\n", .{}, .{ .color = 32 });
+        try printer.append("Lock root matches zep.json.\n", .{}, .{ .color = .green });
     } else if (fix_issues) {
-        try printer.append("Lock file schema root is not matching with zep.json.\n", .{}, .{ .color = 31 });
+        try printer.append("Lock file schema root is not matching with zep.json.\n", .{}, .{ .color = .red });
         lock.value.root = manifest.value;
         try Manifest.writeManifest(Structs.ZepFiles.PackageLockStruct, allocator, Constants.Extras.package_files.lock, lock.value);
-        try printer.append("Fixed.\n\n", .{}, .{ .color = 32 });
+        try printer.append("Fixed.\n\n", .{}, .{ .color = .green });
     } else {
         is_there_issues = true;
-        try printer.append("Lock file schema root is not matching with zep.json.\n", .{}, .{ .color = 31 });
+        try printer.append("Lock file schema root is not matching with zep.json.\n", .{}, .{ .color = .red });
     }
 
     var missing_packages = false;
@@ -94,9 +94,9 @@ pub fn doctor(
     }
 
     if (!missing_packages and lock.value.packages.len == manifest.value.packages.len) {
-        try printer.append("Lock file packages match exactly with zep.json!\n\n", .{}, .{ .color = 32 });
+        try printer.append("Lock file packages match exactly with zep.json!\n\n", .{}, .{ .color = .green });
     } else if (fix_issues) {
-        try printer.append("Lock file packages mismatch with zep.json.\nzep.lock has priority!\n", .{}, .{ .color = 31 });
+        try printer.append("Lock file packages mismatch with zep.json.\nzep.lock has priority!\n", .{}, .{ .color = .red });
 
         var pkg = std.ArrayList([]const u8).init(allocator);
         defer pkg.deinit();
@@ -106,10 +106,10 @@ pub fn doctor(
         }
         manifest.value.packages = pkg.items;
         try Manifest.writeManifest(Structs.ZepFiles.PackageJsonStruct, allocator, Constants.Extras.package_files.manifest, manifest.value);
-        try printer.append("Fixed.\n\n", .{}, .{ .color = 32 });
+        try printer.append("Fixed.\n\n", .{}, .{ .color = .green });
     } else {
         is_there_issues = true;
-        try printer.append("Lock file packages mismatch with zep.json.\n", .{}, .{ .color = 31 });
+        try printer.append("Lock file packages mismatch with zep.json.\n", .{}, .{ .color = .red });
     }
 
     if (is_there_issues and !fix_issues) {

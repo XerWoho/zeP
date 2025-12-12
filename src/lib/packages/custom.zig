@@ -12,9 +12,14 @@ const Hash = @import("core").Hash;
 pub const CustomPackage = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
+    paths: *Constants.Paths.Paths,
 
-    pub fn init(allocator: std.mem.Allocator, printer: *Printer) CustomPackage {
-        return CustomPackage{ .allocator = allocator, .printer = printer };
+    pub fn init(
+        allocator: std.mem.Allocator,
+        printer: *Printer,
+        paths: *Constants.Paths.Paths,
+    ) CustomPackage {
+        return CustomPackage{ .allocator = allocator, .printer = printer, .paths = paths };
     }
 
     fn getOrDefault(value: []const u8, def: []const u8) []const u8 {
@@ -58,7 +63,7 @@ pub const CustomPackage = struct {
         const hash = Hash.hashData(self.allocator, url) catch |err| {
             switch (err) {
                 else => {
-                    try self.printer.append("\nINVALID URL!\nABORTING!\n", .{}, .{ .color = 31 });
+                    try self.printer.append("\nINVALID URL!\nABORTING!\n", .{}, .{ .color = .red });
                 },
             }
             return error.InvalidUrl;
@@ -75,7 +80,10 @@ pub const CustomPackage = struct {
     pub fn requestPackage(self: CustomPackage) !void {
         const stdin = std.io.getStdIn().reader();
 
-        try self.printer.append("--- ADDING CUSTOM PACKAGE MODE ---\n\n", .{}, .{ .color = 33 });
+        try self.printer.append("--- ADDING CUSTOM PACKAGE MODE ---\n\n", .{}, .{
+            .color = .yellow,
+            .weight = .bold,
+        });
 
         const package_name = try Prompt.input(
             self.allocator,
@@ -88,22 +96,22 @@ pub const CustomPackage = struct {
         );
         defer self.allocator.free(package_name);
 
-        var paths = try Constants.Paths.paths(self.allocator);
-        defer paths.deinit();
-
         const custom_package_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.json", .{
-            paths.custom,
+            self.paths.custom,
             package_name,
         });
         defer self.allocator.free(custom_package_path);
 
         if (Fs.existsFile(custom_package_path)) {
-            try self.printer.append("-- PACKAGE EXISTS [ADD VERSION MODE] --\n\n", .{}, .{ .color = 33 });
+            try self.printer.append("-- PACKAGE EXISTS [ADD VERSION MODE] --\n\n", .{}, .{
+                .color = .yellow,
+                .weight = .bold,
+            });
 
             const v = try self.promptVersionData(stdin);
             try self.addVersionToPackage(custom_package_path, v);
 
-            try self.printer.append("\nSuccessfully added new version - {s}\n\n", .{v.version}, .{ .color = 32 });
+            try self.printer.append("\nSuccessfully added new version - {s}\n\n", .{v.version}, .{ .color = .green });
             return;
         }
 
@@ -136,7 +144,7 @@ pub const CustomPackage = struct {
         };
 
         try self.addPackage(custom_package_path, pkg);
-        try self.printer.append("\nSuccessfully added custom package - {s}\n\n", .{package_name}, .{ .color = 32 });
+        try self.printer.append("\nSuccessfully added custom package - {s}\n\n", .{package_name}, .{ .color = .green });
     }
 
     fn addPackage(self: CustomPackage, custom_package_path: []const u8, package_json: Structs.Packages.PackageStruct) !void {
@@ -162,7 +170,7 @@ pub const CustomPackage = struct {
         const versions = parsed.value.versions;
         for (versions) |v| {
             if (std.mem.eql(u8, v.version, version.version)) {
-                try self.printer.append("\nSpecified version already in use!\nOverwriting...\n", .{}, .{ .color = 31 });
+                try self.printer.append("\nSpecified version already in use!\nOverwriting...\n", .{}, .{ .color = .red });
                 continue;
             }
             try versions_array.append(v);
@@ -180,9 +188,7 @@ pub const CustomPackage = struct {
     pub fn removePackage(self: CustomPackage, package_name: []const u8) !void {
         try self.printer.append("Removing package...\n", .{}, .{});
 
-        var paths = try Constants.Paths.paths(self.allocator);
-        defer paths.deinit();
-        const custom_package_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.json", .{ paths.custom, package_name });
+        const custom_package_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.json", .{ self.paths.custom, package_name });
         defer self.allocator.free(custom_package_path);
 
         if (Fs.existsFile(custom_package_path)) {

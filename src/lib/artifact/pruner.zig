@@ -9,7 +9,7 @@ const Printer = @import("cli").Printer;
 const Manifest = @import("core").Manifest;
 
 /// Lists installed Artifact versions
-pub const ArtifactLister = struct {
+pub const ArtifactPruner = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
     paths: *Constants.Paths.Paths,
@@ -18,36 +18,21 @@ pub const ArtifactLister = struct {
         allocator: std.mem.Allocator,
         printer: *Printer,
         paths: *Constants.Paths.Paths,
-    ) !ArtifactLister {
-        return ArtifactLister{
+    ) !ArtifactPruner {
+        return ArtifactPruner{
             .allocator = allocator,
             .printer = printer,
             .paths = paths,
         };
     }
 
-    pub fn deinit(_: *ArtifactLister) void {
+    pub fn deinit(_: *ArtifactPruner) void {
         // currently no deinit required
     }
 
-    fn getVersionFromPath(_: *ArtifactLister, path: []const u8) []const u8 {
-        const delimiter: []const u8 = if (builtin.os.tag == .windows) "\\" else "/";
-        var segments = std.mem.splitAny(u8, path, delimiter);
-        var last: []const u8 = &[_]u8{}; // dummy init
-        var second_last: []const u8 = &[_]u8{};
-
-        while (segments.next()) |seg| {
-            second_last = last;
-            last = seg;
-        }
-        return second_last;
-    }
-
-    /// Print all installed Artifact versions
-    /// Marks the version currently in use
-    pub fn listVersions(self: *ArtifactLister, artifact_type: Structs.Extras.ArtifactType) !void {
-        try self.printer.append("\nAvailable Artifact Versions:\n", .{}, .{});
-
+    /// Prunes all Artifact versions
+    /// With zero targets
+    pub fn pruneVersions(self: *ArtifactPruner, artifact_type: Structs.Extras.ArtifactType) !void {
         const versions_directory = try std.fs.path.join(self.allocator, &.{
             if (artifact_type == .zig) self.paths.zig_root else self.paths.zep_root,
             "d",
@@ -65,7 +50,14 @@ pub const ArtifactLister = struct {
             if (artifact_type == .zig) self.paths.zig_manifest else self.paths.zep_manifest,
         );
         defer manifest.deinit();
-        if (manifest.value.path.len == 0) return error.ManifestNotFound;
+        if (manifest.value.path.len == 0) {
+            if (artifact_type == .zep) {
+                std.debug.print("\nManifest path is not defined! Use\n $ zep zep switch <zep-version>\nTo fix!\n", .{});
+            } else {
+                std.debug.print("\nManifest path is not defined! Use\n $ zep zig switch <zig-version>\nTo fix!\n", .{});
+            }
+            return error.ManifestNotFound;
+        }
 
         var dir = try Fs.openDir(versions_directory);
         defer dir.close();
@@ -73,32 +65,24 @@ pub const ArtifactLister = struct {
 
         while (try it.next()) |entry| {
             if (entry.kind != .directory) continue;
-
-            const version_name = try self.allocator.dupe(u8, entry.name);
-            const version_path = try std.fs.path.join(self.allocator, &.{ versions_directory, version_name });
+            const version_path = try std.fs.path.join(self.allocator, &.{ versions_directory, entry.name });
             defer self.allocator.free(version_path);
 
             var version_directory = try Fs.openDir(version_path);
             defer version_directory.close();
 
-            const in_use_version = std.mem.eql(u8, self.getVersionFromPath(manifest.value.path), version_name);
-            try self.printer.append("{s}{s}\n", .{ version_name, if (in_use_version) " (in-use)" else "" }, .{});
-
             var version_iterator = version_directory.iterate();
             var has_targets: bool = false;
-
-            while (try version_iterator.next()) |version_entry| {
+            while (try version_iterator.next()) |_| {
                 has_targets = true;
-                const target_name = try self.allocator.dupe(u8, version_entry.name);
-                const in_use_target = std.mem.containsAtLeast(u8, manifest.value.path, 1, target_name);
-                try self.printer.append("  > {s}{s}\n", .{ target_name, if (in_use_version and in_use_target) " (in-use)" else "" }, .{});
+                break;
             }
 
             if (!has_targets) {
-                try self.printer.append("  NO TARGETS AVAILABLE\n", .{}, .{ .color = .red });
+                try Fs.deleteTreeIfExists(version_path);
             }
         }
 
-        try self.printer.append("\n", .{}, .{});
+        try self.printer.append("Done.\n", .{}, .{});
     }
 };

@@ -1,13 +1,27 @@
 const std = @import("std");
 
+const Constants = @import("constants");
+
+const Json = @import("core").Json.Json;
+
 const Printer = @import("cli").Printer;
 const Fs = @import("io").Fs;
 
 const Init = @import("../packages/init.zig").Init;
 
-/// Handles bootstrapping
-pub fn new(allocator: std.mem.Allocator, printer: *Printer, name: []const u8) !void {
-    var initer = try Init.init(allocator, printer, true);
+/// Handles quick-starting a project
+pub fn new(
+    allocator: std.mem.Allocator,
+    printer: *Printer,
+    name: []const u8,
+    json: *Json,
+) !void {
+    var initer = try Init.init(
+        allocator,
+        printer,
+        json,
+        true,
+    );
 
     var zig_version: []const u8 = "0.14.0";
     blk: {
@@ -17,7 +31,7 @@ pub fn new(allocator: std.mem.Allocator, printer: *Printer, name: []const u8) !v
         }) catch |err| {
             switch (err) {
                 else => {
-                    try printer.append("Zig is not installed!\nDefaulting to 0.14.0!\n\n", .{}, .{ .color = 31 });
+                    try printer.append("Zig is not installed!\nDefaulting to 0.14.0!\n\n", .{}, .{ .color = .red });
                 },
             }
             break :blk;

@@ -54,11 +54,9 @@ pub fn addPathToManifest(
     json: *Json,
     package_id: []const u8,
     linked_path: []const u8,
+    paths: *Constants.Paths.Paths,
 ) !void {
     const allocator = std.heap.page_allocator;
-
-    var paths = try Constants.Paths.paths(allocator);
-    defer paths.deinit();
 
     var package_manifest = try readManifest(Structs.Manifests.PackagesManifest, allocator, paths.pkg_manifest);
     defer package_manifest.deinit();
@@ -89,13 +87,11 @@ pub fn removePathFromManifest(
     package_name: []const u8,
     package_id: []const u8,
     linked_path: []const u8,
+    paths: *Constants.Paths.Paths,
 ) !void {
     _ = package_name;
 
     const allocator = std.heap.page_allocator;
-    var paths = try Constants.Paths.paths(allocator);
-    defer paths.deinit();
-
     var package_manifest = try readManifest(Structs.Manifests.PackagesManifest, allocator, paths.pkg_manifest);
     defer package_manifest.deinit();
 

@@ -10,9 +10,18 @@ const Printer = @import("cli").Printer;
 pub const Compressor = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
+    paths: *Constants.Paths.Paths,
 
-    pub fn init(allocator: std.mem.Allocator, printer: *Printer) Compressor {
-        return Compressor{ .allocator = allocator, .printer = printer };
+    pub fn init(
+        allocator: std.mem.Allocator,
+        printer: *Printer,
+        paths: *Constants.Paths.Paths,
+    ) Compressor {
+        return Compressor{
+            .allocator = allocator,
+            .printer = printer,
+            .paths = paths,
+        };
     }
 
     fn compressTmp(self: *Compressor, target_folder: []const u8, temporary_path: []const u8) !void {
@@ -57,11 +66,9 @@ pub const Compressor = struct {
 
     pub fn compress(self: *Compressor, target_folder: []const u8, tar_path: []const u8) !bool {
         if (!Fs.existsDir(target_folder)) return false;
-        var paths = try Constants.Paths.paths(self.allocator);
-        defer paths.deinit();
 
-        if (!Fs.existsDir(paths.zepped)) {
-            _ = try Fs.openOrCreateDir(paths.zepped);
+        if (!Fs.existsDir(self.paths.zepped)) {
+            _ = try Fs.openOrCreateDir(self.paths.zepped);
         }
 
         const temporary_tar_path = try std.fmt.allocPrint(self.allocator, "{s}.tmp", .{tar_path});

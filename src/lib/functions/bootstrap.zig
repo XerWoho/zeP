@@ -4,6 +4,7 @@ const Locales = @import("locales");
 const Constants = @import("constants");
 const Structs = @import("structs");
 
+const Json = @import("core").Json.Json;
 const Printer = @import("cli").Printer;
 const Fs = @import("io").Fs;
 
@@ -15,17 +16,24 @@ const Init = @import("../packages/init.zig").Init;
 pub fn bootstrap(
     allocator: std.mem.Allocator,
     printer: *Printer,
+    json: *Json,
+    paths: *Constants.Paths.Paths,
     zig_version: []const u8,
     deps: [][]const u8,
 ) !void {
     const previous_verbosity = Locales.VERBOSITY_MODE;
     Locales.VERBOSITY_MODE = 0;
 
-    var zig = try Artifact.init(allocator, printer, .zig);
+    var zig = try Artifact.init(allocator, printer, paths, .zig);
     try zig.install(zig_version, Constants.Default.default_targets.windows);
     Locales.VERBOSITY_MODE = previous_verbosity;
 
-    var initer = try Init.init(allocator, printer, false);
+    var initer = try Init.init(
+        allocator,
+        printer,
+        json,
+        false,
+    );
     try initer.commitInit();
 
     for (deps) |dep| {
@@ -33,7 +41,14 @@ pub fn bootstrap(
         const package_name = d.first();
         const package_version = d.next();
 
-        var installer = Installer.init(allocator, printer, package_name, package_version) catch |err| {
+        var installer = Installer.init(
+            allocator,
+            printer,
+            json,
+            paths,
+            package_name,
+            package_version,
+        ) catch |err| {
             switch (err) {
                 error.PackageNotFound => {
                     try printer.append("{s} not found.\n", .{package_name}, .{});
