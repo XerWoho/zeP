@@ -25,8 +25,8 @@ pub fn bootstrap(
     try zig.install(zig_version, Constants.Default.default_targets.windows);
     Locales.VERBOSITY_MODE = previous_verbosity;
 
-    var initter = try Init.init(allocator, printer, false);
-    try initter.commitInit();
+    var initer = try Init.init(allocator, printer, false);
+    try initer.commitInit();
 
     for (deps) |dep| {
         var d = std.mem.splitScalar(u8, dep, '@');
