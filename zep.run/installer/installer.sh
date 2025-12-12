@@ -21,14 +21,14 @@ fi
 
 
 
-TARGET="0.6"
+TARGET="0.7"
 if [ $# -gt 0 ]; then
     TARGET="$1"
 fi
 
-ZEP_EXE="$USR_LOCAL_BIN/zeP"
+ZEP_EXE="$USR_LOCAL_BIN/zep"
 ZIG_EXE="$USR_LOCAL_BIN/zig"
-ZEP_DIR="$LOCAL_ZEP/zeP"
+ZEP_DIR="$LOCAL_ZEP/zep"
 ZEP_ZIG_DIR="$ZEP_DIR/zig"
 ZEP_VERSION_DIR="$ZEP_DIR/zep/d/$TARGET/x86_64-linux"
 MANIFEST_ZEP="$ZEP_DIR/zep/manifest.json"
@@ -54,7 +54,7 @@ mkdir -p "$ZEP_VERSION_DIR"
 mkdir -p "$ZEP_ZIG_DIR"
 
 JSON_STRING="{
-    \"version\":\"${TARGET}\",
+    \"name\":\"zep_x86_64-linux_${TARGET}\",
     \"path\":\"${ZEP_VERSION_DIR}\"
 }"
 
@@ -71,15 +71,19 @@ curl -L "https://zep.run/releases/$TARGET/zep_x86_64-linux_$TARGET.tar.xz" \
 
 echo "Extracting..."
 tar -xvf "$TEMP_ZEP_TAR_FILE" -C "$ZEP_VERSION_DIR"
-chmod 755 "$ZEP_VERSION_DIR/zeP"
+ZEP_VERSION_EXE=$ZEP_VERSION_DIR/zeP
+if [ -e "$ZEP_VERSION_DIR/zep" ]; then
+    ZEP_VERSION_EXE=$ZEP_VERSION_DIR/zeP
+fi
 
+chmod 755 "$ZEP_VERSION_EXE"
 echo "Installation complete."
 echo "Setting up zeP now."
 
 sudo rm -rf "$ZEP_EXE"
 
-sudo ln -s "$ZEP_VERSION_DIR/zeP" "$ZEP_EXE"
-sudo chmod 755 "$ZEP_VERSION_DIR/zeP"
+sudo ln -s "$ZEP_VERSION_EXE" "$ZEP_EXE"
+sudo chmod 755 "$ZEP_VERSION_EXE"
 "$ZEP_EXE" setup
 
 echo "Setup complete."

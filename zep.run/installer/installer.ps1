@@ -1,4 +1,4 @@
-$Target = "0.6" # latest version
+$Target = "0.7" # latest version
 if (-not ($args.Length -eq 0)) {
     $Target = $args[0]
 }
@@ -21,7 +21,7 @@ $TempZepZigFile = Join-Path $TempZepZigDir "$Target.zip"
 $ManifestZep = Join-Path $ZepDir "zep/manifest.json"
 
 $ExeZepDir = Join-Path $ZepDir "zep/e/"
-$ExeZepFile = Join-Path $ExeZepDir "zeP.exe"
+$ExeZepFile = Join-Path $ExeZepDir "zep.exe"
 
 $ExeZigDir = Join-Path $ZepDir "zig/e/"
 
@@ -33,6 +33,9 @@ if (Test-Path $DestZepZigDir -PathType Container) {
 }
 
 $ZepTargetFile = Join-Path $DestZepZigDir "zeP.exe"
+if (-not (Test-Path $ZepTargetFile)) {
+    $ZepTargetFile = Join-Path $DestZepZigDir "zep.exe"
+}
 
 function Set-EnvVar {
     $UserPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
@@ -60,11 +63,10 @@ function Set-Up {
     New-Item -Path $ExeZepDir -ItemType Directory -Force | Out-Null
 
     New-Item -Path $ExeZigDir -ItemType Directory -Force | Out-Null
-
     New-Item -Path $ManifestZep -ItemType File -Force | Out-Null
 
     $data = @{
-        version = "$Target"
+        name = "zep_x86_64-windows_$Target"
         path = "$DestZepZigDir"
     }
 
@@ -82,9 +84,10 @@ function Get-Download {
 Get-Download
 
 
-& "$ZepTargetFile" setup
-
 if (Test-Path $ExeZepFile) { Remove-Item $ExeZepFile -Force }
 New-Item -ItemType SymbolicLink -Target $ZepTargetFile -Path $ExeZepFile | Out-Null  # exeZep is the symlink
+
+& "$ExeZepFile" setup
+
 
 Read-Host "Installation finished!"
