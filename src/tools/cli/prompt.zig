@@ -21,7 +21,6 @@ pub fn input(
     try printer.append("{s}", .{prompt}, .{});
 
     while (true) {
-        // Print initial value if provided
         if (opts.initial_value) |v| {
             _ = try stdout.write(v);
             _ = try stdout.write(" => ");
@@ -32,7 +31,6 @@ pub fn input(
         try stdout.print("\x1b[2K\r", .{}); // clear line
         try stdout.print("\x1b[1A", .{}); // move up one line
 
-        // If empty input, use initial_value if provided
         if (line.len == 0) {
             if (opts.initial_value) |v| {
                 try printer.append("{s}\n", .{v}, .{});
@@ -40,14 +38,12 @@ pub fn input(
             }
         }
 
-        // Required check
         if (opts.required and line.len == 0) {
             allocator.free(read_line);
             try printer.print();
             continue;
         }
 
-        // Validation
         if (opts.validate) |v_fn| {
             if (!v_fn(line)) {
                 allocator.free(read_line);
@@ -57,7 +53,6 @@ pub fn input(
             }
         }
 
-        // Success
         try printer.append("{s}\n", .{line}, .{});
         return line;
     }
