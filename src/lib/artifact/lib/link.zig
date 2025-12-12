@@ -73,16 +73,18 @@ pub fn updateLink(artifact_type: Structs.Extras.ArtifactType) !void {
 
         try std.fs.cwd().symLink(artifact_path, sym_link_path, .{ .is_directory = false });
     } else {
-        var artifact_path = try std.fs.path.join(allocator, &.{ absolute_path, "zig" });
-        defer allocator.free(artifact_path);
+        var artifact_target: []const u8 = "zig";
         if (artifact_type == .zep) {
-            allocator.free(artifact_path);
-            artifact_path = try std.fs.path.join(allocator, &.{ absolute_path, "zeP" });
-            if (!Fs.existsFile(artifact_path)) {
-                allocator.free(artifact_path);
-                artifact_path = try std.fs.path.join(allocator, &.{ absolute_path, "zep" });
+            artifact_target = "zeP";
+            const check_exe_path = try std.fs.path.join(allocator, &.{ absolute_path, "zeP" });
+            defer allocator.free(check_exe_path);
+            if (!Fs.existsFile(check_exe_path)) {
+                artifact_target = "zep";
             }
         }
+
+        const artifact_path = try std.fs.path.join(allocator, &.{ absolute_path, artifact_target });
+        defer allocator.free(artifact_path);
 
         if (!Fs.existsFile(artifact_path)) {
             if (artifact_type == .zig) {
@@ -93,9 +95,9 @@ pub fn updateLink(artifact_type: Structs.Extras.ArtifactType) !void {
             return error.ManifestNotFound;
         }
 
-        const artifact_target = try Fs.openFile(artifact_path);
-        defer artifact_target.close();
-        try artifact_target.chmod(0o755);
+        const artifact_target_file = try Fs.openFile(artifact_path);
+        defer artifact_target_file.close();
+        try artifact_target_file.chmod(0o755);
 
         const sym_link_path = try std.fs.path.join(allocator, &.{ paths.base, "bin", if (artifact_type == .zig) "zig" else "zep" });
         defer allocator.free(sym_link_path);
