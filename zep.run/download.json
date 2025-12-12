@@ -1,5 +1,8 @@
 {
   "master": {
+    "version": "0.7-dev-1",
+    "date": "2025-12-12",
+    "docs": "https://github.com/XerWoho/zeP/tree/main/docs",
     "aarch64-linux-musl": {
       "tarball": "https://zep.run/releases/0.7-dev-1/zep_aarch64-linux-musl_0.7-dev-1.tar.xz",
       "sha256sum": "bea99f35538d62c1f5365f2873ca3126bbd5731978889d386b11a95122e2b21d",
