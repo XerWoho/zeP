@@ -65,7 +65,7 @@ pub const ArtifactSwitcher = struct {
         blk: {
             if (artifact_type == .zep) break :blk;
 
-            // all need to match for it to be in a zeP project
+            // all need to match for it to be in a zep project
             if (!Fs.existsFile(Constants.Extras.package_files.lock) or
                 !Fs.existsFile(Constants.Extras.package_files.manifest) or
                 !Fs.existsDir(Constants.Extras.package_files.zep_folder)) break :blk;

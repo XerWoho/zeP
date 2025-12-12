@@ -64,7 +64,7 @@ pub fn createZigProject(printer: *Printer, allocator: std.mem.Allocator, name: [
         \\const std = @import("std");
         \\
         \\pub fn main() !void {
-        \\  std.debug.print("Auto init, using zeP.\n\n", .{});
+        \\  std.debug.print("Auto init, using zep.\n\n", .{});
         \\}
     ;
     if (!Fs.existsFile(zig_main_path)) {

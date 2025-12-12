@@ -13,7 +13,7 @@ pub fn doctor(
 ) !void {
     var is_there_issues = false;
 
-    // First verify that we are in zeP project
+    // First verify that we are in zep project
     if (!Fs.existsFile(Constants.Extras.package_files.lock)) {
         try printer.append("Lock file schema is missing.\n", .{}, .{ .color = .red });
     }
@@ -27,7 +27,7 @@ pub fn doctor(
     if (lock.value.schema == Constants.Extras.package_files.lock_schema_version) {
         try printer.append("Lock file schema is fine.\n", .{}, .{ .color = .green });
     } else if (fix_issues) {
-        try printer.append("Lock file schema is NOT matching with zeP version.\n", .{}, .{ .color = .red });
+        try printer.append("Lock file schema is NOT matching with zep version.\n", .{}, .{ .color = .red });
 
         lock.value.root = manifest.value;
         lock.value.schema = Constants.Extras.package_files.lock_schema_version;
@@ -36,7 +36,7 @@ pub fn doctor(
         try printer.append("Fixed.\n", .{}, .{ .color = .green });
     } else {
         is_there_issues = true;
-        try printer.append("Lock file schema is NOT matching with zeP version.\n", .{}, .{ .color = .red });
+        try printer.append("Lock file schema is NOT matching with zep version.\n", .{}, .{ .color = .red });
     }
 
     const lock_packages = lock.value.packages;
