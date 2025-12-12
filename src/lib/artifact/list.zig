@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const Structs = @import("structs");
 const Constants = @import("constants");
@@ -24,6 +25,22 @@ pub const ArtifactLister = struct {
     // ------------------------
     pub fn deinit(_: *ArtifactLister) void {
         // currently no deinit required
+    }
+
+    // ------------------------
+    // Extract the versions from the path
+    // ------------------------
+    fn getVersionFromPath(_: *ArtifactLister, path: []const u8) []const u8 {
+        const delimiter: []const u8 = if (builtin.os.tag == .windows) "\\" else "/";
+        var segments = std.mem.splitAny(u8, path, delimiter);
+        var last: []const u8 = &[_]u8{}; // dummy init
+        var second_last: []const u8 = &[_]u8{};
+
+        while (segments.next()) |seg| {
+            second_last = last;
+            last = seg;
+        }
+        return second_last;
     }
 
     // ------------------------
@@ -75,7 +92,7 @@ pub const ArtifactLister = struct {
             var version_directory = try Fs.openDir(version_path);
             defer version_directory.close();
 
-            const in_use_version = std.mem.containsAtLeast(u8, manifest.value.path, 1, version_name);
+            const in_use_version = std.mem.eql(u8, self.getVersionFromPath(manifest.value.path), version_name);
             try self.printer.append("{s}{s}\n", .{ version_name, if (in_use_version) " (in-use)" else "" }, .{});
 
             var version_iterator = version_directory.iterate();
