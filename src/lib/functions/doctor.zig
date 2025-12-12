@@ -113,6 +113,6 @@ pub fn doctor(
     }
 
     if (is_there_issues and !fix_issues) {
-        try printer.append("\nRun\n $ zeP doctor --fix\n\nTo fix the mentioned issues automatically.\n\n", .{}, .{});
+        try printer.append("\nRun\n $ zep doctor --fix\n\nTo fix the mentioned issues automatically.\n\n", .{}, .{});
     }
 }

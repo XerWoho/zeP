@@ -91,7 +91,7 @@ pub const Injector = struct {
                 else => {
                     try self.printer.append("Injecting into build.zig has failed.\n", .{}, .{ .color = 31 });
                     try self.printer.append("\nSUGGESTION:\n", .{}, .{ .color = 34 });
-                    try self.printer.append(" - Delete build.zig\n $ zeP init\n\n", .{}, .{});
+                    try self.printer.append(" - Delete build.zig\n $ zep init\n\n", .{}, .{});
                 },
             }
         };

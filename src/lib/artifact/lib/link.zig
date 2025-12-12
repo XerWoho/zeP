@@ -35,7 +35,7 @@ pub fn updateLink(artifact_type: Structs.Extras.ArtifactType) !void {
 
     if (builtin.os.tag == .windows) {
         const exe = try std.fmt.allocPrint(allocator, "{s}.exe", .{
-            if (artifact_type == .zig) "zig" else "zeP",
+            if (artifact_type == .zig) "zig" else "zep",
         });
         defer allocator.free(exe);
 
@@ -73,11 +73,17 @@ pub fn updateLink(artifact_type: Structs.Extras.ArtifactType) !void {
 
         try std.fs.cwd().symLink(artifact_path, sym_link_path, .{ .is_directory = false });
     } else {
-        const artifact_path = try std.fs.path.join(allocator, &.{
-            absolute_path,
-            if (artifact_type == .zig) "zig" else "zeP",
-        });
+        var artifact_path = try std.fs.path.join(allocator, &.{ absolute_path, "zig" });
         defer allocator.free(artifact_path);
+        if (artifact_type == .zep) {
+            allocator.free(artifact_path);
+            artifact_path = try std.fs.path.join(allocator, &.{ absolute_path, "zeP" });
+            if (!Fs.existsFile(artifact_path)) {
+                allocator.free(artifact_path);
+                artifact_path = try std.fs.path.join(allocator, &.{ absolute_path, "zep" });
+            }
+        }
+
         if (!Fs.existsFile(artifact_path)) {
             if (artifact_type == .zig) {
                 std.debug.print("\nZig file does not exists! {s}\n", .{artifact_path});
@@ -91,7 +97,7 @@ pub fn updateLink(artifact_type: Structs.Extras.ArtifactType) !void {
         defer artifact_target.close();
         try artifact_target.chmod(0o755);
 
-        const sym_link_path = try std.fs.path.join(allocator, &.{ paths.base, "bin", if (artifact_type == .zig) "zig" else "zeP" });
+        const sym_link_path = try std.fs.path.join(allocator, &.{ paths.base, "bin", if (artifact_type == .zig) "zig" else "zep" });
         defer allocator.free(sym_link_path);
         Fs.deleteFileIfExists(sym_link_path) catch {};
         Fs.deleteDirIfExists(sym_link_path) catch {};

@@ -43,7 +43,7 @@ pub const Builder = struct {
                 error.FileNotFound => {
                     try self.printer.append("Zig is not installed!\nExiting!\n\n", .{}, .{ .color = 31 });
                     try self.printer.append("\nSUGGESTION:\n", .{}, .{ .color = 34 });
-                    try self.printer.append(" - Install zig\n $ zeP zig install <version>\n\n", .{}, .{});
+                    try self.printer.append(" - Install zig\n $ zep zig install <version>\n\n", .{}, .{});
                     std.process.exit(0);
                     return;
                 },

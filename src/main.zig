@@ -16,7 +16,7 @@ const Init = @import("lib/packages/init.zig").Init;
 const Installer = @import("lib/packages/install.zig").Installer;
 const Uninstaller = @import("lib/packages/uninstall.zig").Uninstaller;
 const Lister = @import("lib/packages/list.zig").Lister;
-const Purger = @import("lib/packages/purge.zig").Purger;
+const Purger = @import("lib/packages/purge.zig");
 const CustomPackage = @import("lib/packages/custom.zig").CustomPackage;
 const PreBuilt = @import("lib/functions/pre_built.zig").PreBuilt;
 const Command = @import("lib/functions/command.zig").Command;
@@ -24,7 +24,9 @@ const PackageFiles = @import("lib/functions/package_files.zig").PackageFiles;
 const Builder = @import("lib/functions/builder.zig").Builder;
 const Runner = @import("lib/functions/runner.zig").Runner;
 const Bootstrap = @import("lib/functions/bootstrap.zig");
+const New = @import("lib/functions/new.zig");
 const Doctor = @import("lib/functions/doctor.zig");
+const Cache = @import("lib/functions/cache.zig").Cache;
 
 const Artifact = @import("lib/artifact/artifact.zig").Artifact;
 
@@ -214,23 +216,23 @@ fn parseRunner(allocator: std.mem.Allocator) !RunnerArgs {
     };
 }
 
-/// Print the usage and the legend of zeP.
+/// Print the usage and the legend of zep.
 fn printUsage(printer: *Printer) !void {
     try printer.append("\nUsage:\n", .{}, .{});
     try printer.append(" Legend:\n  > []  # required\n  > ()  # optional\n\n", .{}, .{});
-    try printer.append("--- SIMPLE COMMANDS ---\n  zeP version\n  zeP help\n  zeP paths\n  zeP doctor\n\n", .{}, .{});
-    try printer.append("--- BUILD COMMANDS ---\n  zeP runner (--target <target>) (--args <args>)\n  zeP build\n  zeP bootstrap (--zig <zig-version>) (--deps <package1,package2>)\n\n", .{}, .{});
-    try printer.append("--- MANIFEST COMMANDS ---\n  zeP init\n  zeP lock\n  zeP json\n\n", .{}, .{});
-    try printer.append("--- CMD COMMANDS ---\n  zeP cmd run [cmd]\n  zeP cmd add\n  zeP cmd remove <cmd>\n  zeP cmd list\n\n", .{}, .{});
-    try printer.append("--- PACKAGE COMMANDS ---\n  zeP install (target)@(version)\n  zeP uninstall [target]\n  zeP info [target]@[version]\n", .{}, .{});
-    try printer.append("  zeP purge [pkg|cache]\n", .{}, .{});
-    try printer.append("  zeP pkg list [target]\n  zeP pkg remove [custom package name]\n  zeP pkg add\n\n", .{}, .{});
-    try printer.append("--- PREBUILT COMMANDS ---\n  zeP prebuilt [build|use] [name] (target)\n", .{}, .{});
-    try printer.append("  zeP prebuilt delete [name]\n  zeP prebuilt list\n\n", .{}, .{});
-    try printer.append("--- ZIG COMMANDS ---\n  zeP zig [uninstall|switch] [version]\n", .{}, .{});
-    try printer.append("  zeP zig install [version] (target)\n  zeP zig list\n\n", .{}, .{});
-    try printer.append("--- ZEP COMMANDS ---\n  zeP zep [uninstall|switch] [version]\n", .{}, .{});
-    try printer.append("  zeP zep install [version] (target)\n  zeP zep list\n\n", .{}, .{});
+    try printer.append("--- SIMPLE COMMANDS ---\n  zep version\n  zep help\n  zep paths\n  zep doctor\n\n", .{}, .{});
+    try printer.append("--- BUILD COMMANDS ---\n  zep runner (--target <target>) (--args <args>)\n  zep build\n  zep bootstrap (--zig <zig-version>) (--deps <package1,package2>)\n  zep new <name>\n\n", .{}, .{});
+    try printer.append("--- MANIFEST COMMANDS ---\n  zep init\n  zep lock\n  zep json\n\n", .{}, .{});
+    try printer.append("--- CMD COMMANDS ---\n  zep cmd run [cmd]\n  zep cmd add\n  zep cmd remove <cmd>\n  zep cmd list\n\n", .{}, .{});
+    try printer.append("--- PACKAGE COMMANDS ---\n  zep install (target)@(version)\n  zep uninstall [target]\n  zep info [target]@[version]\n", .{}, .{});
+    try printer.append("  zep purge\n  zep cache [list|clean|size] (package_id)", .{}, .{});
+    try printer.append("  zep pkg list [target]\n  zep pkg remove [custom package name]\n  zep pkg add\n\n", .{}, .{});
+    try printer.append("--- PREBUILT COMMANDS ---\n  zep prebuilt [build|use] [name] (target)\n", .{}, .{});
+    try printer.append("  zep prebuilt delete [name]\n  zep prebuilt list\n\n", .{}, .{});
+    try printer.append("--- ZIG COMMANDS ---\n  zep zig [uninstall|switch] [version]\n", .{}, .{});
+    try printer.append("  zep zig install [version] (target)\n  zep zig list\n\n", .{}, .{});
+    try printer.append("--- zep COMMANDS ---\n  zep zep [uninstall|switch] [version]\n", .{}, .{});
+    try printer.append("  zep zep install [version] (target)\n  zep zep list\n\n", .{}, .{});
 }
 
 /// Fetch the next argument or print an error and exit out of the process.
@@ -285,7 +287,7 @@ pub fn main() !void {
 
     if (!is_created) {
         const stdin = std.io.getStdIn().reader();
-        try printer.append("\nNo setup detected. Run '$ zeP setup'?\n", .{}, .{});
+        try printer.append("\nNo setup detected. Run '$ zep setup'?\n", .{}, .{});
         const answer = try Prompt.input(allocator, &printer, stdin, "(Y/n) > ", .{});
         if (answer.len == 0 or
             std.mem.startsWith(u8, answer, "y") or
@@ -298,7 +300,7 @@ pub fn main() !void {
     const zep_version_exists = Fs.existsFile(paths.zep_manifest);
     if (!zep_version_exists) {
         const stdin = std.io.getStdIn().reader();
-        try printer.append("\nzeP appears to be running outside fitting directory. Run '$ zeP zep install'?\n", .{}, .{});
+        try printer.append("\nzep appears to be running outside fitting directory. Run '$ zep zep install'?\n", .{}, .{});
         const answer = try Prompt.input(allocator, &printer, stdin, "(Y/n) > ", .{});
         if (answer.len == 0 or
             std.mem.startsWith(u8, answer, "y") or
@@ -320,12 +322,12 @@ pub fn main() !void {
         return;
     }
     if (std.mem.eql(u8, subcommand, "version")) {
-        try printer.append("zeP Version 0.7\n\n", .{}, .{});
+        try printer.append("zep Version 0.7\n\n", .{}, .{});
         return;
     }
 
     if (std.mem.eql(u8, subcommand, "paths")) {
-        try printer.append("\n--- ZEP PATHS ---\n\nBase: {s}\nCustom: {s}\nRoot: {s}\nPrebuilt: {s}\nZepped: {s}\nPackage-Manifest: {s}\nPackge-Root: {s}\nZep-Manifest: {s}\nZep-Root: {s}\nZig-Manifest: {s}\nZig-Root: {s}\n\n", .{
+        try printer.append("\n--- zep PATHS ---\n\nBase: {s}\nCustom: {s}\nRoot: {s}\nPrebuilt: {s}\nzepped: {s}\nPackage-Manifest: {s}\nPackge-Root: {s}\nzep-Manifest: {s}\nzep-Root: {s}\nZig-Manifest: {s}\nZig-Root: {s}\n\n", .{
             paths.base,
             paths.custom,
             paths.root,
@@ -358,7 +360,30 @@ pub fn main() !void {
         return;
     }
 
-    // First verify that we are in zeP project
+    if (std.mem.eql(u8, subcommand, "new")) {
+        const new_package_name = try nextArg(&args, &printer, " > zep new <name>");
+        try New.new(allocator, &printer, new_package_name);
+        return;
+    }
+
+    if (std.mem.eql(u8, subcommand, "cache")) {
+        const cache_subcommand = try nextArg(&args, &printer, " > zep cache [list|clean|size] (package_id)");
+        var cache = try Cache.init(allocator, &printer);
+        defer cache.deinit();
+        if (std.mem.eql(u8, cache_subcommand, "list") or std.mem.eql(u8, cache_subcommand, "ls")) {
+            try cache.list();
+        } else if (std.mem.eql(u8, cache_subcommand, "clean")) {
+            const package_id = args.next();
+            try cache.clean(package_id);
+        } else if (std.mem.eql(u8, cache_subcommand, "size")) {
+            try cache.size();
+        } else {
+            try printer.append("Invalid mode: {s}\n\n", .{cache_subcommand}, .{});
+        }
+        return;
+    }
+
+    // First verify that we are in zep project
     if (Fs.existsFile(Constants.Extras.package_files.lock) and
         Fs.existsFile(Constants.Extras.package_files.manifest) and
         Fs.existsDir(Constants.Extras.package_files.zep_folder))
@@ -366,13 +391,13 @@ pub fn main() !void {
         const lock = try Manifest.readManifest(Structs.ZepFiles.PackageLockStruct, allocator, Constants.Extras.package_files.lock);
         defer lock.deinit();
         if (lock.value.schema != Constants.Extras.package_files.lock_schema_version) {
-            try printer.append("Lock file schema is NOT matching with zeP version.\nConsider removing them, and re-initing!\n", .{}, .{ .color = 31 });
+            try printer.append("Lock file schema is NOT matching with zep version.\nConsider removing them, and re-initing!\n", .{}, .{ .color = 31 });
             return;
         }
     }
 
     if (std.mem.eql(u8, subcommand, "pkg")) {
-        const mode = try nextArg(&args, &printer, " > zeP pkg [command]");
+        const mode = try nextArg(&args, &printer, " > zep pkg [command]");
 
         if (std.mem.eql(u8, mode, "add")) {
             var custom = CustomPackage.init(allocator, &printer);
@@ -399,15 +424,15 @@ pub fn main() !void {
                     try printer.append("\nListing {s} has failed...\n\n", .{package_name}, .{ .color = 31 });
                 };
             } else {
-                try printer.append("Missing argument;\nzeP list [target]\n\n", .{}, .{ .color = 31 });
+                try printer.append("Missing argument;\nzep list [target]\n\n", .{}, .{ .color = 31 });
             }
             return;
         }
     }
 
     if (std.mem.eql(u8, subcommand, "init")) {
-        var initter = try Init.init(allocator, &printer, false);
-        try initter.commitInit();
+        var initer = try Init.init(allocator, &printer, false);
+        try initer.commitInit();
         return;
     }
 
@@ -431,7 +456,7 @@ pub fn main() !void {
         var package_files = PackageFiles.init(allocator, &printer) catch |err| {
             switch (err) {
                 error.ManifestMissing => {
-                    try printer.append("zep.json manifest is missing!\n $ zeP init\nto get started!\n\n", .{}, .{ .color = 31 });
+                    try printer.append("zep.json manifest is missing!\n $ zep init\nto get started!\n\n", .{}, .{ .color = 31 });
                     return;
                 },
                 else => {
@@ -448,7 +473,7 @@ pub fn main() !void {
         var package_files = PackageFiles.init(allocator, &printer) catch |err| {
             switch (err) {
                 error.ManifestMissing => {
-                    try printer.append("zep.json manifest is missing!\n $ zeP init\nto get started!\n\n", .{}, .{ .color = 31 });
+                    try printer.append("zep.json manifest is missing!\n $ zep init\nto get started!\n\n", .{}, .{ .color = 31 });
                     return;
                 },
                 else => {
@@ -462,11 +487,11 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "info")) {
-        const target = try nextArg(&args, &printer, " > zeP info [target]@[version]\n");
+        const target = try nextArg(&args, &printer, " > zep info [target]@[version]\n");
         var split = std.mem.splitScalar(u8, target, '@');
         const package_name = split.first();
         const package_version = split.next() orelse {
-            std.debug.print(" > zeP info [target]@[version]\n", .{});
+            std.debug.print(" > zep info [target]@[version]\n", .{});
             std.debug.print("Version is required, when trying to info of package!\n", .{});
             return;
         };
@@ -520,7 +545,7 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "uninstall")) {
-        const target = try nextArg(&args, &printer, " > zeP uninstall [target]");
+        const target = try nextArg(&args, &printer, " > zep uninstall [target]");
         var split = std.mem.splitScalar(u8, target, '@');
         const package_name = split.first();
 
@@ -544,7 +569,7 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "global-uninstall")) {
-        const target = try nextArg(&args, &printer, " > zeP global-uninstall [target]@[version]");
+        const target = try nextArg(&args, &printer, " > zep global-uninstall [target]@[version]");
         var split = std.mem.splitScalar(u8, target, '@');
         const package_name = split.first();
         const package_version = split.next() orelse {
@@ -581,7 +606,7 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "fglobal-uninstall")) {
-        const target = try nextArg(&args, &printer, " > zeP global-uninstall [target]@[version]");
+        const target = try nextArg(&args, &printer, " > zep global-uninstall [target]@[version]");
         var split = std.mem.splitScalar(u8, target, '@');
         const package_name = split.first();
 
@@ -620,28 +645,16 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "purge")) {
-        const mode = try nextArg(&args, &printer, " > zeP purge [pkg|cache]");
-        var purger = try Purger.init(allocator, &printer);
-        if (std.mem.eql(u8, mode, "pkg")) {
-            purger.purgePkgs() catch {
-                try printer.append("\nPurging packages has failed...\n\n", .{}, .{ .color = 31 });
-            };
-        } else if (std.mem.eql(u8, mode, "cache")) {
-            purger.purgeCache() catch {
-                try printer.append("\nPurging cache has failed...\n\n", .{}, .{ .color = 31 });
-            };
-        } else {
-            try printer.append("Invalid mode: {s}\n\n", .{mode}, .{});
-        }
+        try Purger.purge(&printer, allocator);
         return;
     }
 
     if (std.mem.eql(u8, subcommand, "prebuilt")) {
-        const mode = try nextArg(&args, &printer, " > zeP prebuilt [build|use|delete] [name]");
+        const mode = try nextArg(&args, &printer, " > zep prebuilt [build|use|delete] [name]");
         var prebuilt = try PreBuilt.init(allocator, &printer);
 
         if (std.mem.eql(u8, mode, "build") or std.mem.eql(u8, mode, "use")) {
-            const name = try nextArg(&args, &printer, " > zeP prebuilt {build|use} [name] [target?]");
+            const name = try nextArg(&args, &printer, " > zep prebuilt {build|use} [name] [target?]");
             const target = args.next() orelse blk: {
                 try printer.append("No target specified! Rolling back to default \".\"\n\n", .{}, .{});
                 break :blk ".";
@@ -656,7 +669,7 @@ pub fn main() !void {
                 };
             }
         } else if (std.mem.eql(u8, mode, "delete")) {
-            const name = try nextArg(&args, &printer, " > zeP prebuilt delete [name]");
+            const name = try nextArg(&args, &printer, " > zep prebuilt delete [name]");
             prebuilt.delete(name) catch {
                 try printer.append("\nDeleting prebuilt has failed...\n\n", .{}, .{ .color = 31 });
             };
@@ -669,12 +682,12 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "zig")) {
-        const mode = try nextArg(&args, &printer, " > zeP zig [install|switch|uninstall|list] [version]");
+        const mode = try nextArg(&args, &printer, " > zep zig [install|switch|uninstall|list] [version]");
         var zig = try Artifact.init(allocator, &printer, .zig);
         defer zig.deinit();
 
         if (std.mem.eql(u8, mode, "install") or std.mem.eql(u8, mode, "uninstall") or std.mem.eql(u8, mode, "switch")) {
-            const version = try nextArg(&args, &printer, " > zeP zig {install|switch|uninstall} [version] [target?]");
+            const version = try nextArg(&args, &printer, " > zep zig {install|switch|uninstall} [version] [target?]");
             const target = args.next() orelse resolveDefaultTarget();
             if (std.mem.eql(u8, mode, "install")) {
                 zig.install(version, target) catch |err| {
@@ -714,12 +727,12 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "zep")) {
-        const mode = try nextArg(&args, &printer, " > zeP zep [install|switch|uninstall|list] [version]");
+        const mode = try nextArg(&args, &printer, " > zep zep [install|switch|uninstall|list] [version]");
         var zep = try Artifact.init(allocator, &printer, .zep);
         defer zep.deinit();
 
         if (std.mem.eql(u8, mode, "install") or std.mem.eql(u8, mode, "uninstall") or std.mem.eql(u8, mode, "switch")) {
-            const version = try nextArg(&args, &printer, " > zeP zep {install|switch|uninstall} [version]");
+            const version = try nextArg(&args, &printer, " > zep zep {install|switch|uninstall} [version]");
             const target = args.next() orelse resolveDefaultTarget();
 
             if (std.mem.eql(u8, mode, "install")) {
@@ -758,7 +771,7 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "cmd")) {
-        const mode = try nextArg(&args, &printer, " > zeP cmd [run|add|remove|list] <cmd>");
+        const mode = try nextArg(&args, &printer, " > zep cmd [run|add|remove|list] <cmd>");
         var commander = Command.init(allocator, &printer) catch |err| {
             switch (err) {
                 error.ManifestNotFound => {
@@ -773,14 +786,14 @@ pub fn main() !void {
         };
 
         if (std.mem.eql(u8, mode, "run")) {
-            const cmd = try nextArg(&args, &printer, " > zeP cmd add");
+            const cmd = try nextArg(&args, &printer, " > zep cmd add");
             try commander.run(cmd);
         }
         if (std.mem.eql(u8, mode, "add")) {
             try commander.add();
         }
         if (std.mem.eql(u8, mode, "remove")) {
-            const cmd = try nextArg(&args, &printer, " > zeP cmd remove [cmd]");
+            const cmd = try nextArg(&args, &printer, " > zep cmd remove [cmd]");
             try commander.remove(cmd);
         }
         if (std.mem.eql(u8, mode, "list")) {
@@ -791,5 +804,5 @@ pub fn main() !void {
     }
 
     // If we reach here, subcommand is invalid
-    try printer.append("Invalid subcommand: {s}\n $ zeP help\n\nTo get the full list.\n\n", .{subcommand}, .{});
+    try printer.append("Invalid subcommand: {s}\n $ zep help\n\nTo get the full list.\n\n", .{subcommand}, .{});
 }

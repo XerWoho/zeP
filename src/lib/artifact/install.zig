@@ -250,8 +250,17 @@ pub const ArtifactInstaller = struct {
             try std.fs.cwd().rename(extract_target, new_target);
         }
 
-        const artifact_exe_path = try std.fs.path.join(self.allocator, &.{ new_target, if (artifact_type == .zig) "zig" else "zeP" });
+        var artifact_exe_path = try std.fs.path.join(self.allocator, &.{ new_target, "zig" });
         defer self.allocator.free(artifact_exe_path);
+        if (artifact_type == .zep) {
+            self.allocator.free(artifact_exe_path);
+            artifact_exe_path = try std.fs.path.join(self.allocator, &.{ new_target, "zeP" });
+            if (!Fs.existsFile(artifact_exe_path)) {
+                self.allocator.free(artifact_exe_path);
+                artifact_exe_path = try std.fs.path.join(self.allocator, &.{ new_target, "zep" });
+            }
+        }
+
         const artifact_exe_file = try Fs.openFile(artifact_exe_path);
         defer artifact_exe_file.close();
         try artifact_exe_file.chmod(0o755);

@@ -7,16 +7,6 @@ It provides easy bootstrapping, dependency management, and running of Zig projec
 
 ---
 
-## **Table of Contents**
-
-- [Installing zeP](#installing-zep)
-- [Bootstrap a Project](#bootstrap-a-project)
-- [Running Projects](#running-projects)
-- [CLI Reference](#cli-reference)
-- [Examples](#examples)
-
----
-
 ## Installing zeP
 
 ### **Windows (PowerShell, as Administrator)**
@@ -29,6 +19,19 @@ It provides easy bootstrapping, dependency management, and running of Zig projec
 
 ```bash
 curl -fsSL https://zep.run/installer/installer.sh | bash
+```
+
+### **AUR**
+
+```bash
+yay -S zep-bin
+```
+
+### **macOS**
+
+```bash
+brew tap XerWoho/homebrew-zep
+brew install zep
 ```
 
 ---

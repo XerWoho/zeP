@@ -40,7 +40,7 @@ pub const Init = struct {
                 else => {
                     try printer.append("Zig is not installed!\nExiting!\n\n", .{}, .{ .color = 31 });
                     try printer.append("\nSUGGESTION:\n", .{}, .{ .color = 34 });
-                    try printer.append(" - Install zig\n $ zeP zig install <version>\n\n", .{}, .{});
+                    try printer.append(" - Install zig\n $ zep zig install <version>\n\n", .{}, .{});
                     std.process.exit(0);
                 },
             }
@@ -126,6 +126,21 @@ pub const Init = struct {
 
         if (!Fs.existsFile(Constants.Extras.package_files.lock)) {
             try self.json.writePretty(Constants.Extras.package_files.lock, lock);
+        }
+
+        const gitignore = ".gitignore";
+        const gitignore_main =
+            \\.zig-cache
+            \\
+            \\zep-out
+            \\
+            \\.zep
+            \\!.zep/injector.zig
+        ;
+
+        if (!Fs.existsFile(gitignore)) {
+            const f = try Fs.openOrCreateFile(gitignore);
+            _ = try f.write(gitignore_main);
         }
     }
 };
