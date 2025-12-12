@@ -230,9 +230,9 @@ fn printUsage(printer: *Printer) !void {
     try printer.append("--- PREBUILT COMMANDS ---\n  zep prebuilt [build|use] [name] (target)\n", .{}, .{});
     try printer.append("  zep prebuilt delete [name]\n  zep prebuilt list\n\n", .{}, .{});
     try printer.append("--- ZIG COMMANDS ---\n  zep zig [uninstall|switch] [version]\n", .{}, .{});
-    try printer.append("  zep zig install [version] (target)\n  zep zig list\n\n", .{}, .{});
+    try printer.append("  zep zig install [version] (target)\n  zep zig list\n  zep zig prune\n\n", .{}, .{});
     try printer.append("--- zep COMMANDS ---\n  zep zep [uninstall|switch] [version]\n", .{}, .{});
-    try printer.append("  zep zep install [version] (target)\n  zep zep list\n\n", .{}, .{});
+    try printer.append("  zep zep install [version] (target)\n  zep zep list\n  zep zep prune\n\n", .{}, .{});
 }
 
 /// Fetch the next argument or print an error and exit out of the process.
@@ -327,7 +327,7 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, subcommand, "paths")) {
-        try printer.append("\n--- zep PATHS ---\n\nBase: {s}\nCustom: {s}\nRoot: {s}\nPrebuilt: {s}\nzepped: {s}\nPackage-Manifest: {s}\nPackge-Root: {s}\nzep-Manifest: {s}\nzep-Root: {s}\nZig-Manifest: {s}\nZig-Root: {s}\n\n", .{
+        try printer.append("\n--- ZEP PATHS ---\n\nBase: {s}\nCustom: {s}\nRoot: {s}\nPrebuilt: {s}\nzepped: {s}\nPackage-Manifest: {s}\nPackge-Root: {s}\nzep-Manifest: {s}\nzep-Root: {s}\nZig-Manifest: {s}\nZig-Root: {s}\n\n", .{
             paths.base,
             paths.custom,
             paths.root,
@@ -720,6 +720,8 @@ pub fn main() !void {
             zig.list() catch {
                 try printer.append("\nListing zig versions has failed...\n\n", .{}, .{ .color = 31 });
             };
+        } else if (std.mem.eql(u8, mode, "prune")) {
+            try zig.prune();
         } else {
             try printer.append("Invalid mode: {s}\n\n", .{mode}, .{});
         }
@@ -763,7 +765,11 @@ pub fn main() !void {
                 };
             }
         } else if (std.mem.eql(u8, mode, "list")) {
-            try zep.list();
+            zep.list() catch {
+                try printer.append("\nListing zep versions has failed...\n\n", .{}, .{ .color = 31 });
+            };
+        } else if (std.mem.eql(u8, mode, "prune")) {
+            try zep.prune();
         } else {
             try printer.append("Invalid mode: {s}\n\n", .{mode}, .{});
         }
