@@ -13,23 +13,14 @@ pub const ArtifactLister = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
 
-    // ------------------------
-    // Initialize ArtifactLister
-    // ------------------------
     pub fn init(allocator: std.mem.Allocator, printer: *Printer) !ArtifactLister {
         return ArtifactLister{ .allocator = allocator, .printer = printer };
     }
 
-    // ------------------------
-    // Deinitialize ArtifactLister
-    // ------------------------
     pub fn deinit(_: *ArtifactLister) void {
         // currently no deinit required
     }
 
-    // ------------------------
-    // Extract the versions from the path
-    // ------------------------
     fn getVersionFromPath(_: *ArtifactLister, path: []const u8) []const u8 {
         const delimiter: []const u8 = if (builtin.os.tag == .windows) "\\" else "/";
         var segments = std.mem.splitAny(u8, path, delimiter);
@@ -43,10 +34,8 @@ pub const ArtifactLister = struct {
         return second_last;
     }
 
-    // ------------------------
-    // Print all installed Artifact versions
-    // Marks the version currently in use
-    // ------------------------
+    /// Print all installed Artifact versions
+    /// Marks the version currently in use
     pub fn listVersions(self: *ArtifactLister, artifact_type: Structs.Extras.ArtifactType) !void {
         try self.printer.append("\nAvailable Artifact Versions:\n", .{}, .{});
         var paths = try Constants.Paths.paths(self.allocator);

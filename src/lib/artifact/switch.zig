@@ -14,24 +14,16 @@ pub const ArtifactSwitcher = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
 
-    // ------------------------
-    // Initialize ArtifactSwitcher
-    // ------------------------
     pub fn init(allocator: std.mem.Allocator, printer: *Printer) !ArtifactSwitcher {
         return ArtifactSwitcher{ .allocator = allocator, .printer = printer };
     }
 
-    // ------------------------
-    // Deinitialize ArtifactSwitcher
-    // ------------------------
     pub fn deinit(_: *ArtifactSwitcher) void {
         // currently no deinit required
     }
 
-    // ------------------------
-    // Switch active Artifact version
-    // Updates manifest and system PATH
-    // ------------------------
+    /// Switch active Artifact version
+    /// Updates manifest and system PATH
     pub fn switchVersion(
         self: *ArtifactSwitcher,
         name: []const u8,
@@ -108,10 +100,8 @@ pub const ArtifactSwitcher = struct {
         try self.printer.append("Switched to installed version successfully!\n", .{}, .{ .color = 32 });
     }
 
-    // ------------------------
-    // Switch active Artifact version
-    // Updates manifest and system PATH
-    // ------------------------
+    /// Switch active Artifact version
+    /// Updates manifest and system PATH
     pub fn getLatestVersion(self: *ArtifactSwitcher, artifact_type: Structs.Extras.ArtifactType, skip_version: []const u8) !LatestArtifact {
         // Update manifest with new version
         var paths = try Constants.Paths.paths(self.allocator);

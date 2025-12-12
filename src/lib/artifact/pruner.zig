@@ -13,24 +13,16 @@ pub const ArtifactPruner = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
 
-    // ------------------------
-    // Initialize ArtifactPruner
-    // ------------------------
     pub fn init(allocator: std.mem.Allocator, printer: *Printer) !ArtifactPruner {
         return ArtifactPruner{ .allocator = allocator, .printer = printer };
     }
 
-    // ------------------------
-    // Deinitialize ArtifactPruner
-    // ------------------------
     pub fn deinit(_: *ArtifactPruner) void {
         // currently no deinit required
     }
 
-    // ------------------------
-    // Prunes all Artifact versions
-    // With zero targets
-    // ------------------------
+    /// Prunes all Artifact versions
+    /// With zero targets
     pub fn pruneVersions(self: *ArtifactPruner, artifact_type: Structs.Extras.ArtifactType) !void {
         var paths = try Constants.Paths.paths(self.allocator);
         defer paths.deinit();

@@ -31,10 +31,6 @@ pub const Cacher = struct {
 
     pub fn deinit(_: *Cacher) void {}
 
-    // ---------------------------
-    // PATH HELPERS
-    // ---------------------------
-
     fn cacheFilePath(self: *Cacher) ![]u8 {
         var paths = try Constants.Paths.paths(self.allocator);
         defer paths.deinit();
@@ -73,20 +69,12 @@ pub const Cacher = struct {
         );
     }
 
-    // ---------------------------
-    // CACHE CHECK
-    // ---------------------------
-
     pub fn isPackageCached(self: *Cacher) !bool {
         const path = try self.cacheFilePath();
         defer self.allocator.free(path);
 
         return Fs.existsFile(path);
     }
-
-    // ---------------------------
-    // EXTRACT FROM CACHE
-    // ---------------------------
 
     pub fn getPackageFromCache(self: *Cacher) !bool {
         const is_cached = try self.isPackageCached();
@@ -126,10 +114,6 @@ pub const Cacher = struct {
             try Fs.deleteFileIfExists(path);
         }
     }
-
-    // ---------------------------
-    // WRITE CACHE METADATA / LOG
-    // ---------------------------
 
     pub fn cachePackage(self: *Cacher) !void {
         try self.printer.append(

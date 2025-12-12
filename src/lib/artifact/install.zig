@@ -15,9 +15,6 @@ pub const ArtifactInstaller = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
 
-    // ------------------------
-    // Initialize ArtifactInstaller
-    // ------------------------
     pub fn init(
         allocator: std.mem.Allocator,
         printer: *Printer,
@@ -28,16 +25,10 @@ pub const ArtifactInstaller = struct {
         };
     }
 
-    // ------------------------
-    // Deinitialize
-    // ------------------------
     pub fn deinit(_: *ArtifactInstaller) void {
         // currently no deinit required
     }
 
-    // ------------------------
-    // Fetch and extract Artifact archive
-    // ------------------------
     fn fetchData(
         self: *ArtifactInstaller,
         name: []const u8,
@@ -122,9 +113,6 @@ pub const ArtifactInstaller = struct {
         }
     }
 
-    // ------------------------
-    // Download file via HTTP
-    // ------------------------
     fn downloadFile(self: *ArtifactInstaller, raw_uri: []const u8, out_path: []const u8) !void {
         try self.printer.append("Parsing URI...\n", .{}, .{});
         const uri = try std.Uri.parse(raw_uri);
@@ -175,9 +163,7 @@ pub const ArtifactInstaller = struct {
         try self.printer.append("\n", .{}, .{});
     }
 
-    // ------------------------
-    // Decompress for Windows (.zip)
-    // ------------------------
+    /// Decompress for Windows (.zip)
     fn decompressWindows(
         self: *ArtifactInstaller,
         reader: std.fs.File.SeekableStream,
@@ -208,9 +194,7 @@ pub const ArtifactInstaller = struct {
         try std.fs.cwd().rename(extract_target, new_target);
     }
 
-    // ------------------------
-    // Decompress for POSIX (.tar.xz)
-    // ------------------------
+    /// Decompress for POSIX (.tar.xz)
     fn decompressPosix(
         self: *ArtifactInstaller,
         reader: std.fs.File.Reader,
@@ -268,9 +252,6 @@ pub const ArtifactInstaller = struct {
         try artifact_exe_file.chmod(0o755);
     }
 
-    // ------------------------
-    // Public install function
-    // ------------------------
     pub fn install(
         self: *ArtifactInstaller,
         name: []const u8,

@@ -13,9 +13,6 @@ pub const ArtifactUninstaller = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
 
-    // ------------------------
-    // Initialize ArtifactUninstaller
-    // ------------------------
     pub fn init(allocator: std.mem.Allocator, printer: *Printer) !ArtifactUninstaller {
         return ArtifactUninstaller{
             .allocator = allocator,
@@ -23,16 +20,10 @@ pub const ArtifactUninstaller = struct {
         };
     }
 
-    // ------------------------
-    // Deinitialize ArtifactUninstaller
-    // ------------------------
     pub fn deinit(_: *ArtifactUninstaller) void {
         // currently no deinit required
     }
 
-    // ------------------------
-    // Uninstall a Artifact version by deleting its folder
-    // ------------------------
     pub fn uninstall(self: *ArtifactUninstaller, path: []const u8) !void {
         try self.printer.append("Deleting Artifact version at path: {s}\n", .{path}, .{});
 
