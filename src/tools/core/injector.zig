@@ -150,7 +150,15 @@ pub const Injector = struct {
         });
 
         // Already injected?
-        if (std.mem.indexOf(u8, content, inject_line) != null)
+        var check_inspect_line_buf: [128]u8 = undefined;
+        const check_inject_line_fmt =
+            "@import(\".zep/injector.zig\").injectExtraImports({s}, {s});";
+        const check_inject_line = try std.fmt.bufPrint(&check_inspect_line_buf, check_inject_line_fmt, .{
+            build_param,
+            artifact_name,
+        });
+
+        if (std.mem.indexOf(u8, content, check_inject_line) != null)
             return;
 
         const insert_before_fmt = "    {s}.installArtifact({s});";

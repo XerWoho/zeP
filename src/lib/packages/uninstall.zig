@@ -56,9 +56,8 @@ pub const Uninstaller = struct {
             return error.NotInstalled;
         }
 
-        var buf: [128]u8 = undefined;
-        const package_id = try std.fmt.bufPrint(
-            &buf,
+        const package_id = try std.fmt.allocPrint(
+            allocator,
             "{s}@{s}",
             .{ package_name, package_version },
         );
@@ -74,7 +73,9 @@ pub const Uninstaller = struct {
         };
     }
 
-    pub fn deinit(_: *Uninstaller) void {}
+    pub fn deinit(self: *Uninstaller) void {
+        self.allocator.free(self.package_id);
+    }
 
     /// Main uninstallation routine
     pub fn uninstall(self: *Uninstaller) !void {

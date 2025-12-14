@@ -35,14 +35,19 @@ pub const Cacher = struct {
     pub fn deinit(_: *Cacher) void {}
 
     fn cacheFilePath(self: *Cacher) ![]u8 {
-        var buf: [256]u8 = undefined;
-        const cache_fp = try std.fmt.bufPrint(
-            &buf,
-            "{s}/{s}@{s}.zep",
+        const zstd_id = try std.fmt.allocPrint(
+            self.allocator,
+            "{s}@{s}.tar.zstd",
             .{
-                self.paths.zepped,
                 self.package.package_name,
                 self.package.package_version,
+            },
+        );
+        const cache_fp = try std.fs.path.join(
+            self.allocator,
+            &.{
+                self.paths.zepped,
+                zstd_id,
             },
         );
 
@@ -50,9 +55,8 @@ pub const Cacher = struct {
     }
 
     fn extractPath(self: *Cacher) ![]u8 {
-        var buf: [256]u8 = undefined;
-        const extract_p = try std.fmt.bufPrint(
-            &buf,
+        const extract_p = try std.fmt.allocPrint(
+            self.allocator,
             "{s}/{s}@{s}",
             .{
                 self.paths.pkg_root,
@@ -65,9 +69,8 @@ pub const Cacher = struct {
     }
 
     fn tmpOutputPath(self: *Cacher) ![]u8 {
-        var buf: [256]u8 = undefined;
-        const tmp_p = try std.fmt.bufPrint(
-            &buf,
+        const tmp_p = try std.fmt.allocPrint(
+            self.allocator,
             "{s}/{s}@{s}",
             .{
                 TEMPORARY_DIRECTORY_PATH,
@@ -95,15 +98,26 @@ pub const Cacher = struct {
             Fs.deleteTreeIfExists(TEMPORARY_DIRECTORY_PATH) catch {
                 self.printer.append("\nFailed to delete {s}!\n", .{TEMPORARY_DIRECTORY_PATH}, .{ .color = .red }) catch {};
             };
+            self.allocator.free(temporary_output_path);
         }
 
         const cache_path = try self.cacheFilePath();
+        defer self.allocator.free(cache_path);
+
         const extract_path = try self.extractPath();
+        defer self.allocator.free(extract_path);
 
         return try self.compressor.decompress(cache_path, extract_path);
     }
 
-    pub fn setPackageToCache(self: *Cacher, target_folder: []const u8) !bool {
+    pub fn setPackageToCache(self: *Cacher, id: []const u8) !bool {
+        const target_folder = try std.fs.path.join(
+            self.allocator,
+            &.{ self.paths.pkg_root, id },
+        );
+        defer self.allocator.free(target_folder);
+
+        try self.printer.append("Compressing now...", .{}, .{});
         return try self.compressor.compress(target_folder, try self.cacheFilePath());
     }
 
@@ -111,7 +125,7 @@ pub const Cacher = struct {
         var buf: [256]u8 = undefined;
         const path = try std.fmt.bufPrint(
             &buf,
-            "{s}/{s}.zep",
+            "{s}/{s}.tar.zstd",
             .{
                 self.paths.zepped,
                 self.package.id,
@@ -121,13 +135,5 @@ pub const Cacher = struct {
         if (Fs.existsFile(path)) {
             try Fs.deleteFileIfExists(path);
         }
-    }
-
-    pub fn cachePackage(self: *Cacher) !void {
-        try self.printer.append(
-            " > PACKAGE CACHED: {s}\n",
-            .{self.package.package_name},
-            .{},
-        );
     }
 };

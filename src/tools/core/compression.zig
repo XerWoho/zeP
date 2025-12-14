@@ -5,7 +5,9 @@ const Constants = @import("constants");
 const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
 
-/// Handles compression using zlib, and
+const zstd = @import("zstd.zig");
+
+/// Handles compression using zstd, and
 /// recursion.
 pub const Compressor = struct {
     allocator: std.mem.Allocator,
@@ -24,48 +26,51 @@ pub const Compressor = struct {
         };
     }
 
-    fn compressTmp(self: *Compressor, target_folder: []const u8, temporary_path: []const u8) !void {
-        var dir = try Fs.openDir(target_folder);
-        defer dir.close();
-        var temporary_file = try Fs.openFile(temporary_path);
-        defer temporary_file.close();
+    fn archive(self: *Compressor, tar_writer: anytype, fs_path: []const u8, real_path: []const u8) !void {
+        var open_target = try Fs.openDir(fs_path);
+        defer open_target.close();
 
-        var iter = dir.iterate();
-        while (try iter.next()) |entry| {
-            var buf: [256]u8 = undefined;
-            const entry_path = try std.fmt.bufPrint(&buf, "{s}/{s}", .{ target_folder, entry.name });
-            defer self.allocator.free(entry_path);
+        var iter = open_target.iterate();
+        while (try iter.next()) |input_file_path| {
+            if (std.mem.eql(u8, input_file_path.name, "zig-out")) continue;
+            if (std.mem.eql(u8, input_file_path.name, ".zig-cache")) continue;
 
-            if (entry.kind == .directory) {
-                try self.compressTmp(entry_path, temporary_path);
+            const tar_path = try std.fs.path.join(
+                self.allocator,
+                &.{
+                    real_path,
+                    input_file_path.name,
+                },
+            );
+            defer self.allocator.free(tar_path);
+
+            const input_fs_path = try std.fs.path.join(
+                self.allocator,
+                &.{
+                    fs_path,
+                    input_file_path.name,
+                },
+            );
+            defer self.allocator.free(input_fs_path);
+            if (input_file_path.kind == .directory) {
+                try tar_writer.writeDir(input_file_path.name, .{});
+                try self.archive(tar_writer, input_fs_path, tar_path);
                 continue;
             }
 
-            var uncompressed_file = try Fs.openFile(entry_path);
-            defer uncompressed_file.close();
-
-            var compressed_data = std.ArrayList(u8).init(self.allocator);
-            defer compressed_data.deinit();
-
-            try std.compress.zlib.compress(uncompressed_file.reader(), compressed_data.writer(), .{ .level = .fast });
-            const compressed = try compressed_data.toOwnedSlice();
-            try temporary_file.seekTo(try temporary_file.getEndPos());
-            _ = try temporary_file.write(entry_path);
-            _ = try temporary_file.write("\n");
-
-            var encoded = std.ArrayList(u8).init(self.allocator);
-            defer encoded.deinit();
-
-            const encoded_writer = encoded.writer();
-            const encoder = std.base64.Base64Encoder.init(std.base64.standard.alphabet_chars, null);
-            try encoder.encodeWriter(encoded_writer, compressed);
-            const encoded_data = try encoded.toOwnedSlice();
-            _ = try temporary_file.write(encoded_data);
-            try temporary_file.writeAll("\n\n");
+            const input_file = try std.fs.cwd().openFile(input_fs_path, .{ .mode = .read_only });
+            defer input_file.close();
+            const input_file_size: u64 = (try input_file.stat()).size;
+            try tar_writer.writeFileStream(
+                tar_path,
+                input_file_size,
+                input_file.reader(),
+                .{ .mtime = 0, .mode = 0 },
+            );
         }
     }
 
-    pub fn compress(self: *Compressor, target_folder: []const u8, tar_path: []const u8) !bool {
+    pub fn compress(self: *Compressor, target_folder: []const u8, compress_path: []const u8) !bool {
         if (!Fs.existsDir(target_folder)) return false;
 
         if (!Fs.existsDir(self.paths.zepped)) {
@@ -73,62 +78,96 @@ pub const Compressor = struct {
         }
 
         var buf: [256]u8 = undefined;
-        const temporary_tar_path = try std.fmt.bufPrint(&buf, "{s}.tmp", .{tar_path});
-        try self.compressTmp(target_folder, temporary_tar_path);
-
-        var temporary_file = try Fs.openFile(temporary_tar_path);
+        const archive_path = try std.fmt.bufPrint(&buf, "{s}/{d}.tar", .{
+            self.paths.pkg_root,
+            std.time.nanoTimestamp(),
+        });
         defer {
-            temporary_file.close();
-            Fs.deleteFileIfExists(temporary_tar_path) catch {
-                @panic("Could not delete temporary tar path");
+            Fs.deleteFileIfExists(archive_path) catch {
+                self.printer.append(
+                    "\nRemoving temp archive failed! [{s}]\n",
+                    .{archive_path},
+                    .{ .color = .red, .weight = .bold, .verbosity = 0 },
+                ) catch {
+                    @panic("Printer failed");
+                };
             };
         }
 
-        var tar_file = try Fs.openFile(tar_path);
-        defer tar_file.close();
+        blk: {
+            var archive_file = try std.fs.cwd().createFile(archive_path, .{
+                .truncate = true,
+                .read = false,
+            });
+            defer archive_file.close();
+            var tar_writer = std.tar.writer(archive_file.writer());
+            try self.archive(&tar_writer, target_folder, "");
+            break :blk;
+        }
 
-        try std.compress.zlib.compress(temporary_file.reader(), tar_file.writer(), .{ .level = .fast });
+        var archive_file = try Fs.openFile(archive_path);
+        defer archive_file.close();
+        const archive_file_stat = try archive_file.stat();
+
+        var compress_file = try Fs.openFile(compress_path);
+        defer compress_file.close();
+
+        const data = try self.allocator.alloc(u8, archive_file_stat.size);
+        defer self.allocator.free(data);
+        _ = try archive_file.readAll(data);
+
+        // write length prefix + compressed
+        const compressed = try zstd.compress(self.allocator, data, 3);
+        const len = data.len;
+        const len_str = try std.fmt.allocPrint(self.allocator, "{d}", .{len});
+        defer self.allocator.free(len_str);
+        for (0..(64 - len_str.len)) |_| {
+            _ = try compress_file.writeAll("0");
+        }
+
+        _ = try compress_file.writeAll(len_str);
+        _ = try compress_file.writeAll(compressed);
         return true;
     }
 
-    pub fn decompress(self: *Compressor, zep_path: []const u8, extract_path: []const u8) !bool {
+    pub fn decompress(self: *Compressor, zstd_path: []const u8, extract_path: []const u8) !bool {
         if (!Fs.existsDir(extract_path)) {
             _ = try Fs.openOrCreateDir(extract_path);
         }
 
-        if (!Fs.existsFile(zep_path)) {
+        if (!Fs.existsFile(zstd_path)) {
             return false;
         }
 
-        var file = try Fs.openFile(zep_path);
+        var file = try Fs.openFile(zstd_path);
         defer file.close();
+        const file_stat = try file.stat();
+        const data = try self.allocator.alloc(u8, file_stat.size);
+        defer self.allocator.free(data);
+        _ = try file.readAll(data);
 
-        var decompressor = std.compress.zlib.decompressor(file.reader());
-        const reader = decompressor.reader();
-        const read_data = try reader.readAllAlloc(self.allocator, Constants.Default.mb * 10);
-        defer self.allocator.free(read_data);
+        if (data.len < 64) return error.InvalidZstd;
 
-        var split_data = std.mem.splitSequence(u8, read_data, "\n\n");
-        while (split_data.next()) |entry| {
-            var lines = std.mem.splitSequence(u8, entry, "\n");
-            const path_name = lines.first();
-            const encoded_data = lines.next() orelse continue;
-
-            const decoded_size = (encoded_data.len * 3) / 4;
-            var decoded = try self.allocator.alloc(u8, decoded_size);
-            defer self.allocator.free(decoded);
-
-            const decoder = std.base64.Base64Decoder.init(std.base64.standard.alphabet_chars, null);
-            try decoder.decode(decoded, encoded_data);
-            const compressed_data = decoded[0..];
-
-            var out_file = try Fs.openOrCreateFile(path_name);
-            defer out_file.close();
-
-            var input_stream = std.io.fixedBufferStream(compressed_data);
-            try std.compress.zlib.decompress(input_stream.reader(), out_file.writer());
+        const uncompressed_len_string_full = data[0..64];
+        var start_i: usize = 0;
+        for (uncompressed_len_string_full, 0..) |n, i| {
+            if (n != '0') continue;
+            start_i = i;
+            break;
         }
 
+        const uncompressed_len_string = uncompressed_len_string_full[start_i..];
+        const uncompressed_len = try std.fmt.parseInt(u64, uncompressed_len_string, 10);
+
+        const compressed_data = data[64..];
+
+        const decompressed = try zstd.decompress(self.allocator, compressed_data, uncompressed_len);
+        var buf = std.io.fixedBufferStream(decompressed);
+        var reader = buf.reader();
+
+        var extract_dir = try Fs.openDir(extract_path);
+        defer extract_dir.close();
+        try std.tar.pipeToFileSystem(extract_dir, &reader, .{});
         return true;
     }
 };

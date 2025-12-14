@@ -27,9 +27,7 @@ pub const Cache = struct {
         };
     }
 
-    pub fn deinit(self: *Cache) void {
-        self.paths.deinit();
-    }
+    pub fn deinit(_: *Cache) void {}
 
     pub fn list(self: *Cache) !void {
         const zepped_path = self.paths.zepped;
@@ -41,6 +39,14 @@ pub const Cache = struct {
 
         try self.printer.append("\nListing cached items:\n", .{}, .{});
         while (try opened_zepped_iter.next()) |entry| {
+            if (std.mem.endsWith(u8, entry.name, ".zep")) {
+                const path = try std.fs.path.join(self.allocator, &.{ zepped_path, entry.name });
+                defer self.allocator.free(path);
+
+                try self.printer.append("{s} is outdated, removing.\n", .{entry.name}, .{});
+                try Fs.deleteFileIfExists(path);
+                continue;
+            }
             try self.printer.append(" - {s}\n", .{entry.name}, .{});
         }
         try self.printer.append("\n", .{}, .{});
@@ -63,8 +69,22 @@ pub const Cache = struct {
         var data_found: u16 = 0;
         var failed_deletion: u16 = 0;
         while (try opened_zepped_iter.next()) |entry| {
+            if (std.mem.endsWith(u8, entry.name, ".zep")) {
+                const path = try std.fs.path.join(self.allocator, &.{ zepped_path, entry.name });
+                defer self.allocator.free(path);
+
+                try self.printer.append("{s} is outdated, removing.\n", .{entry.name}, .{});
+                continue;
+            }
+
             if (package_version != null) {
-                const entry_name = try std.mem.replaceOwned(u8, self.allocator, entry.name, ".zep", "");
+                const entry_name = try std.mem.replaceOwned(
+                    u8,
+                    self.allocator,
+                    entry.name,
+                    ".tar.zstd",
+                    "",
+                );
                 defer self.allocator.free(entry_name);
                 if (!std.mem.eql(u8, entry_name, name)) continue;
             } else {

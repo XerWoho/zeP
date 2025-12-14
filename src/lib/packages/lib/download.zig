@@ -39,20 +39,16 @@ pub const Downloader = struct {
         // Nothing to free here (fields are owned externally).
     }
 
-    fn packagePath(self: *Downloader) ![]u8 {
-        var buf: [256]u8 = undefined;
-        const package_p = try std.fmt.bufPrint(
-            &buf,
+    fn fetchPackage(self: *Downloader, url: []const u8) !void {
+        // allocate paths and free them after use
+        const path = try std.fmt.allocPrint(
+            self.allocator,
             "{s}/{s}",
             .{ self.paths.pkg_root, self.package.id },
         );
+        defer self.allocator.free(path);
 
-        return package_p;
-    }
-
-    fn fetchPackage(self: *Downloader, url: []const u8) !void {
-        // allocate paths and free them after use
-        const path = try self.packagePath();
+        defer self.allocator.free(path);
         if (Fs.existsDir(path)) try Fs.deleteDirIfExists(path);
 
         // create/open temporary directory
@@ -141,7 +137,13 @@ pub const Downloader = struct {
     }
 
     fn doesPackageExist(self: *Downloader) !bool {
-        const path = try self.packagePath();
+        const path = try std.fmt.allocPrint(
+            self.allocator,
+            "{s}/{s}",
+            .{ self.paths.pkg_root, self.package.id },
+        );
+        defer self.allocator.free(path);
+
         return Fs.existsDir(path);
     }
 
@@ -167,7 +169,7 @@ pub const Downloader = struct {
         if (isCached) return;
 
         try self.printer.append("Caching Package now...\n", .{}, .{});
-        if (try self.cacher.setPackageToCache(try self.packagePath())) {
+        if (try self.cacher.setPackageToCache(self.package.id)) {
             try self.printer.append("Successfully cached!\n", .{}, .{ .color = .green });
         } else {
             try self.printer.append("Caching failed...\n", .{}, .{ .color = .red });

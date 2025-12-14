@@ -69,6 +69,7 @@ pub const ArtifactInstaller = struct {
                 cached_file,
             },
         );
+        defer self.allocator.free(target_path);
 
         // Download if not cached
         if (!Fs.existsFile(target_path)) {

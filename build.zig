@@ -1,5 +1,30 @@
 const std = @import("std");
 
+fn addCFilesFromDir(
+    b: *std.Build,
+    lib: *std.Build.Step.Compile,
+    dir_path: []const u8,
+) void {
+    var dir = std.fs.cwd().openDir(dir_path, .{
+        .iterate = true,
+    }) catch unreachable;
+    defer dir.close();
+
+    var it = dir.iterate();
+    while (it.next() catch unreachable) |entry| {
+        if (entry.kind != .file) continue;
+        if (!std.mem.endsWith(u8, entry.name, ".c")) continue;
+
+        const full = b.pathJoin(&.{ dir_path, entry.name });
+        lib.addCSourceFile(
+            .{
+                .file = .{ .cwd_relative = full },
+                .flags = &.{"-DZSTD_DISABLE_ASM"},
+            },
+        );
+    }
+}
+
 pub fn build(builder: *std.Build) void {
     const target = builder.standardTargetOptions(.{});
     const optimize = builder.standardOptimizeOption(.{});
@@ -37,6 +62,28 @@ pub fn build(builder: *std.Build) void {
         std.Build.Module.Import{ .name = "io", .module = iosMod },
         std.Build.Module.Import{ .name = "cli", .module = clisMod },
     } });
+    coresMod.addIncludePath(.{
+        .cwd_relative = "c/zstd/lib",
+    });
+
+    const zstd = builder.addStaticLibrary(.{
+        .name = "zstd",
+        .target = target,
+        .optimize = optimize,
+    });
+
+    zstd.addIncludePath(.{
+        .cwd_relative = "c/zstd/lib",
+    });
+
+    addCFilesFromDir(builder, zstd, "c/zstd/lib/common");
+    addCFilesFromDir(builder, zstd, "c/zstd/lib/compress");
+    addCFilesFromDir(builder, zstd, "c/zstd/lib/decompress");
+
+    zstd.linkLibC();
+    coresMod.linkLibrary(zstd);
+    zep_executeable_mod.linkLibrary(zstd);
+    zep_executeable_mod.linkLibC();
 
     zep_executeable_mod.root_module.addImport("locales", localesMod);
     zep_executeable_mod.root_module.addImport("constants", constantsMod);
@@ -45,7 +92,6 @@ pub fn build(builder: *std.Build) void {
     zep_executeable_mod.root_module.addImport("io", iosMod);
     zep_executeable_mod.root_module.addImport("cli", clisMod);
 
-    @import(".zep/injector.zig").injectExtraImports(builder, zep_executeable_mod);
     @import(".zep/injector.zig").injectExtraImports(builder, zep_executeable_mod);
     builder.installArtifact(zep_executeable_mod);
 }

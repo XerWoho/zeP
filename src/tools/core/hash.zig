@@ -36,7 +36,6 @@ pub fn hashData(allocator: std.mem.Allocator, url: []const u8) ![]u8 {
     var hash: [32]u8 = undefined;
     hasher.final(&hash);
 
-    var buf: [64]u8 = undefined;
-    const out = try std.fmt.bufPrint(&buf, "{x}", .{std.fmt.fmtSliceHexLower(&hash)});
+    const out = try std.fmt.allocPrint(allocator, "{x}", .{std.fmt.fmtSliceHexLower(&hash)});
     return out;
 }

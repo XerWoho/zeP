@@ -136,7 +136,11 @@ pub const Installer = struct {
                     return error.AlreadyInstalled;
                 }
 
-                try self.printer.append("MATCHED UNINSTALLING\n", .{}, .{ .color = .red });
+                try self.printer.append(
+                    "UNINSTALLING PREVIOUS [{s}]\n",
+                    .{try self.allocator.dupe(u8, lockPackage.name)},
+                    .{ .color = .red },
+                );
                 const previous_verbosity = Locales.VERBOSITY_MODE;
                 Locales.VERBOSITY_MODE = 0;
 
@@ -166,15 +170,31 @@ pub const Installer = struct {
             return error.HashMismatch;
         }
 
-        try self.printer.append("\nChecking Caching...\n", .{}, .{});
+        try self.printer.append("\nChecking Cache...\n", .{}, .{});
         const is_package_cached = try self.cacher.isPackageCached();
         if (!is_package_cached) {
-            try self.printer.append("\nCaching...\n", .{}, .{});
-
-            try self.cacher.cachePackage();
-            try self.printer.append("PACKAGE CACHED!\n\n", .{}, .{});
+            try self.printer.append("Not Cached! Caching...\n", .{}, .{});
+            const is_cached = try self.cacher.setPackageToCache(self.package.id);
+            if (is_cached) {
+                try self.printer.append(
+                    " > PACKAGE CACHED!\n\n",
+                    .{},
+                    .{
+                        .color = .green,
+                    },
+                );
+            } else {
+                try self.printer.append(
+                    " ! CACHING FAILED!\n\n",
+                    .{},
+                    .{
+                        .color = .red,
+                    },
+                );
+            }
+        } else {
+            try self.printer.append("PACKAGE ALREADY CACHED! SKIPPING CACHING!\n\n", .{}, .{});
         }
-        try self.printer.append("PACKAGE ALREADY CACHED! SKIPPING CACHING!\n\n", .{}, .{});
 
         try self.setPackage();
         try self.printer.append("Successfully installed - {s}\n\n", .{package.package_name}, .{ .color = .green });

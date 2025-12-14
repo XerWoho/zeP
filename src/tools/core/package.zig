@@ -84,8 +84,7 @@ pub const Package = struct {
         const hash = try Hash.hashData(allocator, selected.url);
 
         // Compute id
-        var id_buf: [64]u8 = undefined;
-        const id = try std.fmt.bufPrint(&id_buf, "{s}@{s}", .{
+        const id = try std.fmt.allocPrint(allocator, "{s}@{s}", .{
             package_name,
             target_version,
         });
@@ -104,7 +103,10 @@ pub const Package = struct {
         };
     }
 
-    pub fn deinit(_: *Package) void {}
+    pub fn deinit(self: *Package) void {
+        self.allocator.free(self.id);
+        self.allocator.free(self.package_hash);
+    }
 
     fn getPackagePathsAmount(self: *Package) !usize {
         var package_manifest = try self.manifest.readManifest(
