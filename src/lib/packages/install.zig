@@ -163,7 +163,7 @@ pub const Installer = struct {
 
         try self.printer.append("\nChecking hash...\n", .{}, .{});
         if (std.mem.eql(u8, package.package_hash, parsed.sha256sum)) {
-            try self.printer.append("HASH IDENTICAL!\n", .{}, .{});
+            try self.printer.append("  > HASH IDENTICAL\n", .{}, .{ .color = .green });
         } else {
             try self.package.deletePackage(true);
             try self.cacher.deletePackageFromCache();
@@ -204,7 +204,7 @@ pub const Installer = struct {
         try self.addPackageToJson();
         const package = self.package;
 
-        var injector = Injector.init(
+        var injector = try Injector.init(
             self.allocator,
             self.printer,
             self.manifest,

@@ -185,9 +185,9 @@ pub const Downloader = struct {
 
         try self.printer.append("Caching Package now...\n", .{}, .{});
         if (try self.cacher.setPackageToCache(self.package.id)) {
-            try self.printer.append("Successfully cached!\n", .{}, .{ .color = .green });
+            try self.printer.append(" > CACHED\n", .{}, .{ .color = .green });
         } else {
-            try self.printer.append("Caching failed...\n", .{}, .{ .color = .red });
+            try self.printer.append(" ! FAILED\n", .{}, .{ .color = .red });
         }
     }
 };

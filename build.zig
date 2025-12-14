@@ -41,18 +41,26 @@ pub fn build(builder: *std.Build) void {
 
     const localesMod = builder.createModule(.{ .root_source_file = builder.path("src/locales.zig") });
     const constantsMod = builder.createModule(.{ .root_source_file = builder.path("src/constants/_index.zig") });
+    const loggerMod = builder.createModule(.{ .root_source_file = builder.path("src/logger.zig") });
+
+    const loglyMod = builder.createModule(.{ .root_source_file = builder.path(".zep/logly/src/logly.zig") });
+    loggerMod.addImport("logly", loglyMod);
+
     const structsMod = builder.createModule(.{ .root_source_file = builder.path("src/structs/_index.zig"), .imports = &.{
         std.Build.Module.Import{ .name = "constants", .module = constantsMod },
+        std.Build.Module.Import{ .name = "logger", .module = loggerMod },
     } });
 
     const iosMod = builder.createModule(.{ .root_source_file = builder.path("src/tools/io/_index.zig"), .imports = &.{
         std.Build.Module.Import{ .name = "constants", .module = constantsMod },
+        std.Build.Module.Import{ .name = "logger", .module = loggerMod },
     } });
     const clisMod = builder.createModule(.{ .root_source_file = builder.path("src/tools/cli/_index.zig"), .imports = &.{
         std.Build.Module.Import{ .name = "structs", .module = structsMod },
         std.Build.Module.Import{ .name = "constants", .module = constantsMod },
         std.Build.Module.Import{ .name = "locales", .module = localesMod },
         std.Build.Module.Import{ .name = "io", .module = iosMod },
+        std.Build.Module.Import{ .name = "logger", .module = loggerMod },
     } });
 
     const coresMod = builder.createModule(.{ .root_source_file = builder.path("src/tools/core/_index.zig"), .imports = &.{
@@ -61,6 +69,7 @@ pub fn build(builder: *std.Build) void {
         std.Build.Module.Import{ .name = "constants", .module = constantsMod },
         std.Build.Module.Import{ .name = "io", .module = iosMod },
         std.Build.Module.Import{ .name = "cli", .module = clisMod },
+        std.Build.Module.Import{ .name = "logger", .module = loggerMod },
     } });
     coresMod.addIncludePath(.{
         .cwd_relative = "c/zstd/lib",
@@ -94,6 +103,7 @@ pub fn build(builder: *std.Build) void {
     zep_executeable_mod.root_module.addImport("core", coresMod);
     zep_executeable_mod.root_module.addImport("io", iosMod);
     zep_executeable_mod.root_module.addImport("cli", clisMod);
+    zep_executeable_mod.root_module.addImport("logger", loggerMod);
 
     @import(".zep/injector.zig").injectExtraImports(builder, zep_executeable_mod);
     builder.installArtifact(zep_executeable_mod);

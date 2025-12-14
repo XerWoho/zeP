@@ -18,7 +18,7 @@ pub const PreBuilt = struct {
         if (!Fs.existsDir(paths.prebuilt)) {
             try std.fs.cwd().makeDir(paths.prebuilt);
         }
-        const compressor = Compressor.init(
+        const compressor = try Compressor.init(
             allocator,
             printer,
             paths,

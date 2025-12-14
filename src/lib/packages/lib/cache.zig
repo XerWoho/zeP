@@ -26,7 +26,7 @@ pub const Cacher = struct {
         return .{
             .allocator = allocator,
             .package = package,
-            .compressor = Compressor.init(allocator, printer, paths),
+            .compressor = try Compressor.init(allocator, printer, paths),
             .printer = printer,
             .paths = paths,
         };

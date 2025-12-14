@@ -82,7 +82,7 @@ pub const Uninstaller = struct {
         try self.printer.append("Deleting Package...\n[{s}]\n\n", .{self.package_name}, .{});
         try self.removePackageFromJson();
 
-        var injector = Injector.init(
+        var injector = try Injector.init(
             self.allocator,
             self.printer,
             self.manifest,

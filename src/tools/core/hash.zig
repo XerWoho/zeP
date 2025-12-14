@@ -1,9 +1,16 @@
 const std = @import("std");
 const Constants = @import("constants");
+const Logger = @import("logger");
 
 /// Get hash from any url
 pub fn hashData(allocator: std.mem.Allocator, url: []const u8) ![]u8 {
-    const uri = std.Uri.parse(url) catch {
+    const logger = Logger.get();
+    const start = std.time.milliTimestamp();
+
+    try logger.debugf("hashData: start url={s}", .{url}, @src());
+
+    const uri = std.Uri.parse(url) catch |err| {
+        try logger.warnf("hashData: invalid url={s} err={}", .{ url, err }, @src());
         return error.InvalidUrl;
     };
 
@@ -13,15 +20,20 @@ pub fn hashData(allocator: std.mem.Allocator, url: []const u8) ![]u8 {
     defer client.deinit();
 
     var body = std.Io.Writer.Allocating.init(allocator);
-    const fetched = try client.fetch(std.http.Client.FetchOptions{
-        .location = .{
-            .uri = uri,
-        },
+
+    try logger.debugf("hashData: fetching url={s}", .{url}, @src());
+
+    const fetched = client.fetch(.{
+        .location = .{ .uri = uri },
         .method = .GET,
         .response_writer = &body.writer,
-    });
+    }) catch |err| {
+        try logger.errorf("hashData: fetch failed url={s} err={}", .{ url, err }, @src());
+        return err;
+    };
 
     if (fetched.status == .not_found) {
+        try logger.warnf("hashData: 404 url={s}", .{url}, @src());
         return error.NotFound;
     }
 
@@ -32,5 +44,13 @@ pub fn hashData(allocator: std.mem.Allocator, url: []const u8) ![]u8 {
     hasher.final(&hash);
 
     const out = try std.fmt.allocPrint(allocator, "{x}", .{hash});
+
+    const elapsed = std.time.milliTimestamp() - start;
+    try logger.debugf(
+        "hashData: done url={s} bytes={} time={}ms",
+        .{ url, data.len, elapsed },
+        @src(),
+    );
+
     return out;
 }
