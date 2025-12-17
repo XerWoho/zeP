@@ -4,6 +4,27 @@
   "docs": "",
   "versions": [
     {
+      "version": "0.0.7",
+      "url": "https://github.com/muhammad-fiaz/logly.zig/archive/refs/tags/0.0.7.zip",
+      "root_file": "/src/logly.zig",
+      "zig_version": "0.15.1",
+      "sha256sum": "8f953a947e8da39580f80f80b64bca1e0a575d1c90aa498f62d77be17fdb3775"
+    },
+    {
+      "version": "0.0.6",
+      "url": "https://github.com/muhammad-fiaz/logly.zig/archive/refs/tags/0.0.6.zip",
+      "root_file": "/src/logly.zig",
+      "zig_version": "0.15.1",
+      "sha256sum": "fa86775ef67c7f5d09be9396b04f2d77d9aba7a2b10e0e1075cda5763bd145a1"
+    },
+    {
+      "version": "0.0.5",
+      "url": "https://github.com/muhammad-fiaz/logly.zig/archive/refs/tags/0.0.5.zip",
+      "root_file": "/src/logly.zig",
+      "zig_version": "0.15.1",
+      "sha256sum": "0526ca9d850eb8d05647de8c4c7ce82be47f467b79aab8550824056c8cfa77d7"
+    },
+    {
       "version": "0.0.4",
       "url": "https://github.com/muhammad-fiaz/logly.zig/archive/refs/tags/0.0.4.zip",
       "root_file": "/src/logly.zig",
