@@ -753,9 +753,9 @@ pub fn main() !void {
             &paths,
         );
 
-        if (std.mem.eql(u8, mode, "build") or std.mem.eql(u8, mode, "use")) {
+        if (std.mem.eql(u8, mode, "build")) {
             // try logger.info("running prebuilt: build", @src());
-            const name = try nextArg(&args, &printer, " > zep prebuilt {build|use} [name] [target?]");
+            const name = try nextArg(&args, &printer, " > zep prebuilt build [name] [target?]");
             const target = args.next() orelse blk: {
                 try printer.append("No target specified! Rolling back to default \".\"\n\n", .{}, .{});
                 break :blk ".";
@@ -766,6 +766,19 @@ pub fn main() !void {
                 try printer.append("\nBuilding prebuilt has failed...\n\n", .{}, .{ .color = .red });
             };
             // try logger.info("prebuilt build finished", @src());
+        } else if (std.mem.eql(u8, mode, "use")) {
+            // try logger.info("running prebuilt: use", @src());
+            const name = try nextArg(&args, &printer, " > zep prebuilt use [name] [target?]");
+            const target = args.next() orelse blk: {
+                try printer.append("No target specified! Rolling back to default \".\"\n\n", .{}, .{});
+                break :blk ".";
+            };
+            // try logger.infof("prebuilt use: name={s}", .{name}, @src());
+            // try logger.infof("prebuilt use: target={s}", .{name}, @src());
+            prebuilt.use(name, target) catch {
+                try printer.append("\nUse prebuilt has failed...\n\n", .{}, .{ .color = .red });
+            };
+            // try logger.info("prebuilt use finished", @src());
         } else if (std.mem.eql(u8, mode, "delete")) {
             // try logger.info("running prebuilt: delete", @src());
             const name = try nextArg(&args, &printer, " > zep prebuilt delete [name]");
