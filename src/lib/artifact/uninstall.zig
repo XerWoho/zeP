@@ -5,7 +5,6 @@ const Constants = @import("constants");
 const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
 
-const Manifest = @import("core").Manifest;
 const ArtifactSwitcher = @import("switch.zig").ArtifactSwitcher;
 
 /// Handles uninstalling Artifact versions
@@ -13,7 +12,10 @@ pub const ArtifactUninstaller = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
 
-    pub fn init(allocator: std.mem.Allocator, printer: *Printer) !ArtifactUninstaller {
+    pub fn init(
+        allocator: std.mem.Allocator,
+        printer: *Printer,
+    ) ArtifactUninstaller {
         return ArtifactUninstaller{
             .allocator = allocator,
             .printer = printer,

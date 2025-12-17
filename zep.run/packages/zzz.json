@@ -1,0 +1,28 @@
+{
+  "name": "zzz",
+  "author": "tardy-org",
+  "docs": "",
+  "versions": [
+    {
+      "version": "0.3.0",
+      "url": "https://github.com/tardy-org/zzz/archive/refs/tags/v0.3.0.zip",
+      "root_file": "/src/lib.zig",
+      "zig_version": "0.14.0",
+      "sha256sum": "d5558cd419c8d46bdc958064cb97f963d1ea793866414c025906ec15033512ed"
+    },
+    {
+      "version": "0.2.0",
+      "url": "https://github.com/tardy-org/zzz/archive/refs/tags/v0.2.0.zip",
+      "root_file": "/src/lib.zig",
+      "zig_version": "0.14.0",
+      "sha256sum": "ef1d48aedddc58f7727d022dafa6e6b88673271d19889dbb866b9360716272a7"
+    },
+    {
+      "version": "0.1.0",
+      "url": "https://github.com/tardy-org/zzz/archive/refs/tags/v0.1.0.zip",
+      "root_file": "/src/lib.zig",
+      "zig_version": "0.14.0",
+      "sha256sum": "1d853531fa183ac0458705ec474f182839fbdb3532eeb032a825455a59c8e0e1"
+    }
+  ]
+}

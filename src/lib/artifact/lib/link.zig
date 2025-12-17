@@ -5,21 +5,21 @@ const Constants = @import("constants");
 const Structs = @import("structs");
 
 const Fs = @import("io").Fs;
-const Manifest = @import("core").Manifest;
+const Manifest = @import("core").Manifest.Manifest;
 
 /// Updates the symbolic link to point to the currently active Artifact installation
 pub fn updateLink(
     artifact_type: Structs.Extras.ArtifactType,
     paths: *Constants.Paths.Paths,
+    manifest: *Manifest,
 ) !void {
     var allocator = std.heap.page_allocator;
     // Load manifest and get absolute path
-    const manifest = try Manifest.readManifest(
+    const read_manifest = try manifest.readManifest(
         Structs.Manifests.ArtifactManifest,
-        allocator,
         if (artifact_type == .zig) paths.zig_manifest else paths.zep_manifest,
     );
-    if (manifest.value.path.len == 0) {
+    if (read_manifest.value.path.len == 0) {
         if (artifact_type == .zig) {
             std.debug.print("\nManifest path is not defined! Use\n $ zep zig switch <zig-version>\nTo fix!\n", .{});
         } else {
@@ -28,16 +28,20 @@ pub fn updateLink(
         return error.ManifestNotFound;
     }
 
-    defer manifest.deinit();
+    defer read_manifest.deinit();
 
-    const absolute_path = try std.fs.realpathAlloc(allocator, manifest.value.path);
+    const absolute_path = try std.fs.realpathAlloc(allocator, read_manifest.value.path);
     defer allocator.free(absolute_path);
 
     if (builtin.os.tag == .windows) {
-        const exe = try std.fmt.allocPrint(allocator, "{s}.exe", .{
-            if (artifact_type == .zig) "zig" else "zep",
-        });
-        defer allocator.free(exe);
+        var buf: [256]u8 = undefined;
+        const exe = try std.fmt.bufPrint(
+            &buf,
+            "{s}.exe",
+            .{
+                if (artifact_type == .zig) "zig" else "zep",
+            },
+        );
 
         const artifact_path = try std.fs.path.join(allocator, &.{ absolute_path, exe });
         defer allocator.free(artifact_path);

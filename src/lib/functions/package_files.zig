@@ -7,27 +7,40 @@ const Constants = @import("constants");
 const Printer = @import("cli").Printer;
 const Prompt = @import("cli").Prompt;
 const Fs = @import("io").Fs;
-const Manifest = @import("core").Manifest;
+const Manifest = @import("core").Manifest.Manifest;
 
 pub const PackageFiles = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
+    manifest: *Manifest,
 
-    pub fn init(allocator: std.mem.Allocator, printer: *Printer) !PackageFiles {
-        const runner = PackageFiles{ .allocator = allocator, .printer = printer };
+    pub fn init(
+        allocator: std.mem.Allocator,
+        printer: *Printer,
+        manifest: *Manifest,
+    ) !PackageFiles {
         if (!Fs.existsFile(Constants.Extras.package_files.manifest)) {
             try printer.append("\nNo zep.json file!\n", .{}, .{ .color = .red });
             return error.ManifestMissing;
         }
 
-        return runner;
+        return PackageFiles{
+            .allocator = allocator,
+            .printer = printer,
+            .manifest = manifest,
+        };
     }
 
     pub fn json(self: *PackageFiles) !void {
-        var zep_json = try Manifest.readManifest(Structs.ZepFiles.PackageJsonStruct, self.allocator, Constants.Extras.package_files.manifest);
+        var zep_json = try self.manifest.readManifest(
+            Structs.ZepFiles.PackageJsonStruct,
+            Constants.Extras.package_files.manifest,
+        );
         defer zep_json.deinit();
 
-        const stdin = std.io.getStdIn().reader();
+        var stdin_buf: [100]u8 = undefined;
+        var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+        const stdin = &stdin_reader.interface;
         try self.printer.append("--- MODIFYING JSON MODE ---\n", .{}, .{
             .color = .yellow,
             .weight = .bold,
@@ -112,25 +125,46 @@ pub const PackageFiles = struct {
         zep_json.value.version = version;
         zep_json.value.zig_version = zig_version;
 
-        try Manifest.writeManifest(Structs.ZepFiles.PackageJsonStruct, self.allocator, Constants.Extras.package_files.manifest, zep_json.value);
+        try self.manifest.writeManifest(
+            Structs.ZepFiles.PackageJsonStruct,
+            Constants.Extras.package_files.manifest,
+            zep_json.value,
+        );
 
-        var zep_lock = try Manifest.readManifest(Structs.ZepFiles.PackageLockStruct, self.allocator, Constants.Extras.package_files.lock);
+        var zep_lock = try self.manifest.readManifest(
+            Structs.ZepFiles.PackageLockStruct,
+            Constants.Extras.package_files.lock,
+        );
         defer zep_lock.deinit();
         zep_lock.value.root = zep_json.value;
 
-        try Manifest.writeManifest(Structs.ZepFiles.PackageLockStruct, self.allocator, Constants.Extras.package_files.lock, zep_lock.value);
+        try self.manifest.writeManifest(
+            Structs.ZepFiles.PackageLockStruct,
+            Constants.Extras.package_files.lock,
+            zep_lock.value,
+        );
         try self.printer.append("\nSuccessfully modified zep.json!\n\n", .{}, .{ .color = .green });
         return;
     }
 
     pub fn lock(self: *PackageFiles) !void {
-        var zep_json = try Manifest.readManifest(Structs.ZepFiles.PackageJsonStruct, self.allocator, Constants.Extras.package_files.manifest);
+        var zep_json = try self.manifest.readManifest(
+            Structs.ZepFiles.PackageJsonStruct,
+            Constants.Extras.package_files.manifest,
+        );
         defer zep_json.deinit();
 
-        var zep_lock = try Manifest.readManifest(Structs.ZepFiles.PackageLockStruct, self.allocator, Constants.Extras.package_files.lock);
+        var zep_lock = try self.manifest.readManifest(
+            Structs.ZepFiles.PackageLockStruct,
+            Constants.Extras.package_files.lock,
+        );
         defer zep_lock.deinit();
         zep_lock.value.root = zep_json.value;
-        try Manifest.writeManifest(Structs.ZepFiles.PackageLockStruct, self.allocator, Constants.Extras.package_files.lock, zep_lock.value);
+        try self.manifest.writeManifest(
+            Structs.ZepFiles.PackageLockStruct,
+            Constants.Extras.package_files.lock,
+            zep_lock.value,
+        );
 
         try self.printer.append("Successfully moved zep.json into zep.lock!\n\n", .{}, .{ .color = .green });
         return;

@@ -1,0 +1,14 @@
+{
+  "name": "jetzig",
+  "author": "jetzig-framework",
+  "docs": "",
+  "versions": [
+    {
+      "version": "latest",
+      "url": "https://github.com/jetzig-framework/jetzig/archive/refs/heads/main.zip",
+      "root_file": "/src/jetzig.zig",
+      "zig_version": "0.14.1",
+      "sha256sum": "b863fa5ae18aaac7d42e7f6c02facdb3d7160933e1bf59b969247cc978f83f38"
+    }
+  ]
+}

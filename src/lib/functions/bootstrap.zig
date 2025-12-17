@@ -4,6 +4,7 @@ const Locales = @import("locales");
 const Constants = @import("constants");
 const Structs = @import("structs");
 
+const Manifest = @import("core").Manifest.Manifest;
 const Json = @import("core").Json.Json;
 const Printer = @import("cli").Printer;
 const Fs = @import("io").Fs;
@@ -18,13 +19,14 @@ pub fn bootstrap(
     printer: *Printer,
     json: *Json,
     paths: *Constants.Paths.Paths,
+    manifest: *Manifest,
     zig_version: []const u8,
     deps: [][]const u8,
 ) !void {
     const previous_verbosity = Locales.VERBOSITY_MODE;
     Locales.VERBOSITY_MODE = 0;
 
-    var zig = try Artifact.init(allocator, printer, paths, .zig);
+    var zig = try Artifact.init(allocator, printer, paths, manifest, .zig);
     try zig.install(zig_version, Constants.Default.default_targets.windows);
     Locales.VERBOSITY_MODE = previous_verbosity;
 
@@ -46,8 +48,8 @@ pub fn bootstrap(
             printer,
             json,
             paths,
-            package_name,
-            package_version,
+            manifest,
+            false,
         ) catch |err| {
             switch (err) {
                 error.PackageNotFound => {
@@ -59,7 +61,10 @@ pub fn bootstrap(
             }
             continue;
         };
-        installer.install() catch |err| {
+        installer.install(
+            package_name,
+            package_version,
+        ) catch |err| {
             switch (err) {
                 error.AlreadyInstalled => {
                     try printer.append("{s} already installed.\n", .{package_name}, .{});

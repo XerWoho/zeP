@@ -8,23 +8,26 @@ const Constants = @import("constants");
 
 const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
-const Manifest = @import("core").Manifest;
+const Manifest = @import("core").Manifest.Manifest;
 
 /// Installer for Artifact versions
 pub const ArtifactInstaller = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
     paths: *Constants.Paths.Paths,
+    manifest: *Manifest,
 
     pub fn init(
         allocator: std.mem.Allocator,
         printer: *Printer,
         paths: *Constants.Paths.Paths,
-    ) !ArtifactInstaller {
+        manifest: *Manifest,
+    ) ArtifactInstaller {
         return ArtifactInstaller{
             .allocator = allocator,
             .printer = printer,
             .paths = paths,
+            .manifest = manifest,
         };
     }
 
@@ -47,8 +50,13 @@ pub const ArtifactInstaller = struct {
         }
 
         const target_extension = tarball_extension orelse if (builtin.os.tag == .windows) "zip" else "tar.xz";
-        const cached_file = try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ name, target_extension });
-        defer self.allocator.free(cached_file);
+        var buf: [256]u8 = undefined;
+        const cached_file = try std.fmt.bufPrint(
+            &buf,
+            "{s}.{s}",
+            .{ name, target_extension },
+        );
+
         const target_path = try std.fs.path.join(
             self.allocator,
             &.{
@@ -61,12 +69,13 @@ pub const ArtifactInstaller = struct {
                 cached_file,
             },
         );
+        defer self.allocator.free(target_path);
 
         // Download if not cached
         if (!Fs.existsFile(target_path)) {
             try self.downloadFile(tarball, target_path);
         } else {
-            try self.printer.append("Data found in cache!\n", .{}, .{});
+            try self.printer.append("Data found in cache!\n\n", .{}, .{});
         }
 
         // Open the downloaded file
@@ -92,19 +101,23 @@ pub const ArtifactInstaller = struct {
             &.{ if (artifact_type == .zig) self.paths.zig_root else self.paths.zep_root, "temp", version },
         );
 
-        defer Fs.deleteTreeIfExists(main_temporary_directory) catch {};
+        defer {
+            Fs.deleteTreeIfExists(main_temporary_directory) catch {};
+            self.allocator.free(decompressed_directory);
+        }
 
-        defer self.allocator.free(decompressed_directory);
+        var compressed_file_buf: [Constants.Default.kb * 32]u8 = undefined;
+        var reader = compressed_file.reader(&compressed_file_buf);
         if (builtin.os.tag == .windows) {
             try self.decompressWindows(
-                compressed_file.seekableStream(),
+                &reader,
                 decompressed_directory,
                 temporary_directory,
                 target,
             );
         } else {
             try self.decompressPosix(
-                compressed_file.reader(),
+                &reader,
                 decompressed_directory,
                 temporary_directory,
                 target,
@@ -116,57 +129,38 @@ pub const ArtifactInstaller = struct {
     fn downloadFile(self: *ArtifactInstaller, raw_uri: []const u8, out_path: []const u8) !void {
         try self.printer.append("Parsing URI...\n", .{}, .{});
         const uri = try std.Uri.parse(raw_uri);
+
         var client = std.http.Client{ .allocator = self.allocator };
         defer client.deinit();
 
-        var server_header_buffer: [Constants.Default.kb * 32]u8 = undefined;
-        var req = try client.open(.GET, uri, .{ .server_header_buffer = &server_header_buffer });
-        defer req.deinit();
+        var body = std.Io.Writer.Allocating.init(self.allocator);
+        try self.printer.append("Fetching... [{s}]\n", .{raw_uri}, .{});
+        const fetched = try client.fetch(std.http.Client.FetchOptions{
+            .location = .{
+                .uri = uri,
+            },
+            .method = .GET,
+            .response_writer = &body.writer,
+        });
 
-        try self.printer.append("Sending request...\n", .{}, .{});
-        try req.send();
-        try req.finish();
-        try self.printer.append("Waiting for response...\n", .{}, .{});
-        try req.wait();
+        if (fetched.status == .not_found) {
+            return error.NotFound;
+        }
 
-        var reader = req.reader();
+        try self.printer.append("Getting Body...\n", .{}, .{ .verbosity = 2 });
+        const data = body.written();
+
         var out_file = try Fs.openOrCreateFile(out_path);
         defer out_file.close();
+        _ = try out_file.write(data);
 
-        var buffered_writer = std.io.bufferedWriter(out_file.writer());
-        defer {
-            buffered_writer.flush() catch {
-                self.printer.append("\nFailed to flush buffer!\n", .{}, .{ .color = .red }) catch {};
-            };
-        }
-
-        try self.printer.append("Reading data", .{}, .{});
-        var read_buffer: [4096 * 4]u8 = undefined;
-        var line_counter: u32 = 0;
-        var dot_counter: u8 = 0;
-        while (true) {
-            const n = try reader.read(&read_buffer);
-            if (n == 0) break;
-            try buffered_writer.writer().writeAll(read_buffer[0..n]);
-
-            line_counter += 1;
-            if (line_counter > 200) {
-                if (dot_counter >= 3) {
-                    self.printer.pop(3);
-                    dot_counter = 0;
-                }
-                try self.printer.append(".", .{}, .{});
-                dot_counter += 1;
-                line_counter = 0;
-            }
-        }
         try self.printer.append("\n", .{}, .{});
     }
 
     /// Decompress for Windows (.zip)
     fn decompressWindows(
         self: *ArtifactInstaller,
-        reader: std.fs.File.SeekableStream,
+        reader: *std.fs.File.Reader,
         decompressed_path: []const u8,
         temporary_path: []const u8,
         target: []const u8,
@@ -190,14 +184,20 @@ pub const ArtifactInstaller = struct {
         const extract_target = try std.fs.path.join(self.allocator, &.{ temporary_path, diagnostics.root_dir });
         defer self.allocator.free(extract_target);
 
-        try self.printer.append("Extracted {s} => {s}!\n", .{ extract_target, new_target }, .{});
+        try self.printer.append(
+            "Extracted {s} => {s}!\n",
+            .{ extract_target, new_target },
+            .{
+                .verbosity = 2,
+            },
+        );
         try std.fs.cwd().rename(extract_target, new_target);
     }
 
     /// Decompress for POSIX (.tar.xz)
     fn decompressPosix(
         self: *ArtifactInstaller,
-        reader: std.fs.File.Reader,
+        reader: *std.fs.File.Reader,
         decompressed_path: []const u8,
         temporary_path: []const u8,
         target: []const u8,
@@ -227,10 +227,26 @@ pub const ArtifactInstaller = struct {
         defer self.allocator.free(extract_target);
         const stat_extract = try std.fs.cwd().statFile(extract_target);
         if (stat_extract.kind == .file) {
-            try self.printer.append("Extracted {s} => {s}!\n", .{ temporary_path, new_target }, .{});
+            try self.printer.append(
+                "Extracted {s} => {s}!\n",
+                .{ temporary_path, new_target },
+                .{
+                    .{
+                        .verbosity = 2,
+                    },
+                },
+            );
             try std.fs.cwd().rename(temporary_path, new_target);
         } else {
-            try self.printer.append("Extracted {s} => {s}!\n", .{ extract_target, new_target }, .{});
+            try self.printer.append(
+                "Extracted {s} => {s}!\n",
+                .{ extract_target, new_target },
+                .{
+                    .{
+                        .verbosity = 2,
+                    },
+                },
+            );
             try std.fs.cwd().rename(extract_target, new_target);
         }
 
@@ -261,7 +277,7 @@ pub const ArtifactInstaller = struct {
         artifact_type: Structs.Extras.ArtifactType,
     ) !void {
         try self.fetchData(name, tarball, version, target, artifact_type);
-        try self.printer.append("Modifying Manifest...\n", .{}, .{});
+        try self.printer.append("Modifying Manifest...\n", .{}, .{ .verbosity = 2 });
 
         const path = try std.fs.path.join(self.allocator, &.{
             if (artifact_type == .zig) self.paths.zig_root else self.paths.zep_root,
@@ -270,9 +286,8 @@ pub const ArtifactInstaller = struct {
             target,
         });
         defer self.allocator.free(path);
-        Manifest.writeManifest(
+        self.manifest.writeManifest(
             Structs.Manifests.ArtifactManifest,
-            self.allocator,
             if (artifact_type == .zig)
                 self.paths.zig_manifest
             else
@@ -285,12 +300,18 @@ pub const ArtifactInstaller = struct {
             try self.printer.append("Updating Manifest failed!\n", .{}, .{ .color = .red });
         };
 
-        try self.printer.append("Manifest Up to Date!\n", .{}, .{});
+        try self.printer.append("Manifest Up to Date!\n", .{}, .{
+            .color = .green,
+        });
 
-        try self.printer.append("Switching to installed version...\n", .{}, .{});
-        Link.updateLink(artifact_type, self.paths) catch {
+        try self.printer.append("Switching to installed version...\n", .{}, .{
+            .verbosity = 2,
+        });
+        Link.updateLink(artifact_type, self.paths, self.manifest) catch {
             try self.printer.append("Updating Link has failed!\n", .{}, .{ .color = .red });
         };
-        try self.printer.append("Switched to installed version!\n", .{}, .{});
+        try self.printer.append("Switched to installed version!\n", .{}, .{
+            .color = .green,
+        });
     }
 };

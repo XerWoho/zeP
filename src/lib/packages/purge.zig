@@ -6,7 +6,7 @@ const Locales = @import("locales");
 
 const Fs = @import("io").Fs;
 const Json = @import("core").Json.Json;
-const Manifest = @import("core").Manifest;
+const Manifest = @import("core").Manifest.Manifest;
 const Printer = @import("cli").Printer;
 
 const Uninstaller = @import("uninstall.zig").Uninstaller;
@@ -17,6 +17,7 @@ pub fn purge(
     printer: *Printer,
     json: *Json,
     paths: *Constants.Paths.Paths,
+    manifest: *Manifest,
 ) !void {
     try printer.append("Purging packages...\n", .{}, .{});
 
@@ -36,21 +37,24 @@ pub fn purge(
         try printer.append("Nothing to uninstall.\n", .{}, .{});
         return;
     }
-    var package_json = try Manifest.readManifest(Structs.ZepFiles.PackageJsonStruct, allocator, Constants.Extras.package_files.manifest);
+    var package_json = try manifest.readManifest(
+        Structs.ZepFiles.PackageJsonStruct,
+        Constants.Extras.package_files.manifest,
+    );
     defer package_json.deinit();
 
+    var uninstaller = try Uninstaller.init(
+        allocator,
+        printer,
+        json,
+        paths,
+        manifest,
+    );
     for (package_json.value.packages) |package_id| {
         var split = std.mem.splitScalar(u8, package_id, '@');
         const package_name = split.first();
         try printer.append(" > Uninstalling - {s}...\n", .{package_id}, .{ .verbosity = 0 });
-        var uninstaller = try Uninstaller.init(
-            allocator,
-            printer,
-            json,
-            paths,
-            package_name,
-        );
-        uninstaller.uninstall() catch {
+        uninstaller.uninstall(package_name) catch {
             try printer.append(" >> failed!\n", .{}, .{ .verbosity = 0, .color = .red });
             std.Thread.sleep(std.time.ms_per_s * 100);
             continue;

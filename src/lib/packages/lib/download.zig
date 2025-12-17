@@ -15,13 +15,11 @@ const TEMPORARY_DIRECTORY_PATH = ".zep/.ZEPtmp";
 pub const Downloader = struct {
     allocator: std.mem.Allocator,
     cacher: Cacher,
-    package: Package,
     printer: *Printer,
     paths: *Constants.Paths.Paths,
 
     pub fn init(
         allocator: std.mem.Allocator,
-        package: Package,
         cacher: Cacher,
         printer: *Printer,
         paths: *Constants.Paths.Paths,
@@ -29,30 +27,25 @@ pub const Downloader = struct {
         return Downloader{
             .allocator = allocator,
             .cacher = cacher,
-            .package = package,
             .printer = printer,
             .paths = paths,
         };
     }
 
-    pub fn deinit(_: *Downloader) void {
-        // Nothing to free here (fields are owned externally).
-    }
+    pub fn deinit(_: *Downloader) void {}
 
-    fn packagePath(self: *Downloader) ![]u8 {
-        return try std.fmt.allocPrint(
-            self.allocator,
-            "{s}/{s}",
-            .{ try self.allocator.dupe(u8, self.paths.pkg_root), self.package.id },
-        );
-    }
-
-    fn fetchPackage(self: *Downloader, url: []const u8) !void {
+    fn fetchPackage(
+        self: *Downloader,
+        package_id: []const u8,
+        url: []const u8,
+    ) !void {
         // allocate paths and free them after use
-        const path = try self.packagePath();
+        const path = try std.fs.path.join(
+            self.allocator,
+            &.{ self.paths.pkg_root, package_id },
+        );
         defer self.allocator.free(path);
-
-        if (Fs.existsDir(path)) try Fs.deleteDirIfExists(path);
+        if (Fs.existsDir(path)) try Fs.deleteTreeIfExists(path);
 
         // create/open temporary directory
         var temporary_directory = try Fs.openOrCreateDir(TEMPORARY_DIRECTORY_PATH);
@@ -66,34 +59,57 @@ pub const Downloader = struct {
         try self.printer.append("Installing package... [{s}]\n", .{url}, .{});
 
         const uri = try std.Uri.parse(url);
+
         var client = std.http.Client{ .allocator = self.allocator };
         defer client.deinit();
 
-        var server_header_buffer: [Constants.Default.kb * 32 * 4]u8 = undefined;
-        var req = try client.open(.GET, uri, .{ .server_header_buffer = &server_header_buffer });
-        defer req.deinit();
+        var body = std.Io.Writer.Allocating.init(self.allocator);
+        const fetched = try client.fetch(std.http.Client.FetchOptions{
+            .location = .{
+                .uri = uri,
+            },
+            .method = .GET,
+            .response_writer = &body.writer,
+        });
 
-        try self.printer.append("Sending request...\n", .{}, .{});
-        try req.send();
-        try req.finish();
-        try self.printer.append("Waiting for response...\n", .{}, .{});
-        try req.wait();
+        if (fetched.status == .not_found) {
+            return error.NotFound;
+        }
 
-        const reader = req.reader();
-        const data = try reader.readAllAlloc(self.allocator, Constants.Default.mb * 100);
-        var stream = std.io.fixedBufferStream(data);
+        const data = body.written();
+        const temp_path = ".zep/.ZEPtmp/tmp.zip";
+
+        blk: {
+            var temp_file = try Fs.openFile(temp_path);
+            defer temp_file.close();
+            _ = try temp_file.write(data);
+            break :blk;
+        }
+
+        var temp_file = try Fs.openFile(temp_path);
+        defer temp_file.close();
+        var reader_buf: [Constants.Default.kb * 16]u8 = undefined;
+        var reader = temp_file.reader(&reader_buf);
 
         try self.printer.append("Extracting...\n", .{}, .{});
         var diagnostics = std.zip.Diagnostics{
             .allocator = self.allocator,
         };
-        defer diagnostics.deinit();
-        try std.zip.extract(temporary_directory, &stream.seekableStream(), .{ .diagnostics = &diagnostics });
 
-        try self.printer.append("Writing...\n", .{}, .{});
+        defer diagnostics.deinit();
+        try std.zip.extract(temporary_directory, &reader, .{ .diagnostics = &diagnostics });
+
         // build path for the extracted top-level component and rename to final path
-        const extract_target = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ TEMPORARY_DIRECTORY_PATH, diagnostics.root_dir });
-        defer self.allocator.free(extract_target);
+        try self.printer.append("Writing...\n", .{}, .{});
+        var buf: [256]u8 = undefined;
+        const extract_target = try std.fmt.bufPrint(
+            &buf,
+            "{s}/{s}",
+            .{
+                TEMPORARY_DIRECTORY_PATH,
+                diagnostics.root_dir,
+            },
+        );
 
         try std.fs.cwd().rename(extract_target, path);
         try self.filterPackage(path);
@@ -120,25 +136,36 @@ pub const Downloader = struct {
 
         try self.printer.append("Filtering unimportant folders...\n\n", .{}, .{});
         for (Constants.Extras.filtering.folders) |folder| {
-            const folder_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ path, folder });
-            defer self.allocator.free(folder_path);
+            var buf: [256]u8 = undefined;
+            const folder_path = try std.fmt.bufPrint(&buf, "{s}/{s}", .{ path, folder });
             try Fs.deleteTreeIfExists(folder_path);
         }
         for (Constants.Extras.filtering.files) |file| {
-            const file_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ path, file });
-            defer self.allocator.free(file_path);
+            var buf: [256]u8 = undefined;
+            const file_path = try std.fmt.bufPrint(&buf, "{s}/{s}", .{ path, file });
             try Fs.deleteFileIfExists(file_path);
         }
     }
 
-    fn doesPackageExist(self: *Downloader) !bool {
-        const path = try self.packagePath();
+    fn doesPackageExist(
+        self: *Downloader,
+        package_id: []const u8,
+    ) !bool {
+        const path = try std.fs.path.join(
+            self.allocator,
+            &.{ self.paths.pkg_root, package_id },
+        );
         defer self.allocator.free(path);
+
         return Fs.existsDir(path);
     }
 
-    pub fn downloadPackage(self: *Downloader, url: []const u8) !void {
-        const exists = try self.doesPackageExist();
+    pub fn downloadPackage(
+        self: *Downloader,
+        package_id: []const u8,
+        url: []const u8,
+    ) !void {
+        const exists = try self.doesPackageExist(package_id);
         if (exists) {
             try self.printer.append(" > PACKAGE ALREADY EXISTS!\n", .{}, .{});
             return;
@@ -146,23 +173,26 @@ pub const Downloader = struct {
 
         try self.printer.append(" > CHECKING CACHE...\n", .{}, .{});
 
-        const isCached = try self.cacher.isPackageCached();
-        if (isCached) {
-            if (try self.cacher.getPackageFromCache()) {
-                try self.printer.append(" > CACHE HIT!\n\n", .{}, .{});
-                return;
+        const is_cached = try self.cacher.isPackageCached(package_id);
+        if (is_cached) {
+            try self.printer.append(" > CACHE HIT!", .{}, .{});
+            const get_cache = try self.cacher.getPackageFromCache(package_id);
+            if (get_cache) {
+                try self.printer.append(" > EXTRACTED!\n\n", .{}, .{ .color = .green });
+            } else {
+                try self.printer.append(" > FAILED!\n\n", .{}, .{ .color = .red });
             }
+            return;
+        } else {
+            try self.printer.append(" > CACHE MISS!\n\n", .{}, .{});
+            try self.fetchPackage(package_id, url);
         }
 
-        try self.printer.append(" > CACHE MISS!\n\n", .{}, .{});
-        try self.fetchPackage(url);
-        if (isCached) return;
-
         try self.printer.append("Caching Package now...\n", .{}, .{});
-        if (try self.cacher.setPackageToCache(try self.packagePath())) {
-            try self.printer.append("Successfully cached!\n", .{}, .{ .color = .green });
+        if (try self.cacher.setPackageToCache(package_id)) {
+            try self.printer.append(" > CACHED\n", .{}, .{ .color = .green });
         } else {
-            try self.printer.append("Caching failed...\n", .{}, .{ .color = .red });
+            try self.printer.append(" ! FAILED\n", .{}, .{ .color = .red });
         }
     }
 };

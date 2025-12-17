@@ -6,23 +6,26 @@ const Constants = @import("constants");
 
 const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
-const Manifest = @import("core").Manifest;
+const Manifest = @import("core").Manifest.Manifest;
 
 /// Lists installed Artifact versions
 pub const ArtifactPruner = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
     paths: *Constants.Paths.Paths,
+    manifest: *Manifest,
 
     pub fn init(
         allocator: std.mem.Allocator,
         printer: *Printer,
         paths: *Constants.Paths.Paths,
-    ) !ArtifactPruner {
+        manifest: *Manifest,
+    ) ArtifactPruner {
         return ArtifactPruner{
             .allocator = allocator,
             .printer = printer,
             .paths = paths,
+            .manifest = manifest,
         };
     }
 
@@ -44,9 +47,8 @@ pub const ArtifactPruner = struct {
             return;
         }
 
-        const manifest = try Manifest.readManifest(
+        const manifest = try self.manifest.readManifest(
             Structs.Manifests.ArtifactManifest,
-            self.allocator,
             if (artifact_type == .zig) self.paths.zig_manifest else self.paths.zep_manifest,
         );
         defer manifest.deinit();

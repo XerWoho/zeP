@@ -56,7 +56,9 @@ pub const Init = struct {
             .color = .blue,
             .weight = .bold,
         });
-        const stdin = std.io.getStdIn().reader();
+        var stdin_buf: [Constants.Default.kb * 4]u8 = undefined;
+        var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
+        const stdin = &stdin_reader.interface;
 
         const name = try Prompt.input(
             allocator,
@@ -143,10 +145,11 @@ pub const Init = struct {
             \\
             \\.zep
             \\!.zep/injector.zig
+            \\!.zep/.conf
         ;
 
         if (!Fs.existsFile(gitignore)) {
-            const f = try Fs.openOrCreateFile(gitignore);
+            const f = try Fs.openFile(gitignore);
             _ = try f.write(gitignore_main);
         }
     }

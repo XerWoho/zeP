@@ -18,7 +18,7 @@ pub const PreBuilt = struct {
         if (!Fs.existsDir(paths.prebuilt)) {
             try std.fs.cwd().makeDir(paths.prebuilt);
         }
-        const compressor = Compressor.init(
+        const compressor = try Compressor.init(
             allocator,
             printer,
             paths,
@@ -34,8 +34,12 @@ pub const PreBuilt = struct {
 
     /// Extracts a pre-built package into the specified target path
     pub fn use(self: *PreBuilt, pre_built_name: []const u8, target_path: []const u8) !void {
-        const path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.zep", .{ self.paths.prebuilt, pre_built_name });
-        defer self.allocator.free(path);
+        var buf: [256]u8 = undefined;
+        const path = try std.fmt.bufPrint(
+            &buf,
+            "{s}/{s}.zstd",
+            .{ self.paths.prebuilt, pre_built_name },
+        );
 
         if (!Fs.existsFile(path)) {
             try self.printer.append("Pre-Built does NOT exist!\n\n", .{}, .{ .color = .red });
@@ -56,15 +60,19 @@ pub const PreBuilt = struct {
 
     /// Compresses a folder into a pre-built package, overwriting if it exists
     pub fn build(self: *PreBuilt, pre_built_name: []const u8, target_path: []const u8) !void {
-        const path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.zep", .{ self.paths.prebuilt, pre_built_name });
-        defer self.allocator.free(path);
+        var buf: [256]u8 = undefined;
+        const path = try std.fmt.bufPrint(
+            &buf,
+            "{s}/{s}.tar.zstd",
+            .{ self.paths.prebuilt, pre_built_name },
+        );
 
         if (Fs.existsFile(path)) {
             try self.printer.append("Pre-Built already exists! Overwriting it now...\n\n", .{}, .{});
             try Fs.deleteFileIfExists(path);
         }
 
-        try self.printer.append("Compressing {s} now...", .{target_path}, .{});
+        try self.printer.append("Compressing now...", .{}, .{});
 
         const is_compressed = try self.compressor.compress(target_path, path);
         if (is_compressed) {
@@ -76,14 +84,20 @@ pub const PreBuilt = struct {
 
     /// Deletes a pre-built package if it exists
     pub fn delete(self: *PreBuilt, pre_built_name: []const u8) !void {
-        const path = try std.fmt.allocPrint(self.allocator, "{s}/{s}.zep", .{ self.paths.prebuilt, pre_built_name });
-        defer self.allocator.free(path);
+        var buf: [256]u8 = undefined;
+        const exts = &[_][]const u8{ ".tar.zstd", ".zep" };
 
-        if (Fs.existsFile(path)) {
-            try self.printer.append("Pre-Built found!\n", .{}, .{ .color = .red });
-            try Fs.deleteFileIfExists(path);
-            try self.printer.append("Deleted.\n\n", .{}, .{});
+        for (exts) |ext| {
+            const path = try std.fmt.bufPrint(&buf, "{s}/{s}{s}", .{ self.paths.prebuilt, pre_built_name, ext });
+            if (Fs.existsFile(path)) {
+                try self.printer.append("Pre-Built found!\n", .{}, .{ .color = .green });
+                try Fs.deleteFileIfExists(path);
+                try self.printer.append("Deleted.\n\n", .{}, .{});
+                return;
+            }
         }
+
+        try self.printer.append("Pre-Built not found!\n", .{}, .{ .color = .red });
     }
 
     /// List a pre-builts
@@ -93,10 +107,23 @@ pub const PreBuilt = struct {
         var entries = false;
         while (try it.next()) |entry| {
             entries = true;
-            try self.printer.append(" - {s}\n", .{entry.name}, .{});
+            const is_outdated = std.mem.endsWith(u8, entry.name, ".zep");
+            if (is_outdated) {
+                try self.printer.append(
+                    " - {s} (OUTDATED)\n",
+                    .{entry.name},
+                    .{ .color = .bright_black },
+                );
+            } else {
+                try self.printer.append(
+                    " - {s}\n",
+                    .{entry.name},
+                    .{},
+                );
+            }
         }
         if (!entries) {
-            try self.printer.append("No prebuilts available!\n", .{}, .{ .color = .red });
+            try self.printer.append("No prebuilts available!\n", .{}, .{});
         }
         try self.printer.append("\n", .{}, .{});
     }

@@ -6,7 +6,7 @@ const Constants = @import("constants");
 
 const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
-const Manifest = @import("core").Manifest;
+const Manifest = @import("core").Manifest.Manifest;
 const Json = @import("core").Json.Json;
 
 /// Handles switching between installed Artifact versions
@@ -14,16 +14,19 @@ pub const ArtifactSwitcher = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
     paths: *Constants.Paths.Paths,
+    manifest: *Manifest,
 
     pub fn init(
         allocator: std.mem.Allocator,
         printer: *Printer,
         paths: *Constants.Paths.Paths,
-    ) !ArtifactSwitcher {
+        manifest: *Manifest,
+    ) ArtifactSwitcher {
         return ArtifactSwitcher{
             .allocator = allocator,
             .printer = printer,
             .paths = paths,
+            .manifest = manifest,
         };
     }
 
@@ -41,7 +44,9 @@ pub const ArtifactSwitcher = struct {
         artifact_type: Structs.Extras.ArtifactType,
     ) !void {
         // Update manifest with new version
-        try self.printer.append("Modifying Manifest...\n", .{}, .{});
+        try self.printer.append("Modifying Manifest...\n", .{}, .{
+            .verbosity = 2,
+        });
         const path = try std.fs.path.join(self.allocator, &.{
             if (artifact_type == .zig) self.paths.zig_root else self.paths.zep_root,
             "d",
@@ -51,14 +56,12 @@ pub const ArtifactSwitcher = struct {
 
         defer self.allocator.free(path);
 
-        Manifest.writeManifest(
+        self.manifest.writeManifest(
             Structs.Manifests.ArtifactManifest,
-            self.allocator,
             if (artifact_type == .zig) self.paths.zig_manifest else self.paths.zep_manifest,
             Structs.Manifests.ArtifactManifest{ .name = name, .path = path },
         ) catch {
             return error.ManifestUpdateFailed;
-            // try self.printer.append("Updating Manifest failed!\n", .{}, .{ .color = .red });
         };
 
         // Update zep.json and zep.lock
@@ -70,24 +73,28 @@ pub const ArtifactSwitcher = struct {
                 !Fs.existsFile(Constants.Extras.package_files.manifest) or
                 !Fs.existsDir(Constants.Extras.package_files.zep_folder)) break :blk;
 
-            var manifest = try Manifest.readManifest(Structs.ZepFiles.PackageJsonStruct, self.allocator, Constants.Extras.package_files.manifest);
+            var manifest = try self.manifest.readManifest(
+                Structs.ZepFiles.PackageJsonStruct,
+                Constants.Extras.package_files.manifest,
+            );
             defer manifest.deinit();
-            var lock = try Manifest.readManifest(Structs.ZepFiles.PackageLockStruct, self.allocator, Constants.Extras.package_files.lock);
+            var lock = try self.manifest.readManifest(
+                Structs.ZepFiles.PackageLockStruct,
+                Constants.Extras.package_files.lock,
+            );
             defer lock.deinit();
 
             manifest.value.zig_version = version;
             lock.value.root = manifest.value;
-            Manifest.writeManifest(
+            self.manifest.writeManifest(
                 Structs.ZepFiles.PackageJsonStruct,
-                self.allocator,
                 Constants.Extras.package_files.manifest,
                 manifest.value,
             ) catch {
                 return error.JsonUpdateFailed;
             };
-            Manifest.writeManifest(
+            self.manifest.writeManifest(
                 Structs.ZepFiles.PackageLockStruct,
-                self.allocator,
                 Constants.Extras.package_files.lock,
                 lock.value,
             ) catch {
@@ -100,7 +107,7 @@ pub const ArtifactSwitcher = struct {
 
         // Update system PATH to point to new version
         try self.printer.append("Switching to installed version...\n", .{}, .{});
-        Link.updateLink(artifact_type, self.paths) catch {
+        Link.updateLink(artifact_type, self.paths, self.manifest) catch {
             return error.LinkUpdateFailed;
         };
 

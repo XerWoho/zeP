@@ -1,0 +1,15 @@
+{
+	"schema": 1,
+	"included_modules": [
+		"loggerMod",
+		"zep_executeable_mod_mod"
+	],
+	"excluded_modules": [
+		"localesMod",
+		"constantsMod",
+		"structsMod",
+		"iosMod",
+		"clisMod",
+		"coresMod"
+	]
+}

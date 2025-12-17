@@ -1,0 +1,14 @@
+{
+  "name": "secsock",
+  "author": "tardy-org",
+  "docs": "",
+  "versions": [
+    {
+      "version": "0.1.0",
+      "url": "https://github.com/tardy-org/secsock/archive/refs/tags/v0.1.0.zip",
+      "root_file": "/src/lib.zig",
+      "zig_version": "0.14.0",
+      "sha256sum": "44698ccc7f575ad6e49e56e7bea35a621822883ef2e48790b62c0d78094846af"
+    }
+  ]
+}

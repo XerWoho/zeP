@@ -7,7 +7,7 @@ const Constants = @import("constants");
 const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
 
-const Manifest = @import("core").Manifest;
+const Manifest = @import("core").Manifest.Manifest;
 
 const ArtifactInstaller = @import("install.zig");
 const ArtifactUninstaller = @import("uninstall.zig");
@@ -26,6 +26,7 @@ pub const Artifact = struct {
     allocator: std.mem.Allocator,
     printer: *Printer,
     paths: *Constants.Paths.Paths,
+    manifest: *Manifest,
 
     installer: ArtifactInstaller.ArtifactInstaller,
     uninstaller: ArtifactUninstaller.ArtifactUninstaller,
@@ -40,37 +41,43 @@ pub const Artifact = struct {
         allocator: std.mem.Allocator,
         printer: *Printer,
         paths: *Constants.Paths.Paths,
+        manifest: *Manifest,
         artifact_type: Structs.Extras.ArtifactType,
     ) !Artifact {
-        const installer = try ArtifactInstaller.ArtifactInstaller.init(
+        const installer = ArtifactInstaller.ArtifactInstaller.init(
             allocator,
             printer,
             paths,
+            manifest,
         );
-        const uninstaller = try ArtifactUninstaller.ArtifactUninstaller.init(
+        const uninstaller = ArtifactUninstaller.ArtifactUninstaller.init(
             allocator,
             printer,
         );
-        const lister = try ArtifactLister.ArtifactLister.init(
-            allocator,
-            printer,
-            paths,
-        );
-        const switcher = try ArtifactSwitcher.ArtifactSwitcher.init(
+        const lister = ArtifactLister.ArtifactLister.init(
             allocator,
             printer,
             paths,
+            manifest,
         );
-        const pruner = try ArtifactPruner.ArtifactPruner.init(
+        const switcher = ArtifactSwitcher.ArtifactSwitcher.init(
             allocator,
             printer,
             paths,
+            manifest,
+        );
+        const pruner = ArtifactPruner.ArtifactPruner.init(
+            allocator,
+            printer,
+            paths,
+            manifest,
         );
 
         return Artifact{
             .allocator = allocator,
             .printer = printer,
             .paths = paths,
+            .manifest = manifest,
             .installer = installer,
             .uninstaller = uninstaller,
             .lister = lister,
@@ -93,23 +100,28 @@ pub const Artifact = struct {
         var client = std.http.Client{ .allocator = self.allocator };
         defer client.deinit();
 
-        var server_header_buffer: [Constants.Default.kb * 32]u8 = undefined;
         const uri = try std.Uri.parse(
             if (self.artifact_type == .zig)
                 Constants.Default.zig_download_index
             else
                 Constants.Default.zep_download_index,
         );
-        var req = try client.open(.GET, uri, .{ .server_header_buffer = &server_header_buffer });
-        defer req.deinit();
 
-        try req.send();
-        try req.finish();
-        try req.wait();
+        var body = std.Io.Writer.Allocating.init(self.allocator);
+        const fetched = try client.fetch(std.http.Client.FetchOptions{
+            .location = .{
+                .uri = uri,
+            },
+            .method = .GET,
+            .response_writer = &body.writer,
+        });
 
-        var reader = req.reader();
-        const body = try reader.readAllAlloc(self.allocator, Constants.Default.mb * 50);
-        const parsed = try std.json.parseFromSlice(std.json.Value, self.allocator, body, .{});
+        if (fetched.status == .not_found) {
+            return error.NotFound;
+        }
+        const data = body.written();
+
+        const parsed = try std.json.parseFromSlice(std.json.Value, self.allocator, data, .{});
         const obj = parsed.value.object;
 
         if (std.mem.eql(u8, target_version, "latest") or target_version.len == 0) {
@@ -211,7 +223,10 @@ pub const Artifact = struct {
             version_dir_includes_folders = true;
             break;
         }
-        const manifest = try Manifest.readManifest(Structs.Manifests.ArtifactManifest, self.allocator, if (self.artifact_type == .zig) self.paths.zig_manifest else self.paths.zep_manifest);
+        const manifest = try self.manifest.readManifest(
+            Structs.Manifests.ArtifactManifest,
+            if (self.artifact_type == .zig) self.paths.zig_manifest else self.paths.zep_manifest,
+        );
         defer manifest.deinit();
 
         if (std.mem.containsAtLeast(u8, manifest.value.name, 1, version.version)) {

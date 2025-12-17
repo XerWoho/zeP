@@ -29,6 +29,7 @@ pub fn paths(allocator: std.mem.Allocator) !Paths {
         .pkg_root = try std.fs.path.join(allocator, &.{ base, "zeP", "pkg" }),
         .zig_root = try std.fs.path.join(allocator, &.{ base, "zeP", "zig" }),
         .zep_root = try std.fs.path.join(allocator, &.{ base, "zeP", "zep" }),
+        .logs_root = try std.fs.path.join(allocator, &.{ base, "zeP", "logs" }),
 
         .pkg_manifest = try std.fs.path.join(allocator, &.{ base, "zeP", "pkg", "manifest.json" }),
         .zig_manifest = try std.fs.path.join(allocator, &.{ base, "zeP", "zig", "manifest.json" }),
@@ -48,6 +49,7 @@ pub const Paths = struct {
     pkg_root: []const u8,
     zig_root: []const u8,
     zep_root: []const u8,
+    logs_root: []const u8,
 
     pkg_manifest: []const u8,
     zig_manifest: []const u8,
@@ -63,6 +65,7 @@ pub const Paths = struct {
         self.allocator.free(self.pkg_root);
         self.allocator.free(self.zig_root);
         self.allocator.free(self.zep_root);
+        self.allocator.free(self.logs_root);
 
         self.allocator.free(self.pkg_manifest);
         self.allocator.free(self.zig_manifest);
