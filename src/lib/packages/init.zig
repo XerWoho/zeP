@@ -145,6 +145,7 @@ pub const Init = struct {
             \\
             \\.zep
             \\!.zep/injector.zig
+            \\!.zep/.conf
         ;
 
         if (!Fs.existsFile(gitignore)) {

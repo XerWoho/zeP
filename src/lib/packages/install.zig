@@ -20,12 +20,12 @@ const Uninstaller = @import("uninstall.zig").Uninstaller;
 pub const Installer = struct {
     allocator: std.mem.Allocator,
     json: *Json,
-    package: Package,
     downloader: Downloader,
     cacher: Cacher,
     printer: *Printer,
     paths: *Constants.Paths.Paths,
     manifest: *Manifest,
+    force_inject: bool,
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -33,45 +33,15 @@ pub const Installer = struct {
         json: *Json,
         paths: *Constants.Paths.Paths,
         manifest: *Manifest,
-        opt_package_name: ?[]const u8,
-        opt_package_version_target: ?[]const u8,
+        force_inject: bool,
     ) !Installer {
-        const package_name = opt_package_name orelse {
-            const previous_verbosity = Locales.VERBOSITY_MODE;
-            Locales.VERBOSITY_MODE = 0;
-
-            try printer.append("Installing all packages...\n", .{}, .{ .verbosity = 0 });
-
-            try installAll(
-                allocator,
-                printer,
-                paths,
-                json,
-                manifest,
-            );
-
-            Locales.VERBOSITY_MODE = previous_verbosity;
-            return error.NoPackageSpecified;
-        };
-
-        const package = try Package.init(
-            allocator,
-            printer,
-            json,
-            paths,
-            manifest,
-            package_name,
-            opt_package_version_target,
-        );
         const cacher = try Cacher.init(
             allocator,
-            package,
             printer,
             paths,
         );
         const downloader = try Downloader.init(
             allocator,
-            package,
             cacher,
             printer,
             paths,
@@ -80,29 +50,96 @@ pub const Installer = struct {
         return Installer{
             .json = json,
             .allocator = allocator,
-            .package = package,
             .downloader = downloader,
             .cacher = cacher,
             .printer = printer,
             .paths = paths,
             .manifest = manifest,
+            .force_inject = force_inject,
         };
     }
 
     pub fn deinit(self: *Installer) void {
         self.cacher.deinit();
         self.downloader.deinit();
-        self.package.deinit();
     }
 
-    pub fn install(self: *Installer) !void {
-        const package = self.package;
+    fn checkIfPackageInstalled(
+        self: *Installer,
+        package_id: []const u8,
+    ) !bool {
+        const target_path = try std.fs.path.join(
+            self.allocator,
+            &.{
+                self.paths.pkg_root,
+                package_id,
+            },
+        );
+        defer self.allocator.free(target_path);
+        return Fs.existsDir(target_path);
+    }
+
+    fn uninstallPrevious(
+        self: *Installer,
+        package: Package,
+    ) !void {
+        const lock = try self.manifest.readManifest(
+            Structs.ZepFiles.PackageLockStruct,
+            Constants.Extras.package_files.lock,
+        );
+        defer lock.deinit();
+        for (lock.value.packages) |lockPackage| {
+            var uninstaller = try Uninstaller.init(
+                self.allocator,
+                self.printer,
+                self.json,
+                self.paths,
+                self.manifest,
+            );
+            defer uninstaller.deinit();
+            if (std.mem.eql(u8, lockPackage.name, package.id)) {
+                if (try self.checkIfPackageInstalled(package.id)) return error.AlreadyInstalled;
+                try self.setPackage(package);
+
+                try self.printer.append(
+                    "UNINSTALLING PREVIOUS [{s}]\n",
+                    .{try self.allocator.dupe(u8, lockPackage.name)},
+                    .{ .color = .red },
+                );
+                const previous_verbosity = Locales.VERBOSITY_MODE;
+                Locales.VERBOSITY_MODE = 0;
+
+                var split = std.mem.splitScalar(u8, package.id, '@');
+                const package_name = split.first();
+                try uninstaller.uninstall(package_name);
+
+                Locales.VERBOSITY_MODE = previous_verbosity;
+            }
+        }
+    }
+
+    pub fn install(
+        self: *Installer,
+        package_name: []const u8,
+        package_version: ?[]const u8,
+    ) !void {
+        var package = try Package.init(
+            self.allocator,
+            self.printer,
+            self.json,
+            self.paths,
+            self.manifest,
+            package_name,
+            package_version,
+        );
         const parsed = package.package;
+        try self.uninstallPrevious(package);
 
         const lock = try self.manifest.readManifest(
             Structs.ZepFiles.PackageLockStruct,
             Constants.Extras.package_files.lock,
         );
+
         defer lock.deinit();
         if (!std.mem.containsAtLeast(u8, parsed.zig_version, 1, lock.value.root.zig_version)) {
             try self.printer.append("WARNING: ", .{}, .{
@@ -117,98 +154,51 @@ pub const Installer = struct {
             try self.printer.append("Your Zig Version: {s}\n\n", .{lock.value.root.zig_version}, .{});
         }
 
-        for (lock.value.packages) |lockPackage| {
-            if (std.mem.startsWith(u8, lockPackage.name, self.package.package_name)) {
-                if (std.mem.eql(u8, lockPackage.name, self.package.id)) {
-                    var buf: [256]u8 = undefined;
-                    const target_path = try std.fmt.bufPrint(
-                        &buf,
-                        "{s}/{s}@{s}",
-                        .{
-                            self.paths.pkg_root,
-                            self.package.package_name,
-                            self.package.package_version,
-                        },
-                    );
-                    if (!Fs.existsDir(target_path)) break;
-
-                    try self.setPackage();
-                    return error.AlreadyInstalled;
-                }
-
-                try self.printer.append(
-                    "UNINSTALLING PREVIOUS [{s}]\n",
-                    .{try self.allocator.dupe(u8, lockPackage.name)},
-                    .{ .color = .red },
-                );
-                const previous_verbosity = Locales.VERBOSITY_MODE;
-                Locales.VERBOSITY_MODE = 0;
-
-                var uninstaller = try Uninstaller.init(
-                    self.allocator,
-                    self.printer,
-                    self.json,
-                    self.paths,
-                    self.manifest,
-                    self.package.package_name,
-                );
-
-                try uninstaller.uninstall();
-                Locales.VERBOSITY_MODE = previous_verbosity;
-            }
-        }
-
         try self.printer.append("Downloading Package...\n", .{}, .{});
-        try self.downloader.downloadPackage(parsed.url);
+        try self.downloader.downloadPackage(package.id, parsed.url);
 
         try self.printer.append("\nChecking hash...\n", .{}, .{});
         if (std.mem.eql(u8, package.package_hash, parsed.sha256sum)) {
             try self.printer.append("  > HASH IDENTICAL\n", .{}, .{ .color = .green });
         } else {
-            try self.package.deletePackage(true);
-            try self.cacher.deletePackageFromCache();
+            try package.deletePackage(true); // force
+            try self.cacher.deletePackageFromCache(package.id);
             return error.HashMismatch;
         }
 
         try self.printer.append("\nChecking Cache...\n", .{}, .{});
-        const is_package_cached = try self.cacher.isPackageCached();
+        const is_package_cached = try self.cacher.isPackageCached(package.id);
         if (!is_package_cached) {
             try self.printer.append("Not Cached! Caching...\n", .{}, .{});
-            const is_cached = try self.cacher.setPackageToCache(self.package.id);
+            const is_cached = try self.cacher.setPackageToCache(package.id);
             if (is_cached) {
-                try self.printer.append(
-                    " > PACKAGE CACHED!\n\n",
-                    .{},
-                    .{
-                        .color = .green,
-                    },
-                );
+                try self.printer.append(" > PACKAGE CACHED!\n\n", .{}, .{
+                    .color = .green,
+                });
             } else {
-                try self.printer.append(
-                    " ! CACHING FAILED!\n\n",
-                    .{},
-                    .{
-                        .color = .red,
-                    },
-                );
+                try self.printer.append(" ! CACHING FAILED!\n\n", .{}, .{
+                    .color = .red,
+                });
             }
         } else {
             try self.printer.append("PACKAGE ALREADY CACHED! SKIPPING CACHING!\n\n", .{}, .{});
         }
 
-        try self.setPackage();
+        try self.setPackage(package);
         try self.printer.append("Successfully installed - {s}\n\n", .{package.package_name}, .{ .color = .green });
     }
 
-    fn setPackage(self: *Installer) !void {
-        try self.addPackageToJson();
-        const package = self.package;
+    fn setPackage(
+        self: *Installer,
+        package: Package,
+    ) !void {
+        try self.addPackageToJson(package);
 
         var injector = try Injector.init(
             self.allocator,
             self.printer,
             self.manifest,
-            package.package_name,
+            self.force_inject,
         );
         try injector.initInjector();
 
@@ -216,11 +206,10 @@ pub const Installer = struct {
         var buf: [256]u8 = undefined;
         const target_path = try std.fmt.bufPrint(
             &buf,
-            "{s}/{s}@{s}",
+            "{s}/{s}",
             .{
                 self.paths.pkg_root,
-                package.package_name,
-                package.package_version,
+                package.id,
             },
         );
 
@@ -236,14 +225,17 @@ pub const Installer = struct {
         defer self.allocator.free(absolute_symbolic_link_path);
         try std.fs.cwd().symLink(target_path, relative_symbolic_link_path, .{ .is_directory = true });
         self.manifest.addPathToManifest(
-            self.package.id,
+            package.id,
             absolute_symbolic_link_path,
         ) catch {
             try self.printer.append("Adding to manifest failed!\n", .{}, .{ .color = .red });
         };
     }
 
-    fn addPackageToJson(self: *Installer) !void {
+    fn addPackageToJson(
+        self: *Installer,
+        package: Package,
+    ) !void {
         var package_json = try self.manifest.readManifest(
             Structs.ZepFiles.PackageJsonStruct,
             Constants.Extras.package_files.manifest,
@@ -255,13 +247,47 @@ pub const Installer = struct {
 
         defer package_json.deinit();
         defer lock_json.deinit();
-        try manifestAdd(&package_json.value, self.package.package_name, self.package.id, self.json);
+        try manifestAdd(
+            &package_json.value,
+            package.package_name,
+            package.id,
+            self.json,
+        );
         try lockAdd(
             &lock_json.value,
-            self.package,
+            package,
             self.json,
             self.manifest,
         );
+    }
+
+    pub fn installAll(self: *Installer) anyerror!void {
+        var package_json = try self.manifest.readManifest(
+            Structs.ZepFiles.PackageJsonStruct,
+            Constants.Extras.package_files.manifest,
+        );
+
+        defer package_json.deinit();
+        for (package_json.value.packages) |package_id| {
+            try self.printer.append(" > Installing - {s}...\n", .{package_id}, .{ .verbosity = 0 });
+
+            var package_split = std.mem.splitScalar(u8, package_id, '@');
+            const package_name = package_split.first();
+            const package_version = package_split.next();
+            self.install(package_name, package_version) catch |err| {
+                switch (err) {
+                    error.AlreadyInstalled => {
+                        try self.printer.append(" >> already installed!\n", .{}, .{ .verbosity = 0, .color = .green });
+                        continue;
+                    },
+                    else => {
+                        try self.printer.append("  ! [ERROR] Failed to install - {s}...\n", .{package_id}, .{ .verbosity = 0 });
+                    },
+                }
+            };
+            try self.printer.append(" >> done!\n", .{}, .{ .verbosity = 0, .color = .green });
+        }
+        try self.printer.append("\nInstalled all!\n", .{}, .{ .verbosity = 0, .color = .green });
     }
 };
 
@@ -385,48 +411,4 @@ fn lockAdd(
     lock.root = package_json.value;
 
     try json.writePretty(Constants.Extras.package_files.lock, lock);
-}
-
-fn installAll(
-    allocator: std.mem.Allocator,
-    printer: *Printer,
-    paths: *Constants.Paths.Paths,
-    json: *Json,
-    manifest: *Manifest,
-) anyerror!void {
-    var package_json = try manifest.readManifest(
-        Structs.ZepFiles.PackageJsonStruct,
-        Constants.Extras.package_files.manifest,
-    );
-
-    defer package_json.deinit();
-    for (package_json.value.packages) |package_id| {
-        try printer.append(" > Installing - {s}...\n", .{package_id}, .{ .verbosity = 0 });
-
-        var package_split = std.mem.splitScalar(u8, package_id, '@');
-        const package_name = package_split.first();
-        const package_version = package_split.next();
-        var installer = try Installer.init(
-            allocator,
-            printer,
-            json,
-            paths,
-            manifest,
-            package_name,
-            package_version,
-        );
-        installer.install() catch |err| {
-            switch (err) {
-                error.AlreadyInstalled => {
-                    try printer.append(" >> already installed!\n", .{}, .{ .verbosity = 0, .color = .green });
-                    continue;
-                },
-                else => {
-                    try printer.append("  ! [ERROR] Failed to install - {s}...\n", .{package_id}, .{ .verbosity = 0 });
-                },
-            }
-        };
-        try printer.append(" >> done!\n", .{}, .{ .verbosity = 0, .color = .green });
-    }
-    try printer.append("\nInstalled all!\n", .{}, .{ .verbosity = 0, .color = .green });
 }

@@ -15,13 +15,11 @@ const TEMPORARY_DIRECTORY_PATH = ".zep/.ZEPtmp";
 pub const Downloader = struct {
     allocator: std.mem.Allocator,
     cacher: Cacher,
-    package: Package,
     printer: *Printer,
     paths: *Constants.Paths.Paths,
 
     pub fn init(
         allocator: std.mem.Allocator,
-        package: Package,
         cacher: Cacher,
         printer: *Printer,
         paths: *Constants.Paths.Paths,
@@ -29,21 +27,22 @@ pub const Downloader = struct {
         return Downloader{
             .allocator = allocator,
             .cacher = cacher,
-            .package = package,
             .printer = printer,
             .paths = paths,
         };
     }
 
-    pub fn deinit(_: *Downloader) void {
-        // Nothing to free here (fields are owned externally).
-    }
+    pub fn deinit(_: *Downloader) void {}
 
-    fn fetchPackage(self: *Downloader, url: []const u8) !void {
+    fn fetchPackage(
+        self: *Downloader,
+        package_id: []const u8,
+        url: []const u8,
+    ) !void {
         // allocate paths and free them after use
         const path = try std.fs.path.join(
             self.allocator,
-            &.{ self.paths.pkg_root, self.package.id },
+            &.{ self.paths.pkg_root, package_id },
         );
         defer self.allocator.free(path);
         if (Fs.existsDir(path)) try Fs.deleteTreeIfExists(path);
@@ -148,19 +147,25 @@ pub const Downloader = struct {
         }
     }
 
-    fn doesPackageExist(self: *Downloader) !bool {
-        const path = try std.fmt.allocPrint(
+    fn doesPackageExist(
+        self: *Downloader,
+        package_id: []const u8,
+    ) !bool {
+        const path = try std.fs.path.join(
             self.allocator,
-            "{s}/{s}",
-            .{ self.paths.pkg_root, self.package.id },
+            &.{ self.paths.pkg_root, package_id },
         );
         defer self.allocator.free(path);
 
         return Fs.existsDir(path);
     }
 
-    pub fn downloadPackage(self: *Downloader, url: []const u8) !void {
-        const exists = try self.doesPackageExist();
+    pub fn downloadPackage(
+        self: *Downloader,
+        package_id: []const u8,
+        url: []const u8,
+    ) !void {
+        const exists = try self.doesPackageExist(package_id);
         if (exists) {
             try self.printer.append(" > PACKAGE ALREADY EXISTS!\n", .{}, .{});
             return;
@@ -168,10 +173,10 @@ pub const Downloader = struct {
 
         try self.printer.append(" > CHECKING CACHE...\n", .{}, .{});
 
-        const is_cached = try self.cacher.isPackageCached();
+        const is_cached = try self.cacher.isPackageCached(package_id);
         if (is_cached) {
             try self.printer.append(" > CACHE HIT!", .{}, .{});
-            const get_cache = try self.cacher.getPackageFromCache();
+            const get_cache = try self.cacher.getPackageFromCache(package_id);
             if (get_cache) {
                 try self.printer.append(" > EXTRACTED!\n\n", .{}, .{ .color = .green });
             } else {
@@ -180,11 +185,11 @@ pub const Downloader = struct {
             return;
         } else {
             try self.printer.append(" > CACHE MISS!\n\n", .{}, .{});
-            try self.fetchPackage(url);
+            try self.fetchPackage(package_id, url);
         }
 
         try self.printer.append("Caching Package now...\n", .{}, .{});
-        if (try self.cacher.setPackageToCache(self.package.id)) {
+        if (try self.cacher.setPackageToCache(package_id)) {
             try self.printer.append(" > CACHED\n", .{}, .{ .color = .green });
         } else {
             try self.printer.append(" ! FAILED\n", .{}, .{ .color = .red });

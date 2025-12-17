@@ -6,3 +6,4 @@ zep-out
 
 .zep/*
 !.zep/injector.zig
+!.zep/.conf

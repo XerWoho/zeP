@@ -49,8 +49,7 @@ pub fn bootstrap(
             json,
             paths,
             manifest,
-            package_name,
-            package_version,
+            false,
         ) catch |err| {
             switch (err) {
                 error.PackageNotFound => {
@@ -62,7 +61,10 @@ pub fn bootstrap(
             }
             continue;
         };
-        installer.install() catch |err| {
+        installer.install(
+            package_name,
+            package_version,
+        ) catch |err| {
             switch (err) {
                 error.AlreadyInstalled => {
                     try printer.append("{s} already installed.\n", .{package_name}, .{});

@@ -4,7 +4,9 @@ const clap = @import("clap");
 const DoctorArgs = struct {
     fix: bool,
 };
-pub fn parseDoctor(allocator: std.mem.Allocator) !DoctorArgs {
+pub fn parseDoctor(
+    iter: *std.process.ArgIterator,
+) !DoctorArgs {
     const params = [_]clap.Param(u8){
         .{
             .id = 'f',
@@ -13,26 +15,20 @@ pub fn parseDoctor(allocator: std.mem.Allocator) !DoctorArgs {
         },
     };
 
-    var iter = try std.process.ArgIterator.initWithAllocator(allocator);
-    defer iter.deinit();
-
-    // skip .exe and command
-    _ = iter.next();
-    _ = iter.next();
     var diag = clap.Diagnostic{};
     var parser = clap.streaming.Clap(u8, std.process.ArgIterator){
         .params = &params,
-        .iter = &iter,
+        .iter = iter,
         .diagnostic = &diag,
     };
 
     var fix: bool = false;
     // Because we use a streaming parser, we have to consume each argument parsed individually.
-    while (parser.next() catch |err| {
-        return err;
-    }) |arg| {
-        // arg.param will point to the parameter which matched the argument.
-        switch (arg.param.id) {
+    while (true) {
+        const arg = parser.next() catch break;
+        if (arg == null) break;
+
+        switch (arg.?.param.id) {
             'f' => {
                 fix = true;
             },
@@ -42,6 +38,44 @@ pub fn parseDoctor(allocator: std.mem.Allocator) !DoctorArgs {
 
     return DoctorArgs{
         .fix = fix,
+    };
+}
+
+const InstallArgs = struct {
+    inj: bool,
+};
+pub fn parseInstall(
+    iter: *std.process.ArgIterator,
+) !InstallArgs {
+    const params = [_]clap.Param(u8){
+        .{
+            .id = 'i',
+            .names = .{ .short = 'i', .long = "inj" },
+            .takes_value = .none,
+        },
+    };
+
+    var diag = clap.Diagnostic{};
+    var parser = clap.streaming.Clap(u8, std.process.ArgIterator){
+        .params = &params,
+        .iter = iter,
+        .diagnostic = &diag,
+    };
+
+    var inj: bool = false;
+    // Because we use a streaming parser, we have to consume each argument parsed individually.
+    while (true) {
+        const arg = parser.next() catch break;
+        if (arg == null) break;
+
+        switch (arg.?.param.id) {
+            'i' => inj = true,
+            else => {},
+        }
+    }
+
+    return InstallArgs{
+        .inj = inj,
     };
 }
 
@@ -56,7 +90,10 @@ const BootstrapArgs = struct {
         }
     }
 };
-pub fn parseBootstrap(allocator: std.mem.Allocator) !BootstrapArgs {
+pub fn parseBootstrap(
+    allocator: std.mem.Allocator,
+    iter: *std.process.ArgIterator,
+) !BootstrapArgs {
     const params = [_]clap.Param(u8){
         .{
             .id = 'z',
@@ -70,32 +107,26 @@ pub fn parseBootstrap(allocator: std.mem.Allocator) !BootstrapArgs {
         },
     };
 
-    var iter = try std.process.ArgIterator.initWithAllocator(allocator);
-    defer iter.deinit();
-
-    // skip .exe and command
-    _ = iter.next();
-    _ = iter.next();
     var diag = clap.Diagnostic{};
     var parser = clap.streaming.Clap(u8, std.process.ArgIterator){
         .params = &params,
-        .iter = &iter,
+        .iter = iter,
         .diagnostic = &diag,
     };
 
     var zig: []const u8 = "0.14.0";
     var raw_deps: []const u8 = "";
     // Because we use a streaming parser, we have to consume each argument parsed individually.
-    while (parser.next() catch |err| {
-        return err;
-    }) |arg| {
-        // arg.param will point to the parameter which matched the argument.
-        switch (arg.param.id) {
+    while (true) {
+        const arg = parser.next() catch break;
+        if (arg == null) break;
+
+        switch (arg.?.param.id) {
             'z' => {
-                zig = arg.value orelse "";
+                zig = arg.?.value orelse "";
             },
             'd' => {
-                raw_deps = arg.value orelse "";
+                raw_deps = arg.?.value orelse "";
             },
             else => continue,
         }
@@ -126,7 +157,10 @@ const RunnerArgs = struct {
         }
     }
 };
-pub fn parseRunner(allocator: std.mem.Allocator) !RunnerArgs {
+pub fn parseRunner(
+    allocator: std.mem.Allocator,
+    iter: *std.process.ArgIterator,
+) !RunnerArgs {
     const params = [_]clap.Param(u8){
         .{
             .id = 't',
@@ -140,32 +174,26 @@ pub fn parseRunner(allocator: std.mem.Allocator) !RunnerArgs {
         },
     };
 
-    var iter = try std.process.ArgIterator.initWithAllocator(allocator);
-    defer iter.deinit();
-
-    // skip .exe and command
-    _ = iter.next();
-    _ = iter.next();
     var diag = clap.Diagnostic{};
     var parser = clap.streaming.Clap(u8, std.process.ArgIterator){
         .params = &params,
-        .iter = &iter,
+        .iter = iter,
         .diagnostic = &diag,
     };
 
     var target: []const u8 = "";
     var raw_args: []const u8 = "";
     // Because we use a streaming parser, we have to consume each argument parsed individually.
-    while (parser.next() catch |err| {
-        return err;
-    }) |arg| {
-        // arg.param will point to the parameter which matched the argument.
-        switch (arg.param.id) {
+    while (true) {
+        const arg = parser.next() catch break;
+        if (arg == null) break;
+
+        switch (arg.?.param.id) {
             't' => {
-                target = arg.value orelse "";
+                target = arg.?.value orelse "";
             },
             'a' => {
-                raw_args = arg.value orelse "";
+                raw_args = arg.?.value orelse "";
             },
             else => continue,
         }

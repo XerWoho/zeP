@@ -43,19 +43,18 @@ pub fn purge(
     );
     defer package_json.deinit();
 
+    var uninstaller = try Uninstaller.init(
+        allocator,
+        printer,
+        json,
+        paths,
+        manifest,
+    );
     for (package_json.value.packages) |package_id| {
         var split = std.mem.splitScalar(u8, package_id, '@');
         const package_name = split.first();
         try printer.append(" > Uninstalling - {s}...\n", .{package_id}, .{ .verbosity = 0 });
-        var uninstaller = try Uninstaller.init(
-            allocator,
-            printer,
-            json,
-            paths,
-            manifest,
-            package_name,
-        );
-        uninstaller.uninstall() catch {
+        uninstaller.uninstall(package_name) catch {
             try printer.append(" >> failed!\n", .{}, .{ .verbosity = 0, .color = .red });
             std.Thread.sleep(std.time.ms_per_s * 100);
             continue;

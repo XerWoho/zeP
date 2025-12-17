@@ -1,48 +1,48 @@
 {
-	"schema": 2,
-	"root": {
-		"author": "Xerrs",
-		"tags": [],
-		"zig_version": "0.15.2",
-		"repo": "https://github.com/XerWoho/zeP",
-		"name": "zeP",
-		"cmd": [
-			{
-				"name": "release_windows",
-				"cmd": "zig build -Doptimize=ReleaseFast -freference-trace -Dtarget=x86_64-windows-msvc -p tempR/w"
-			},
-			{
-				"name": "release_linux",
-				"cmd": "zig build -Doptimize=ReleaseFast -freference-trace -Dtarget=x86_64-linux -p tempR/l"
-			}
-		],
-		"description": "A new zig Package manager, and version manager for zig.",
-		"version": "0.7",
-		"license": "GPLv3",
-		"packages": [
-			"clap@0.11.0",
-			"logly@0.0.4"
-		],
-		"dev_packages": [],
-		"build": {
-			"entry": "/src/main.zig",
-			"target": "x86_64-windows-msvc"
-		}
-	},
-	"packages": [
-		{
-			"name": "clap@0.11.0",
-			"hash": "5add36c27cca8ce2fe8c7da8d42d58f842216fc4d3043b2a570b141bc4c99a54",
-			"source": "https://github.com/Hejsil/zig-clap/archive/refs/tags/0.11.0.zip",
-			"zig_version": "0.15.1",
-			"root_file": "/clap.zig"
-		},
-		{
-			"name": "logly@0.0.4",
-			"hash": "f617015b68a15eb0a03df7a31c194f18965bea94633ecb664ecee6c1f9b5b619",
-			"source": "https://github.com/muhammad-fiaz/logly.zig/archive/refs/tags/0.0.4.zip",
-			"zig_version": "0.15.1",
-			"root_file": "/src/logly.zig"
-		}
-	]
+  "schema": 2,
+  "root": {
+    "author": "Xerrs",
+    "tags": [],
+    "zig_version": "0.15.2",
+    "repo": "https://github.com/XerWoho/zeP",
+    "name": "zeP",
+    "cmd": [
+      {
+        "name": "release_windows",
+        "cmd": "zig build -Doptimize=ReleaseFast -freference-trace -Dtarget=x86_64-windows-msvc -p tempR/w"
+      },
+      {
+        "name": "release_linux",
+        "cmd": "zig build -Doptimize=ReleaseFast -freference-trace -Dtarget=x86_64-linux -p tempR/l"
+      }
+    ],
+    "description": "A new zig Package manager, and version manager for zig.",
+    "version": "0.7",
+    "license": "GPLv3",
+    "packages": [
+      "clap@0.11.0",
+      "logly@0.0.4"
+    ],
+    "dev_packages": [],
+    "build": {
+      "entry": "/src/main.zig",
+      "target": "x86_64-windows-msvc"
+    }
+  },
+  "packages": [
+    {
+      "name": "clap@0.11.0",
+      "hash": "5add36c27cca8ce2fe8c7da8d42d58f842216fc4d3043b2a570b141bc4c99a54",
+      "source": "https://github.com/Hejsil/zig-clap/archive/refs/tags/0.11.0.zip",
+      "zig_version": "0.15.1",
+      "root_file": "/clap.zig"
+    },
+    {
+      "name": "logly@0.0.4",
+      "hash": "f617015b68a15eb0a03df7a31c194f18965bea94633ecb664ecee6c1f9b5b619",
+      "source": "https://github.com/muhammad-fiaz/logly.zig/archive/refs/tags/0.0.4.zip",
+      "zig_version": "0.15.1",
+      "root_file": "/src/logly.zig"
+    }
+  ]
 }

@@ -13,6 +13,7 @@ const Fs = @import("io").Fs;
 const Manifest = @import("core").Manifest.Manifest;
 const Package = @import("core").Package.Package;
 const Json = @import("core").Json.Json;
+const Injector = @import("core").Injector.Injector;
 
 const Init = @import("lib/packages/init.zig").Init;
 const Installer = @import("lib/packages/install.zig").Installer;
@@ -226,15 +227,28 @@ pub fn main() !void {
 
     if (std.mem.eql(u8, subcommand, "doctor")) {
         try logger.info("running doctor", @src());
-        const doctor_args = try Args.parseDoctor(allocator);
+        const doctor_args = try Args.parseDoctor(&args);
         try Doctor.doctor(allocator, &printer, &manifest, doctor_args.fix);
         try logger.info("doctor finished", @src());
         return;
     }
 
+    if (std.mem.eql(u8, subcommand, "inject")) {
+        try logger.info("running injector", @src());
+        var injector = try Injector.init(
+            allocator,
+            &printer,
+            &manifest,
+            true,
+        );
+        try injector.initInjector();
+        try logger.info("injector finished", @src());
+        return;
+    }
+
     if (std.mem.eql(u8, subcommand, "bootstrap")) {
         try logger.info("running bootstrap", @src());
-        var bootstrap_args = try Args.parseBootstrap(allocator);
+        var bootstrap_args = try Args.parseBootstrap(allocator, &args);
         defer bootstrap_args.deinit(allocator);
 
         try Bootstrap.bootstrap(
@@ -331,10 +345,9 @@ pub fn main() !void {
                 &json,
                 &paths,
                 &manifest,
-                null,
-                null,
+                false,
             );
-            try installer.install();
+            try installer.installAll();
             Locales.VERBOSITY_MODE = prev_verbosity;
             try logger.info("repaired zep.lock schema", @src());
             return;
@@ -421,7 +434,7 @@ pub fn main() !void {
 
     if (std.mem.eql(u8, subcommand, "runner")) {
         try logger.info("running runner", @src());
-        var runner_args = try Args.parseRunner(allocator);
+        var runner_args = try Args.parseRunner(allocator, &args);
         defer runner_args.deinit(allocator);
 
         var runner = Runner.init(allocator, &printer, &manifest);
@@ -515,26 +528,24 @@ pub fn main() !void {
     if (std.mem.eql(u8, subcommand, "install")) {
         try logger.info("running install", @src());
 
-        const target = args.next();
-        if (target) |package| {
-            try logger.infof("install: target={s}", .{package}, @src());
+        const target = args.next() orelse null;
+        const install_args = try Args.parseInstall(&args);
+        var installer = try Installer.init(
+            allocator,
+            &printer,
+            &json,
+            &paths,
+            &manifest,
+            install_args.inj,
+        );
+        defer installer.deinit();
 
+        if (target) |package| {
+            try logger.infof("install: package={s}", .{package}, @src());
             var split = std.mem.splitScalar(u8, package, '@');
             const package_name = split.first();
             const package_version = split.next();
-            try logger.infof("install: version={s}", .{package_version orelse "none"}, @src());
-
-            var installer = try Installer.init(
-                allocator,
-                &printer,
-                &json,
-                &paths,
-                &manifest,
-                package_name,
-                package_version,
-            );
-            defer installer.deinit();
-            installer.install() catch |err| {
+            installer.install(package_name, package_version) catch |err| {
                 try logger.errf("install: failed, err={}", .{err}, @src());
 
                 switch (err) {
@@ -545,36 +556,29 @@ pub fn main() !void {
                         try printer.append("  ! HASH MISMATCH!\nPLEASE REPORT!\n\n", .{}, .{ .color = .red });
                     },
                     else => {
-                        try printer.append("\nInstalling {s} has failed...\n{any}\n", .{ package, err }, .{ .color = .red });
+                        try printer.append("\nInstalling {s} has failed...\n\n", .{package}, .{ .color = .red });
                     },
                 }
             };
         } else {
             try logger.info("install: all", @src());
-
-            var installer = Installer.init(
-                allocator,
-                &printer,
-                &json,
-                &paths,
-                &manifest,
-                null,
-                null,
-            ) catch |err| {
-                try logger.infof("install: all failed, err={}", .{err}, @src());
-
+            installer.installAll() catch |err| {
+                try logger.infof("install all: failed, err={}", .{err}, @src());
                 switch (err) {
-                    error.NoPackageSpecified => {},
+                    error.AlreadyInstalled => {
+                        try printer.append("\nAlready installed!\n\n", .{}, .{ .color = .yellow });
+                    },
+                    error.HashMismatch => {
+                        try printer.append("  ! HASH MISMATCH!\nPLEASE REPORT!\n\n", .{}, .{ .color = .red });
+                    },
                     else => {
-                        try printer.append("\nInstalling all packages has failed.\n", .{}, .{ .color = .red });
+                        try printer.append("\nInstalling all has failed...\n\n", .{}, .{ .color = .red });
                     },
                 }
-                return;
             };
-            defer installer.deinit();
         }
 
-        try logger.info("install finished", @src());
+        try logger.info("install: finished", @src());
         return;
     }
 
@@ -593,7 +597,6 @@ pub fn main() !void {
             &json,
             &paths,
             &manifest,
-            package_name,
         ) catch |err| {
             try logger.errf("uninstall: failed, err={}", .{err}, @src());
 
@@ -609,7 +612,7 @@ pub fn main() !void {
             return;
         };
         defer uninstaller.deinit();
-        uninstaller.uninstall() catch |err| {
+        uninstaller.uninstall(package_name) catch |err| {
             try logger.errf("uninstall: failed, err={}", .{err}, @src());
             try printer.append("\nUninstalling {s} has failed...\n\n", .{package_name}, .{ .color = .red });
         };

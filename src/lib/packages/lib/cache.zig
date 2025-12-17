@@ -12,20 +12,17 @@ const TEMPORARY_DIRECTORY_PATH = ".zep/.ZEPtmp";
 
 pub const Cacher = struct {
     allocator: std.mem.Allocator,
-    package: Package,
     compressor: Compressor,
     printer: *Printer,
     paths: *Constants.Paths.Paths,
 
     pub fn init(
         allocator: std.mem.Allocator,
-        package: Package,
         printer: *Printer,
         paths: *Constants.Paths.Paths,
     ) !Cacher {
         return .{
             .allocator = allocator,
-            .package = package,
             .compressor = try Compressor.init(allocator, printer, paths),
             .printer = printer,
             .paths = paths,
@@ -34,13 +31,15 @@ pub const Cacher = struct {
 
     pub fn deinit(_: *Cacher) void {}
 
-    fn cacheFilePath(self: *Cacher) ![]u8 {
+    fn cacheFilePath(
+        self: *Cacher,
+        package_id: []const u8,
+    ) ![]u8 {
         const zstd_id = try std.fmt.allocPrint(
             self.allocator,
-            "{s}@{s}.tar.zstd",
+            "{s}.tar.zstd",
             .{
-                self.package.package_name,
-                self.package.package_version,
+                package_id,
             },
         );
         const cache_fp = try std.fs.path.join(
@@ -54,44 +53,58 @@ pub const Cacher = struct {
         return cache_fp;
     }
 
-    fn extractPath(self: *Cacher) ![]u8 {
-        const extract_p = try std.fmt.allocPrint(
+    fn extractPath(
+        self: *Cacher,
+        package_id: []const u8,
+    ) ![]u8 {
+        const extract_p = try std.fs.path.join(
             self.allocator,
-            "{s}/{s}@{s}",
-            .{
+            &.{
                 self.paths.pkg_root,
-                self.package.package_name,
-                self.package.package_version,
+                package_id,
             },
         );
 
         return extract_p;
     }
 
-    fn tmpOutputPath(self: *Cacher) ![]u8 {
-        const tmp_p = try std.fmt.allocPrint(
+    fn tmpOutputPath(
+        self: *Cacher,
+        package_id: []const u8,
+    ) ![]u8 {
+        const tmp_p = try std.fs.path.join(
             self.allocator,
-            "{s}/{s}@{s}",
-            .{
+            &.{
                 TEMPORARY_DIRECTORY_PATH,
-                self.package.package_name,
-                self.package.package_version,
+                package_id,
             },
         );
 
         return tmp_p;
     }
 
-    pub fn isPackageCached(self: *Cacher) !bool {
-        const path = try self.cacheFilePath();
+    pub fn isPackageCached(
+        self: *Cacher,
+        package_id: []const u8,
+    ) !bool {
+        const path = try self.cacheFilePath(
+            package_id,
+        );
         return Fs.existsFile(path);
     }
 
-    pub fn getPackageFromCache(self: *Cacher) !bool {
-        const is_cached = try self.isPackageCached();
+    pub fn getPackageFromCache(
+        self: *Cacher,
+        package_id: []const u8,
+    ) !bool {
+        const is_cached = try self.isPackageCached(
+            package_id,
+        );
         if (!is_cached) return false;
 
-        const temporary_output_path = try self.tmpOutputPath();
+        const temporary_output_path = try self.tmpOutputPath(
+            package_id,
+        );
         var temporary_directory = try Fs.openOrCreateDir(temporary_output_path);
         defer {
             temporary_directory.close();
@@ -101,34 +114,44 @@ pub const Cacher = struct {
             self.allocator.free(temporary_output_path);
         }
 
-        const cache_path = try self.cacheFilePath();
+        const cache_path = try self.cacheFilePath(
+            package_id,
+        );
         defer self.allocator.free(cache_path);
 
-        const extract_path = try self.extractPath();
+        const extract_path = try self.extractPath(
+            package_id,
+        );
         defer self.allocator.free(extract_path);
 
         return try self.compressor.decompress(cache_path, extract_path);
     }
 
-    pub fn setPackageToCache(self: *Cacher, id: []const u8) !bool {
+    pub fn setPackageToCache(self: *Cacher, package_id: []const u8) !bool {
         const target_folder = try std.fs.path.join(
             self.allocator,
-            &.{ self.paths.pkg_root, id },
+            &.{
+                self.paths.pkg_root,
+                package_id,
+            },
         );
         defer self.allocator.free(target_folder);
 
         try self.printer.append("Compressing now...", .{}, .{});
-        return try self.compressor.compress(target_folder, try self.cacheFilePath());
+        return try self.compressor.compress(target_folder, try self.cacheFilePath(package_id));
     }
 
-    pub fn deletePackageFromCache(self: *Cacher) !void {
+    pub fn deletePackageFromCache(
+        self: *Cacher,
+        package_id: []const u8,
+    ) !void {
         var buf: [256]u8 = undefined;
         const path = try std.fmt.bufPrint(
             &buf,
             "{s}/{s}.tar.zstd",
             .{
                 self.paths.zepped,
-                self.package.id,
+                package_id,
             },
         );
 
