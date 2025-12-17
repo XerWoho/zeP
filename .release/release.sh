@@ -44,5 +44,5 @@ rm -rf "$TEMP_DIR"
 
 echo "Build complete. Releases stored in $RELEASE_DIR"
 echo " => Moving now..."
-python set_release.py --version $VERSION_NAME
+python .release/set_release.py --version $VERSION_NAME
 echo "Moving finished, Release completed."
