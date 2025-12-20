@@ -85,6 +85,15 @@ zep runner --target <target-exe> --args <arg1> <arg2> ...
 zep bootstrap --zig 0.14.0 --deps "clap@0.10.0,zeit@0.7.0"
 ```
 
+### `new`
+
+- Quick start empty project.
+- Example:
+
+```bash
+zep new my_project
+```
+
 ### `runner`
 
 - Builds and runs the current project.
@@ -100,3 +109,4 @@ zep runner
 
 - zeP automatically manages project-specific dependencies under `.zep/`.
 - Versions prior to 0.5 were MIT licensed; starting 0.5, the project uses GPLv3.
+- Versions prior to 0.8 used zeP as executable name; starting 0.8, executables are named zep (with lowercase P).
