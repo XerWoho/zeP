@@ -6,8 +6,8 @@ const Constants = @import("constants");
 
 const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
-const Manifest = @import("core").Manifest.Manifest;
-const Json = @import("core").Json.Json;
+const Manifest = @import("core").Manifest;
+const Json = @import("core").Json;
 
 /// Handles switching between installed Artifact versions
 pub const ArtifactSwitcher = struct {

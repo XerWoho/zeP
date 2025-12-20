@@ -8,7 +8,7 @@ const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
 const Prompt = @import("cli").Prompt;
 
-const Manifest = @import("core").Manifest.Manifest;
+const Manifest = @import("core").Manifest;
 
 const ArtifactInstaller = @import("install.zig");
 const ArtifactUninstaller = @import("uninstall.zig");

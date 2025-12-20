@@ -4,8 +4,8 @@ const Locales = @import("locales");
 const Constants = @import("constants");
 const Structs = @import("structs");
 
-const Json = @import("core").Json.Json;
-const Package = @import("core").Package.Package;
+const Json = @import("core").Json;
+const Package = @import("core").Package;
 const Printer = @import("cli").Printer;
 
 const Init = @import("init.zig");

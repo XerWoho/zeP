@@ -4,7 +4,7 @@ const Constants = @import("constants");
 
 const Printer = @import("cli").Printer;
 const Fs = @import("io").Fs;
-const Compressor = @import("core").Compression.Compressor;
+const Compressor = @import("core").Compressor;
 
 /// Handles pre-built package operations (compress, decompress, delete)
 pub const PreBuilt = struct {

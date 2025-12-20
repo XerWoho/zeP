@@ -6,7 +6,7 @@ const Constants = @import("constants");
 
 const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
-const Manifest = @import("core").Manifest.Manifest;
+const Manifest = @import("core").Manifest;
 
 /// Lists installed Artifact versions
 pub const ArtifactPruner = struct {

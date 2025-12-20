@@ -5,8 +5,8 @@ const Structs = @import("structs");
 const Locales = @import("locales");
 
 const Fs = @import("io").Fs;
-const Json = @import("core").Json.Json;
-const Manifest = @import("core").Manifest.Manifest;
+const Json = @import("core").Json;
+const Manifest = @import("core").Manifest;
 const Printer = @import("cli").Printer;
 
 const Uninstaller = @import("uninstall.zig").Uninstaller;

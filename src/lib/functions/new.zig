@@ -2,7 +2,7 @@ const std = @import("std");
 
 const Constants = @import("constants");
 
-const Json = @import("core").Json.Json;
+const Json = @import("core").Json;
 
 const Printer = @import("cli").Printer;
 const Fs = @import("io").Fs;

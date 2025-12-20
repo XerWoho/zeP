@@ -6,12 +6,12 @@ const Constants = @import("constants");
 const Structs = @import("structs");
 
 const Fs = @import("io").Fs;
-const Json = @import("core").Json.Json;
-const Compressor = @import("core").Compression.Compressor;
-const Package = @import("core").Package.Package;
-const Injector = @import("core").Injector.Injector;
+const Json = @import("core").Json;
+const Compressor = @import("core").Compressor;
+const Package = @import("core").Package;
+const Injector = @import("core").Injector;
 const Printer = @import("cli").Printer;
-const Manifest = @import("core").Manifest.Manifest;
+const Manifest = @import("core").Manifest;
 
 const Cacher = @import("lib/cache.zig").Cacher;
 const Downloader = @import("lib/download.zig").Downloader;

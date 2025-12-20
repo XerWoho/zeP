@@ -5,8 +5,8 @@ const Locales = @import("locales");
 const Constants = @import("constants");
 const Structs = @import("structs");
 
-const Manifest = @import("core").Manifest.Manifest;
-const Json = @import("core").Json.Json;
+const Manifest = @import("core").Manifest;
+const Json = @import("core").Json;
 const Printer = @import("cli").Printer;
 const Fs = @import("io").Fs;
 

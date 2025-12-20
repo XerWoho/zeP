@@ -4,7 +4,7 @@ const Structs = @import("structs");
 
 const Printer = @import("cli").Printer;
 const Fs = @import("io").Fs;
-const Manifest = @import("core").Manifest.Manifest;
+const Manifest = @import("core").Manifest;
 
 pub fn doctor(
     allocator: std.mem.Allocator,

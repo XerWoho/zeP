@@ -7,7 +7,7 @@ const Structs = @import("structs");
 const Printer = @import("cli").Printer;
 const Fs = @import("io").Fs;
 
-const Manifest = @import("core").Manifest.Manifest;
+const Manifest = @import("core").Manifest;
 
 /// Handles running a build
 pub const Builder = struct {

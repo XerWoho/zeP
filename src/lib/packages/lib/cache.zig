@@ -5,8 +5,8 @@ const Constants = @import("constants");
 
 const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
-const Package = @import("core").Package.Package;
-const Compressor = @import("core").Compression.Compressor;
+const Package = @import("core").Package;
+const Compressor = @import("core").Compressor;
 
 const TEMPORARY_DIRECTORY_PATH = ".zep/.ZEPtmp";
 

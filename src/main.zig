@@ -10,10 +10,10 @@ const Prompt = @import("cli").Prompt;
 const Printer = @import("cli").Printer;
 const Setup = @import("cli").Setup;
 const Fs = @import("io").Fs;
-const Manifest = @import("core").Manifest.Manifest;
-const Package = @import("core").Package.Package;
-const Json = @import("core").Json.Json;
-const Injector = @import("core").Injector.Injector;
+const Manifest = @import("core").Manifest;
+const Package = @import("core").Package;
+const Json = @import("core").Json;
+const Injector = @import("core").Injector;
 
 const Init = @import("lib/packages/init.zig").Init;
 const Installer = @import("lib/packages/install.zig").Installer;

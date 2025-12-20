@@ -7,7 +7,7 @@ const Constants = @import("constants");
 const Printer = @import("cli").Printer;
 const Prompt = @import("cli").Prompt;
 const Fs = @import("io").Fs;
-const Manifest = @import("core").Manifest.Manifest;
+const Manifest = @import("core").Manifest;
 
 pub const PackageFiles = struct {
     allocator: std.mem.Allocator,

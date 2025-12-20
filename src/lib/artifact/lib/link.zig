@@ -5,7 +5,7 @@ const Constants = @import("constants");
 const Structs = @import("structs");
 
 const Fs = @import("io").Fs;
-const Manifest = @import("core").Manifest.Manifest;
+const Manifest = @import("core").Manifest;
 
 /// Updates the symbolic link to point to the currently active Artifact installation
 pub fn updateLink(

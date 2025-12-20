@@ -4,7 +4,7 @@ const builtin = @import("builtin");
 const Constants = @import("constants");
 const Structs = @import("structs");
 
-const Manifest = @import("core").Manifest.Manifest;
+const Manifest = @import("core").Manifest;
 const Printer = @import("cli").Printer;
 const Fs = @import("io").Fs;
 

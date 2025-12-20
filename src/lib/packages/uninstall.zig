@@ -6,9 +6,9 @@ const Structs = @import("structs");
 
 const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
-const Injector = @import("core").Injector.Injector;
-const Manifest = @import("core").Manifest.Manifest;
-const Json = @import("core").Json.Json;
+const Injector = @import("core").Injector;
+const Manifest = @import("core").Manifest;
+const Json = @import("core").Json;
 
 /// Handles the uninstallation of a package
 pub const Uninstaller = struct {

@@ -8,7 +8,7 @@ const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
 const Prompt = @import("cli").Prompt;
 
-const Json = @import("core").Json.Json;
+const Json = @import("core").Json;
 const ZigInit = @import("core").ZigInit;
 
 pub const Init = struct {
