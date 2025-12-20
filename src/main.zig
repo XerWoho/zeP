@@ -43,7 +43,7 @@ fn printUsage(printer: *Printer) !void {
     try printer.append("--- MANIFEST COMMANDS ---\n  zep init\n  zep lock\n  zep json\n\n", .{}, .{});
     try printer.append("--- CMD COMMANDS ---\n  zep cmd run [cmd]\n  zep cmd add\n  zep cmd remove <cmd>\n  zep cmd list\n\n", .{}, .{});
     try printer.append("--- PACKAGE COMMANDS ---\n  zep install (target)@(version)\n  zep uninstall [target]\n  zep info [target]@[version]\n", .{}, .{});
-    try printer.append("  zep purge\n  zep cache [list|clean|size] (package_id)", .{}, .{});
+    try printer.append("  zep purge\n  zep cache [list|clean|size] (package_id)\n  zep inject\n", .{}, .{});
     try printer.append("  zep pkg list [target]\n  zep pkg remove [custom package name]\n  zep pkg add\n\n", .{}, .{});
     try printer.append("--- PREBUILT COMMANDS ---\n  zep prebuilt [build|use] [name] (target)\n", .{}, .{});
     try printer.append("  zep prebuilt delete [name]\n  zep prebuilt list\n\n", .{}, .{});
