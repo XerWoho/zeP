@@ -1,29 +1,25 @@
 const std = @import("std");
 
-const CustomPackage = @import("../../lib/packages/custom.zig").CustomPackage;
-const Lister = @import("../../lib/packages/list.zig").Lister;
+const Custom = @import("../../lib/packages/custom.zig");
+const Lister = @import("../../lib/packages/list.zig");
 const Package = @import("core").Package;
 
-const Context = @import("context").Context;
+const Context = @import("context");
 
-fn packageAdd(
-    ctx: *Context,
-) !void {
+fn packageAdd(ctx: *Context) !void {
     try ctx.logger.info("running package: add", @src());
-    var custom = CustomPackage.init(ctx);
+    var custom = Custom.init(ctx);
     try custom.requestPackage();
     try ctx.logger.info("running package: add finished", @src());
     return;
 }
 
-fn packageRemove(
-    ctx: *Context,
-) !void {
+fn packageRemove(ctx: *Context) !void {
     if (ctx.args.len < 4) return error.MissingArguments;
 
     try ctx.logger.info("running package: remove", @src());
     const package = ctx.args[3];
-    var custom = CustomPackage.init(ctx);
+    var custom = Custom.init(ctx);
     try custom.removePackage(package);
     try ctx.logger.info("running package: remove finished", @src());
     return;
@@ -82,6 +78,7 @@ pub fn _packageController(ctx: *Context) !void {
     if (std.mem.eql(u8, arg, "info"))
         try packageInfo(ctx);
 
-    if (std.mem.eql(u8, arg, "list") or std.mem.eql(u8, arg, "ls"))
+    if (std.mem.eql(u8, arg, "list") or
+        std.mem.eql(u8, arg, "ls"))
         try packageList(ctx);
 }

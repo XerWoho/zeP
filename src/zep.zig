@@ -15,14 +15,12 @@ const Fetch = @import("core").Fetch;
 const Compressor = @import("core").Compressor;
 
 const Installer = @import("lib/packages/install.zig");
-const PackageFiles = @import("lib/functions/package_files.zig").PackageFiles;
-const Artifact = @import("lib/artifact/artifact.zig").Artifact;
+const PackageFiles = @import("lib/functions/package_files.zig");
+const Artifact = @import("lib/artifact/artifact.zig");
 
-const Context = @import("context").Context;
+const Context = @import("context");
 
-pub fn start(
-    alloc: std.mem.Allocator,
-) !Context {
+pub fn start(alloc: std.mem.Allocator) !Context {
     const args = try std.process.argsAlloc(alloc);
 
     const paths = try Constants.Paths.paths(alloc);
@@ -149,10 +147,9 @@ pub fn start(
 
             const prev_verbosity = Locales.VERBOSITY_MODE;
             Locales.VERBOSITY_MODE = 0;
-            var installer = try Installer.init(
-                &ctx,
-                false,
-            );
+            var installer = Installer.init(&ctx);
+            installer.install_unverified_packages = true;
+
             try installer.installAll();
             Locales.VERBOSITY_MODE = prev_verbosity;
             try logger.info("repaired zep.lock schema", @src());

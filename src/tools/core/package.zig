@@ -1,5 +1,7 @@
 const std = @import("std");
 
+pub const Package = @This();
+
 const Logger = @import("logger");
 const Constants = @import("constants");
 const Locales = @import("locales");
@@ -7,10 +9,10 @@ const Structs = @import("structs");
 
 const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
-const Manifest = @import("manifest.zig").Manifest;
+const Manifest = @import("manifest.zig");
 const Hash = @import("hash.zig");
-const Json = @import("json.zig").Json;
-const Fetch = @import("fetch.zig").Fetch;
+const Json = @import("json.zig");
+const Fetch = @import("fetch.zig");
 
 fn resolveVersion(
     package_name: []const u8,
@@ -51,112 +53,110 @@ fn resolveVersion(
 /// Handles Packages, returns null if package is not found.
 /// Rolls back to latest version if none was specified.
 /// Hashes are generated on init.
-pub const Package = struct {
+allocator: std.mem.Allocator,
+printer: *Printer,
+
+package_hash: []const u8,
+package_name: []const u8,
+package_version: []const u8,
+package: Structs.Packages.PackageVersions,
+
+id: []u8, // <-- package_name@package_version
+
+pub fn init(
     allocator: std.mem.Allocator,
     printer: *Printer,
-
-    package_hash: []const u8,
+    fetcher: *Fetch,
     package_name: []const u8,
-    package_version: []const u8,
-    package: Structs.Packages.PackageVersions,
+    package_version: ?[]const u8,
+) !Package {
+    const logger = Logger.get();
+    try logger.infof("Package.init: finding package {s}", .{package_name}, @src());
+    const version = try resolveVersion(
+        package_name,
+        package_version,
+        fetcher,
+        printer,
+    );
 
-    id: []u8, // <-- package_name@package_version
+    // Create hash
+    try logger.infof("Package.init: computed hash for {s}@{s}", .{ package_name, version.version }, @src());
 
-    pub fn init(
-        allocator: std.mem.Allocator,
-        printer: *Printer,
-        fetcher: *Fetch,
-        package_name: []const u8,
-        package_version: ?[]const u8,
-    ) !Package {
-        const logger = Logger.get();
-        try logger.infof("Package.init: finding package {s}", .{package_name}, @src());
-        const version = try resolveVersion(
-            package_name,
-            package_version,
-            fetcher,
-            printer,
-        );
+    const id = try std.fmt.allocPrint(allocator, "{s}@{s}", .{
+        package_name,
+        version.version,
+    });
 
-        // Create hash
-        try logger.infof("Package.init: computed hash for {s}@{s}", .{ package_name, version.version }, @src());
+    const hash = try Hash.hashData(allocator, version.url);
 
-        const id = try std.fmt.allocPrint(allocator, "{s}@{s}", .{
-            package_name,
-            version.version,
-        });
+    return Package{
+        .allocator = allocator,
+        .package_name = package_name,
+        .package_hash = hash,
+        .package_version = version.version,
+        .package = version,
+        .printer = printer,
+        .id = id,
+    };
+}
 
-        const hash = try Hash.hashData(allocator, version.url);
+pub fn deinit(self: *Package) void {
+    const logger = Logger.get();
+    logger.infof("Package.deinit: freeing package {s}", .{self.id}, @src()) catch {};
+    self.allocator.free(self.id);
+}
 
-        return Package{
-            .allocator = allocator,
-            .package_name = package_name,
-            .package_hash = hash,
-            .package_version = version.version,
-            .package = version,
-            .printer = printer,
-            .id = id,
-        };
-    }
+fn getPackagePathsAmount(
+    self: *Package,
+    paths: Constants.Paths.Paths,
+    manifest: *Manifest,
+) !usize {
+    const logger = Logger.get();
+    try logger.infof("getPackagePathsAmount: checking package {s}", .{self.id}, @src());
 
-    pub fn deinit(self: *Package) void {
-        const logger = Logger.get();
-        logger.infof("Package.deinit: freeing package {s}", .{self.id}, @src()) catch {};
-        self.allocator.free(self.id);
-    }
+    var package_manifest = try manifest.readManifest(
+        Structs.Manifests.PackagesManifest,
+        paths.pkg_manifest,
+    );
+    defer package_manifest.deinit();
 
-    fn getPackagePathsAmount(
-        self: *Package,
-        paths: Constants.Paths.Paths,
-        manifest: *Manifest,
-    ) !usize {
-        const logger = Logger.get();
-        try logger.infof("getPackagePathsAmount: checking package {s}", .{self.id}, @src());
-
-        var package_manifest = try manifest.readManifest(
-            Structs.Manifests.PackagesManifest,
-            paths.pkg_manifest,
-        );
-        defer package_manifest.deinit();
-
-        var package_paths_amount: usize = 0;
-        for (package_manifest.value.packages) |package| {
-            if (std.mem.eql(u8, package.name, self.id)) {
-                package_paths_amount = package.paths.len;
-                break;
-            }
-        }
-
-        try logger.infof("getPackagePathsAmount: package {s} has {d} paths", .{ self.id, package_paths_amount }, @src());
-        return package_paths_amount;
-    }
-
-    pub fn deletePackage(
-        self: *Package,
-        paths: Constants.Paths.Paths,
-        manifest: *Manifest,
-        force: bool,
-    ) !void {
-        const logger = Logger.get();
-        try logger.infof("deletePackage: attempting to delete {s}", .{self.id}, @src());
-
-        var buf: [128]u8 = undefined;
-        const path = try std.fmt.bufPrint(
-            &buf,
-            "{s}/{s}",
-            .{ paths.pkg_root, self.id },
-        );
-        if (!Fs.existsDir(path)) return error.NotInstalled;
-
-        const amount = try self.getPackagePathsAmount(paths, manifest);
-        if (amount > 0 and !force) {
-            try logger.warnf("deletePackage: package {s} is used by {d} projects, aborting deletion", .{ self.id, amount }, @src());
-            return error.InUse;
-        }
-
-        if (Fs.existsDir(path)) {
-            try Fs.deleteTreeIfExists(path);
-            try logger.infof("deletePackage: deleted package directory {s}", .{path}, @src());
+    var package_paths_amount: usize = 0;
+    for (package_manifest.value.packages) |package| {
+        if (std.mem.eql(u8, package.name, self.id)) {
+            package_paths_amount = package.paths.len;
+            break;
         }
     }
-};
+
+    try logger.infof("getPackagePathsAmount: package {s} has {d} paths", .{ self.id, package_paths_amount }, @src());
+    return package_paths_amount;
+}
+
+pub fn deletePackage(
+    self: *Package,
+    paths: Constants.Paths.Paths,
+    manifest: *Manifest,
+    force: bool,
+) !void {
+    const logger = Logger.get();
+    try logger.infof("deletePackage: attempting to delete {s}", .{self.id}, @src());
+
+    var buf: [128]u8 = undefined;
+    const path = try std.fmt.bufPrint(
+        &buf,
+        "{s}/{s}",
+        .{ paths.pkg_root, self.id },
+    );
+    if (!Fs.existsDir(path)) return error.NotInstalled;
+
+    const amount = try self.getPackagePathsAmount(paths, manifest);
+    if (amount > 0 and !force) {
+        try logger.warnf("deletePackage: package {s} is used by {d} projects, aborting deletion", .{ self.id, amount }, @src());
+        return error.InUse;
+    }
+
+    if (Fs.existsDir(path)) {
+        try Fs.deleteTreeIfExists(path);
+        try logger.infof("deletePackage: deleted package directory {s}", .{path}, @src());
+    }
+}

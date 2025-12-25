@@ -61,11 +61,13 @@ pub fn parseUninstall() !UninstallArgs {
 }
 
 const InstallArgs = struct {
-    inj: bool,
+    inject: bool,
+    unverified: bool,
 };
 pub fn parseInstall() !InstallArgs {
     const params = comptime clap.parseParamsComptime(
-        \\-i, --inj             Display this help and exit.
+        \\-i, --inject             Display this help and exit.
+        \\-u, --unverified             Display this help and exit.
         \\<str>...
         \\
     );
@@ -84,7 +86,8 @@ pub fn parseInstall() !InstallArgs {
     defer res.deinit();
 
     return InstallArgs{
-        .inj = res.args.inj != 0,
+        .inject = res.args.inject != 0,
+        .unverified = res.args.unverified != 0,
     };
 }
 

@@ -1,8 +1,8 @@
 const std = @import("std");
 
-const Project = @import("../../lib/cloud/project.zig").Project;
+const Project = @import("../../lib/cloud/project.zig");
 
-const Context = @import("context").Context;
+const Context = @import("context");
 fn projectCreate(ctx: *Context, project: *Project) !void {
     _ = ctx;
     try project.create();
@@ -21,9 +21,7 @@ fn projectDelete(ctx: *Context, project: *Project) !void {
     return;
 }
 
-pub fn _projectController(
-    ctx: *Context,
-) !void {
+pub fn _projectController(ctx: *Context) !void {
     if (ctx.args.len < 3) return error.MissingSubcommand;
 
     var project = Project.init(ctx);
@@ -32,8 +30,9 @@ pub fn _projectController(
     if (std.mem.eql(u8, arg, "create"))
         try projectCreate(ctx, &project);
 
-    if (std.mem.eql(u8, arg, "list") or std.mem.eql(u8, arg, "ls"))
-        try projectDelete(ctx, &project);
+    if (std.mem.eql(u8, arg, "list") or
+        std.mem.eql(u8, arg, "ls"))
+        try projectList(ctx, &project);
 
     if (std.mem.eql(u8, arg, "delete"))
         try projectDelete(ctx, &project);

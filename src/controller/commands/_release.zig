@@ -1,8 +1,8 @@
 const std = @import("std");
 
-const Release = @import("../../lib/cloud/release.zig").Release;
+const Release = @import("../../lib/cloud/release.zig");
 
-const Context = @import("context").Context;
+const Context = @import("context");
 fn releaseCreate(ctx: *Context, release: *Release) !void {
     _ = ctx;
     try release.create();
@@ -21,9 +21,7 @@ fn releaseDelete(ctx: *Context, release: *Release) !void {
     return;
 }
 
-pub fn _releaseController(
-    ctx: *Context,
-) !void {
+pub fn _releaseController(ctx: *Context) !void {
     if (ctx.args.len < 3) return error.MissingSubcommand;
 
     var release = Release.init(ctx);
@@ -31,8 +29,9 @@ pub fn _releaseController(
     if (std.mem.eql(u8, arg, "create"))
         try releaseCreate(ctx, &release);
 
-    if (std.mem.eql(u8, arg, "list") or std.mem.eql(u8, arg, "ls"))
-        try releaseDelete(ctx, &release);
+    if (std.mem.eql(u8, arg, "list") or
+        std.mem.eql(u8, arg, "ls"))
+        try releaseList(ctx, &release);
 
     if (std.mem.eql(u8, arg, "delete"))
         try releaseDelete(ctx, &release);

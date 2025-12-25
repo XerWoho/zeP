@@ -3,8 +3,7 @@ const Constants = @import("constants");
 const Structs = @import("structs");
 
 const Fs = @import("io").Fs;
-
-const Context = @import("context").Context;
+const Context = @import("context");
 
 pub fn doctor(
     ctx: *Context,

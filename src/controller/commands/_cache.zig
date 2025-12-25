@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const Cache = @import("../../lib/functions/cache.zig").Cache;
-const Context = @import("context").Context;
+const Cache = @import("../../lib/functions/cache.zig");
+const Context = @import("context");
 
 fn cacheClean(ctx: *Context, cache: *Cache) !void {
     const cache_name = ctx.args[3];
@@ -21,9 +21,7 @@ fn cacheList(ctx: *Context, cache: *Cache) !void {
     return;
 }
 
-pub fn _cacheController(
-    ctx: *Context,
-) !void {
+pub fn _cacheController(ctx: *Context) !void {
     if (ctx.args.len < 3) return error.MissingSubcommand;
 
     var cache = try Cache.init(ctx);

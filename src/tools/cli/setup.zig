@@ -5,7 +5,7 @@ const Logger = @import("logger");
 const Constants = @import("constants");
 
 const Fs = @import("io").Fs;
-const Printer = @import("printer.zig").Printer;
+const Printer = @import("printer.zig");
 
 fn setupEnviromentPath(tmp_path: []const u8) !void {
     const logger = Logger.get();

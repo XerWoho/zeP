@@ -1,7 +1,7 @@
 const std = @import("std");
-const Context = @import("context").Context;
+const Context = @import("context");
 
-pub fn help(ctx: *Context) !void {
+pub fn help(ctx: *Context) void {
     _ = ctx;
     std.debug.print("Usage:\n", .{});
     std.debug.print(" Legend:\n  > []  # required\n  > ()  # optional\n\n", .{});

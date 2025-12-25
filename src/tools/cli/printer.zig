@@ -2,6 +2,8 @@ const std = @import("std");
 const builtin = @import("builtin");
 const windows = std.os.windows;
 
+pub const Printer = @This();
+
 const Structs = @import("structs");
 const Locales = @import("locales");
 
@@ -24,7 +26,7 @@ const Color = enum {
     bright_white,
 };
 
-pub fn getColor(color: Color) []const u8 {
+fn getColor(color: Color) []const u8 {
     const color_string = switch (color) {
         .black => "\x1b[30m",
         .red => "\x1b[31m",
@@ -48,7 +50,7 @@ pub fn getColor(color: Color) []const u8 {
 
 const Weight = enum { none, bold, dim, emphasis, underline };
 
-pub fn getWeight(weight: Weight) []const u8 {
+fn getWeight(weight: Weight) []const u8 {
     const color_weight = switch (weight) {
         .none => "",
         .bold => "\x1b[1m",
@@ -81,101 +83,99 @@ const PrinterData = struct {
 };
 
 /// Handles Cleaner printing and interactivity.
-pub const Printer = struct {
-    data: std.ArrayList(PrinterData),
-    allocator: std.mem.Allocator,
+data: std.ArrayList(PrinterData),
+allocator: std.mem.Allocator,
 
-    pub fn init(allocator: std.mem.Allocator) !Printer {
-        const data = try std.ArrayList(PrinterData).initCapacity(allocator, 25);
-        return Printer{
+pub fn init(allocator: std.mem.Allocator) !Printer {
+    const data = try std.ArrayList(PrinterData).initCapacity(allocator, 25);
+    return Printer{
+        .data = data,
+        .allocator = allocator,
+    };
+}
+
+pub fn deinit(self: *Printer) void {
+    for (self.data.items) |d| {
+        self.allocator.free(d.data);
+    }
+    self.data.deinit(self.allocator);
+}
+
+pub fn append(self: *Printer, comptime fmt: []const u8, args: anytype, options: AppendOptions) !void {
+    if (options.verbosity > Locales.VERBOSITY_MODE) return;
+    try self.clearScreen();
+
+    const data = try std.fmt.allocPrint(self.allocator, fmt, args);
+    try self.data.append(
+        self.allocator,
+        PrinterData{
             .data = data,
-            .allocator = allocator,
-        };
+            .verbosity = options.verbosity,
+            .color = options.color,
+            .weight = options.weight,
+        },
+    );
+    try self.print();
+    return;
+}
+
+pub fn pop(self: *Printer, pop_amount: u8) void {
+    const amount = pop_amount;
+    for (0..amount) |_| {
+        const n = self.data.pop();
+        if (n == null) break;
     }
+    return;
+}
 
-    pub fn deinit(self: *Printer) void {
-        for (self.data.items) |d| {
-            self.allocator.free(d.data);
-        }
-        self.data.deinit(self.allocator);
-    }
+pub fn clearLines(_: *Printer, n: usize) !void {
+    if (n == 0) return;
 
-    pub fn append(self: *Printer, comptime fmt: []const u8, args: anytype, options: AppendOptions) !void {
-        if (options.verbosity > Locales.VERBOSITY_MODE) return;
-        try self.clearScreen();
+    var stdout_buf: [1028]u8 = undefined;
+    var stdout_writer = std.fs.File.writer(std.fs.File.stdout(), &stdout_buf);
+    var stdout = &stdout_writer.interface;
 
-        const data = try std.fmt.allocPrint(self.allocator, fmt, args);
-        try self.data.append(
-            self.allocator,
-            PrinterData{
-                .data = data,
-                .verbosity = options.verbosity,
-                .color = options.color,
-                .weight = options.weight,
-            },
-        );
-        try self.print();
-        return;
-    }
-
-    pub fn pop(self: *Printer, pop_amount: u8) void {
-        const amount = pop_amount;
-        for (0..amount) |_| {
-            const n = self.data.pop();
-            if (n == null) break;
-        }
-        return;
-    }
-
-    pub fn clearLines(_: *Printer, n: usize) !void {
-        if (n == 0) return;
-
-        var stdout_buf: [1028]u8 = undefined;
-        var stdout_writer = std.fs.File.writer(std.fs.File.stdout(), &stdout_buf);
-        var stdout = &stdout_writer.interface;
-
-        for (0..n) |i| {
-            try stdout.print("\x1b[2K\r", .{}); // clear line
-            if (@as(i8, @intCast(i)) - 1 < n) try stdout.print("\x1b[1A", .{}); // move up
-        }
+    for (0..n) |i| {
         try stdout.print("\x1b[2K\r", .{}); // clear line
-        try stdout.flush();
+        if (@as(i8, @intCast(i)) - 1 < n) try stdout.print("\x1b[1A", .{}); // move up
     }
+    try stdout.print("\x1b[2K\r", .{}); // clear line
+    try stdout.flush();
+}
 
-    fn lineCount(s: []const u8) usize {
-        var lines: usize = 0;
-        for (s) |c| {
-            if (c == '\n') lines += 1;
-        }
-        return lines;
+fn lineCount(s: []const u8) usize {
+    var lines: usize = 0;
+    for (s) |c| {
+        if (c == '\n') lines += 1;
     }
+    return lines;
+}
 
-    fn totalCount(self: *Printer) usize {
-        var total: usize = 0;
-        for (self.data.items) |d| {
-            total += lineCount(d.data);
-        }
-        return total;
+fn totalCount(self: *Printer) usize {
+    var total: usize = 0;
+    for (self.data.items) |d| {
+        total += lineCount(d.data);
     }
+    return total;
+}
 
-    pub fn clearScreen(self: *Printer) !void {
-        const count = self.totalCount();
-        try self.clearLines(count);
+pub fn clearScreen(self: *Printer) !void {
+    const count = self.totalCount();
+    try self.clearLines(count);
+}
+
+pub fn print(self: *Printer) !void {
+    var buf: [512 * 16]u8 = undefined;
+    const writer = std.fs.File.stdout().writer(&buf);
+    var w = writer.interface;
+
+    for (self.data.items) |d| {
+        try w.print("{s}{s}{s}\x1b[0m", .{
+            getWeight(d.weight),
+            getColor(d.color),
+            d.data,
+        });
     }
-
-    pub fn print(self: *Printer) !void {
-        var buf: [512 * 16]u8 = undefined;
-        const writer = std.fs.File.stdout().writer(&buf);
-        var w = writer.interface;
-
-        for (self.data.items) |d| {
-            try w.print("{s}{s}{s}\x1b[0m", .{
-                getWeight(d.weight),
-                getColor(d.color),
-                d.data,
-            });
-        }
-        try w.flush();
-        return;
-    }
-};
+    try w.flush();
+    return;
+}

@@ -1,8 +1,8 @@
 const std = @import("std");
 
-const PackageFiles = @import("../../lib/functions/package_files.zig").PackageFiles;
+const PackageFiles = @import("../../lib/functions/package_files.zig");
 
-const Context = @import("context").Context;
+const Context = @import("context");
 
 fn manifestSync(ctx: *Context, pf: *PackageFiles) !void {
     try ctx.logger.info("running manifest", @src());

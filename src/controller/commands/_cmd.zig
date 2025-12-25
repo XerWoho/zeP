@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const Cmd = @import("../../lib/functions/command.zig").Command;
-const Context = @import("context").Context;
+const Cmd = @import("../../lib/functions/command.zig");
+const Context = @import("context");
 
 fn cmdRun(ctx: *Context, cmd: *Cmd) !void {
     const cmd_name = ctx.args[3];
@@ -27,9 +27,7 @@ fn cmdList(ctx: *Context, cmd: *Cmd) !void {
     return;
 }
 
-pub fn _cmdController(
-    ctx: *Context,
-) !void {
+pub fn _cmdController(ctx: *Context) !void {
     if (ctx.args.len < 3) return error.MissingSubcommand;
 
     var cmd = try Cmd.init(ctx);
@@ -41,6 +39,7 @@ pub fn _cmdController(
         try cmdAdd(ctx, &cmd);
     if (std.mem.eql(u8, arg, "remove"))
         try cmdRemove(ctx, &cmd);
-    if (std.mem.eql(u8, arg, "list"))
+    if (std.mem.eql(u8, arg, "list") or
+        std.mem.eql(u8, arg, "ls"))
         try cmdList(ctx, &cmd);
 }

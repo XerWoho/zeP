@@ -2,8 +2,8 @@ const std = @import("std");
 const Structs = @import("structs");
 const Constants = @import("constants");
 
-const Artifact = @import("../../lib/artifact/artifact.zig").Artifact;
-const Context = @import("context").Context;
+const Artifact = @import("../../lib/artifact/artifact.zig");
+const Context = @import("context");
 
 fn artifactInstall(ctx: *Context, artifact: *Artifact) !void {
     if (ctx.args.len < 4) return error.MissingArguments;
@@ -11,17 +11,37 @@ fn artifactInstall(ctx: *Context, artifact: *Artifact) !void {
     const target_version = ctx.args[3];
     const target = if (ctx.args.len < 5) Constants.Default.resolveDefaultTarget() else ctx.args[4];
 
-    try artifact.install(target_version, target);
+    artifact.install(target_version, target) catch |err| {
+        switch (err) {
+            error.VersionNotFound => {
+                try ctx.printer.append("Version {s} was not found.\n\n", .{target_version}, .{});
+            },
+            else => {
+                try ctx.printer.append("Installing failed\n\n", .{}, .{});
+            },
+        }
+    };
     return;
 }
 
 fn artifactUninstall(ctx: *Context, artifact: *Artifact) !void {
     if (ctx.args.len < 4) return error.MissingArguments;
-
     const target_version = ctx.args[3];
-    const target = ctx.args[4];
+    const target = if (ctx.args.len < 5) Constants.Default.resolveDefaultTarget() else ctx.args[4];
 
-    try artifact.uninstall(target_version, target);
+    artifact.uninstall(target_version, target) catch |err| {
+        switch (err) {
+            error.VersionNotFound => {
+                try ctx.printer.append("Version {s} was not found.\n\n", .{target_version}, .{});
+            },
+            error.VersionNotInstalled => {
+                try ctx.printer.append("Version {s} is not installed.\n\n", .{target_version}, .{});
+            },
+            else => {
+                try ctx.printer.append("Installing failed\n\n", .{}, .{});
+            },
+        }
+    };
     return;
 }
 
@@ -29,9 +49,21 @@ fn artifactSwitch(ctx: *Context, artifact: *Artifact) !void {
     if (ctx.args.len < 4) return error.MissingArguments;
 
     const target_version = ctx.args[3];
-    const target = ctx.args[4];
+    const target = if (ctx.args.len < 5) Constants.Default.resolveDefaultTarget() else ctx.args[4];
 
-    try artifact.switchVersion(target_version, target);
+    artifact.switchVersion(target_version, target) catch |err| {
+        switch (err) {
+            error.VersionNotFound => {
+                try ctx.printer.append("Version {s} was not found.\n\n", .{target_version}, .{});
+            },
+            error.VersionNotInstalled => {
+                try ctx.printer.append("Version {s} is not installed.\n\n", .{target_version}, .{});
+            },
+            else => {
+                try ctx.printer.append("Installing failed\n\n", .{}, .{});
+            },
+        }
+    };
     return;
 }
 

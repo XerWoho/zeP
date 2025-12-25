@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const Setup = @import("cli").Setup;
-const Context = @import("context").Context;
+const Context = @import("context");
 
 fn setup(ctx: *Context) !void {
     try Setup.setup(

@@ -2,21 +2,19 @@ const std = @import("std");
 
 const Installer = @import("../../lib/packages/install.zig");
 
-const Context = @import("context").Context;
+const Context = @import("context");
 const Args = @import("args");
 
-fn install(
-    ctx: *Context,
-) !void {
+fn install(ctx: *Context) !void {
     try ctx.logger.info("running install", @src());
 
     const install_args = try Args.parseInstall();
 
     const target = if (ctx.args.len < 3) null else ctx.args[2]; // package name;
-    var installer = try Installer.init(
-        ctx,
-        install_args.inj,
-    );
+    var installer = Installer.init(ctx);
+    installer.force_inject = install_args.inject;
+    installer.install_unverified_packages = install_args.unverified;
+
     defer installer.deinit();
 
     if (target) |package| {
@@ -64,8 +62,6 @@ fn install(
     return;
 }
 
-pub fn _installController(
-    ctx: *Context,
-) !void {
+pub fn _installController(ctx: *Context) !void {
     try install(ctx);
 }

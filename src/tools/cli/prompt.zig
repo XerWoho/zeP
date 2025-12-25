@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const Printer = @import("printer.zig").Printer;
+const Printer = @import("printer.zig");
 const Constants = @import("constants");
 const Logger = @import("logger");
 

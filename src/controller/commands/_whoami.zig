@@ -1,11 +1,9 @@
 const std = @import("std");
 
-const Auth = @import("../../lib/cloud/auth.zig").Auth;
-const Context = @import("context").Context;
+const Auth = @import("../../lib/cloud/auth.zig");
+const Context = @import("context");
 
-fn whoami(
-    ctx: *Context,
-) !void {
+fn whoami(ctx: *Context) !void {
     try ctx.logger.info("running package: add", @src());
     var auth = try Auth.init(ctx);
     try auth.whoami();
@@ -13,8 +11,6 @@ fn whoami(
     return;
 }
 
-pub fn _whoamiController(
-    ctx: *Context,
-) !void {
+pub fn _whoamiController(ctx: *Context) !void {
     try whoami(ctx);
 }

@@ -1,9 +1,9 @@
 const std = @import("std");
 
-const PreBuilt = @import("../../lib/functions/pre_built.zig").PreBuilt;
-const Lister = @import("../../lib/packages/list.zig").Lister;
+const PreBuilt = @import("../../lib/functions/pre_built.zig");
+const Lister = @import("../../lib/packages/list.zig");
 
-const Context = @import("context").Context;
+const Context = @import("context");
 
 fn prebuiltBuild(ctx: *Context, prebuilt: *PreBuilt) !void {
     if (ctx.args.len < 4) return error.MissingArguments;
@@ -58,9 +58,7 @@ fn prebuiltDelete(ctx: *Context, prebuilt: *PreBuilt) !void {
     return;
 }
 
-pub fn _prebuiltController(
-    ctx: *Context,
-) !void {
+pub fn _prebuiltController(ctx: *Context) !void {
     if (ctx.args.len < 3) return error.MissingSubcommand;
 
     var prebuilt = try PreBuilt.init(ctx);
@@ -75,6 +73,7 @@ pub fn _prebuiltController(
     if (std.mem.eql(u8, arg, "use"))
         try prebuiltUse(ctx, &prebuilt);
 
-    if (std.mem.eql(u8, arg, "list") or std.mem.eql(u8, arg, "ls"))
+    if (std.mem.eql(u8, arg, "list") or
+        std.mem.eql(u8, arg, "ls"))
         try prebuiltList(ctx, &prebuilt);
 }

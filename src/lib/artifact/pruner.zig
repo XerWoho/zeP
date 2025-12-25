@@ -1,6 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+pub const ArtifactPruner = @This();
+
 const Structs = @import("structs");
 const Constants = @import("constants");
 
@@ -8,74 +10,72 @@ const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
 const Manifest = @import("core").Manifest;
 
-const Context = @import("context").Context;
+const Context = @import("context");
 
 /// Lists installed Artifact versions
-pub const ArtifactPruner = struct {
+ctx: *Context,
+
+pub fn init(
     ctx: *Context,
+) ArtifactPruner {
+    return ArtifactPruner{
+        .ctx = ctx,
+    };
+}
 
-    pub fn init(
-        ctx: *Context,
-    ) ArtifactPruner {
-        return ArtifactPruner{
-            .ctx = ctx,
-        };
+pub fn deinit(_: *ArtifactPruner) void {
+    // currently no deinit required
+}
+
+/// Prunes all Artifact versions
+/// With zero targets
+pub fn pruneVersions(self: *ArtifactPruner, artifact_type: Structs.Extras.ArtifactType) !void {
+    const versions_directory = try std.fs.path.join(self.ctx.allocator, &.{
+        if (artifact_type == .zig) self.ctx.paths.zig_root else self.ctx.paths.zep_root,
+        "d",
+    });
+    defer self.ctx.allocator.free(versions_directory);
+
+    if (!Fs.existsDir(versions_directory)) {
+        try self.ctx.printer.append("No versions installed!\n\n", .{}, .{});
+        return;
     }
 
-    pub fn deinit(_: *ArtifactPruner) void {
-        // currently no deinit required
+    const manifest = try self.ctx.manifest.readManifest(
+        Structs.Manifests.ArtifactManifest,
+        if (artifact_type == .zig) self.ctx.paths.zig_manifest else self.ctx.paths.zep_manifest,
+    );
+    defer manifest.deinit();
+    if (manifest.value.path.len == 0) {
+        if (artifact_type == .zep) {
+            std.debug.print("\nManifest path is not defined! Use\n $ zep zep switch <zep-version>\nTo fix!\n", .{});
+        } else {
+            std.debug.print("\nManifest path is not defined! Use\n $ zep zig switch <zig-version>\nTo fix!\n", .{});
+        }
+        return error.ManifestNotFound;
     }
 
-    /// Prunes all Artifact versions
-    /// With zero targets
-    pub fn pruneVersions(self: *ArtifactPruner, artifact_type: Structs.Extras.ArtifactType) !void {
-        const versions_directory = try std.fs.path.join(self.ctx.allocator, &.{
-            if (artifact_type == .zig) self.ctx.paths.zig_root else self.ctx.paths.zep_root,
-            "d",
-        });
-        defer self.ctx.allocator.free(versions_directory);
+    var dir = try Fs.openDir(versions_directory);
+    defer dir.close();
+    var it = dir.iterate();
 
-        if (!Fs.existsDir(versions_directory)) {
-            try self.ctx.printer.append("No versions installed!\n\n", .{}, .{});
-            return;
+    while (try it.next()) |entry| {
+        if (entry.kind != .directory) continue;
+        const version_path = try std.fs.path.join(self.ctx.allocator, &.{ versions_directory, entry.name });
+        defer self.ctx.allocator.free(version_path);
+
+        var version_directory = try Fs.openDir(version_path);
+        defer version_directory.close();
+
+        var version_iterator = version_directory.iterate();
+        var has_targets: bool = false;
+        while (try version_iterator.next()) |_| {
+            has_targets = true;
+            break;
         }
 
-        const manifest = try self.ctx.manifest.readManifest(
-            Structs.Manifests.ArtifactManifest,
-            if (artifact_type == .zig) self.ctx.paths.zig_manifest else self.ctx.paths.zep_manifest,
-        );
-        defer manifest.deinit();
-        if (manifest.value.path.len == 0) {
-            if (artifact_type == .zep) {
-                std.debug.print("\nManifest path is not defined! Use\n $ zep zep switch <zep-version>\nTo fix!\n", .{});
-            } else {
-                std.debug.print("\nManifest path is not defined! Use\n $ zep zig switch <zig-version>\nTo fix!\n", .{});
-            }
-            return error.ManifestNotFound;
-        }
-
-        var dir = try Fs.openDir(versions_directory);
-        defer dir.close();
-        var it = dir.iterate();
-
-        while (try it.next()) |entry| {
-            if (entry.kind != .directory) continue;
-            const version_path = try std.fs.path.join(self.ctx.allocator, &.{ versions_directory, entry.name });
-            defer self.ctx.allocator.free(version_path);
-
-            var version_directory = try Fs.openDir(version_path);
-            defer version_directory.close();
-
-            var version_iterator = version_directory.iterate();
-            var has_targets: bool = false;
-            while (try version_iterator.next()) |_| {
-                has_targets = true;
-                break;
-            }
-
-            if (!has_targets) {
-                try Fs.deleteTreeIfExists(version_path);
-            }
+        if (!has_targets) {
+            try Fs.deleteTreeIfExists(version_path);
         }
     }
-};
+}

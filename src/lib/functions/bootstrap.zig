@@ -6,11 +6,11 @@ const Structs = @import("structs");
 
 const Fs = @import("io").Fs;
 
-const Artifact = @import("../artifact/artifact.zig").Artifact;
+const Artifact = @import("../artifact/artifact.zig");
 const Installer = @import("../packages/install.zig");
-const Init = @import("../packages/init.zig").Init;
+const Init = @import("../packages/init.zig");
 
-const Context = @import("context").Context;
+const Context = @import("context");
 
 /// Handles bootstrapping
 pub fn bootstrap(
@@ -39,20 +39,9 @@ pub fn bootstrap(
         const package_name = d.first();
         const package_version = d.next();
 
-        var installer = Installer.init(
-            ctx,
-            false,
-        ) catch |err| {
-            switch (err) {
-                error.PackageNotFound => {
-                    try ctx.printer.append("{s} not found.\n", .{package_name}, .{});
-                },
-                else => {
-                    try ctx.printer.append("{s} failed to init.\n", .{package_name}, .{});
-                },
-            }
-            continue;
-        };
+        var installer = Installer.init(ctx);
+        installer.install_unverified_packages = true;
+
         installer.install(
             package_name,
             package_version,

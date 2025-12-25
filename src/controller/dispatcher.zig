@@ -1,5 +1,5 @@
 const std = @import("std");
-const Context = @import("context").Context;
+const Context = @import("context");
 
 const Commands = enum {
     zep,

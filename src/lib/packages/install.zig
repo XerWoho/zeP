@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const Installer = @This();
+pub const Installer = @This();
 
 const Locales = @import("locales");
 const Constants = @import("constants");
@@ -11,25 +11,24 @@ const Package = @import("core").Package;
 const Injector = @import("core").Injector;
 const Hash = @import("core").Hash;
 
-const Downloader = @import("lib/download.zig").Downloader;
-const Uninstaller = @import("uninstall.zig").Uninstaller;
+const Downloader = @import("lib/download.zig");
+const Uninstaller = @import("uninstall.zig");
 
-const Context = @import("context").Context;
+const Context = @import("context");
 
 ctx: *Context,
 downloader: Downloader,
-force_inject: bool,
+force_inject: bool = false,
+install_unverified_packages: bool = false,
 
 pub fn init(
     ctx: *Context,
-    force_inject: bool,
-) !Installer {
+) Installer {
     const downloader = Downloader.init(ctx);
 
     return Installer{
         .downloader = downloader,
         .ctx = ctx,
-        .force_inject = force_inject,
     };
 }
 
@@ -94,6 +93,7 @@ pub fn install(
         if (try self.checkIfPackageInstalled(package_id)) return error.AlreadyInstalled;
     }
 
+    self.ctx.fetcher.install_unverified_packages = self.install_unverified_packages;
     var package = try Package.init(
         self.ctx.allocator,
         &self.ctx.printer,
@@ -132,7 +132,11 @@ pub fn install(
         return error.HashMismatch;
     }
 
-    try self.downloader.downloadPackage(package.id, parsed.url);
+    try self.downloader.downloadPackage(
+        package.id,
+        parsed.url,
+        self.install_unverified_packages,
+    );
 
     try self.setPackage(package);
     try self.ctx.printer.append("Successfully installed - {s}\n\n", .{package.package_name}, .{ .color = .green });

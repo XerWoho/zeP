@@ -6,10 +6,10 @@ const Locales = @import("locales");
 
 const Fs = @import("io").Fs;
 
-const Uninstaller = @import("uninstall.zig").Uninstaller;
-const Init = @import("init.zig").Init;
+const Uninstaller = @import("uninstall.zig");
+const Init = @import("init.zig");
 
-const Context = @import("context").Context;
+const Context = @import("context");
 pub fn purge(ctx: *Context) !void {
     try ctx.printer.append("Purging packages...\n", .{}, .{});
 

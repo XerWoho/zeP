@@ -1,12 +1,9 @@
 const std = @import("std");
 
 const Constants = @import("constants");
-
 const Fs = @import("io").Fs;
-
-const Init = @import("../packages/init.zig").Init;
-
-const Context = @import("context").Context;
+const Init = @import("../packages/init.zig");
+const Context = @import("context");
 
 /// Handles quick-starting a project
 pub fn new(

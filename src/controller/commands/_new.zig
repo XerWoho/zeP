@@ -2,7 +2,7 @@ const std = @import("std");
 
 const New = @import("../../lib/functions/new.zig");
 
-const Context = @import("context").Context;
+const Context = @import("context");
 
 fn new(ctx: *Context) !void {
     if (ctx.args.len < 3) return error.MissingArguments;

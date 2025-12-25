@@ -2,7 +2,7 @@ const std = @import("std");
 
 const Bootstrap = @import("../../lib/functions/bootstrap.zig");
 
-const Context = @import("context").Context;
+const Context = @import("context");
 const Args = @import("args");
 
 fn bootstrap(ctx: *Context) !void {
@@ -13,8 +13,6 @@ fn bootstrap(ctx: *Context) !void {
     return;
 }
 
-pub fn _bootstrapController(
-    ctx: *Context,
-) !void {
+pub fn _bootstrapController(ctx: *Context) !void {
     try bootstrap(ctx);
 }

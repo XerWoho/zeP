@@ -1,14 +1,12 @@
 const std = @import("std");
 
-const Uninstaller = @import("../../lib/packages/uninstall.zig").Uninstaller;
+const Uninstaller = @import("../../lib/packages/uninstall.zig");
 const Package = @import("core").Package;
 
-const Context = @import("context").Context;
+const Context = @import("context");
 const Args = @import("args");
 
-fn uninstall(
-    ctx: *Context,
-) !void {
+fn uninstall(ctx: *Context) !void {
     if (ctx.args.len < 3) return error.MissingArguments;
 
     const package = ctx.args[2]; // package name;
@@ -79,8 +77,6 @@ fn uninstall(
     return;
 }
 
-pub fn _uninstallController(
-    ctx: *Context,
-) !void {
+pub fn _uninstallController(ctx: *Context) !void {
     try uninstall(ctx);
 }

@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const Auth = @import("../../lib/cloud/auth.zig").Auth;
-const Context = @import("context").Context;
+const Auth = @import("../../lib/cloud/auth.zig");
+const Context = @import("context");
 
 fn authLogin(ctx: *Context, auth: *Auth) !void {
     try ctx.logger.info("running package: add", @src());
@@ -23,9 +23,7 @@ fn authLogout(ctx: *Context, auth: *Auth) !void {
     try ctx.logger.info("running package: list finished", @src());
 }
 
-pub fn _authController(
-    ctx: *Context,
-) !void {
+pub fn _authController(ctx: *Context) !void {
     if (ctx.args.len < 3) return error.MissingSubcommand;
 
     var auth = try Auth.init(ctx);

@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const Runner = @import("../../lib/functions/runner.zig").Runner;
-const Context = @import("context").Context;
+const Runner = @import("../../lib/functions/runner.zig");
+const Context = @import("context");
 const Args = @import("args");
 
 fn new(ctx: *Context) !void {
