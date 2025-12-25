@@ -85,6 +85,16 @@ pub fn build(builder: *std.Build) void {
         .cwd_relative = "c/zstd/lib",
     });
 
+    const argsMod = builder.createModule(.{ .root_source_file = builder.path("src/args.zig") });
+    __zepinj__.imp(builder, argsMod);
+
+    const contextMod = builder.createModule(.{ .root_source_file = builder.path("src/context.zig") });
+    contextMod.addImport("args", argsMod);
+    contextMod.addImport("constants", constantsMod);
+    contextMod.addImport("cli", clisMod);
+    contextMod.addImport("core", coresMod);
+    contextMod.addImport("logger", loggersMod);
+
     const zstd = builder.addLibrary(.{
         .name = "zstd",
         .root_module = builder.createModule(.{
@@ -114,6 +124,8 @@ pub fn build(builder: *std.Build) void {
     zep_executeable_mod.root_module.addImport("io", iosMod);
     zep_executeable_mod.root_module.addImport("cli", clisMod);
     zep_executeable_mod.root_module.addImport("logger", loggersMod);
+    zep_executeable_mod.root_module.addImport("context", contextMod);
+    zep_executeable_mod.root_module.addImport("args", argsMod);
 
     builder.installArtifact(zep_executeable_mod);
 }

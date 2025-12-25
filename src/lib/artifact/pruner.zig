@@ -8,24 +8,17 @@ const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
 const Manifest = @import("core").Manifest;
 
+const Context = @import("context").Context;
+
 /// Lists installed Artifact versions
 pub const ArtifactPruner = struct {
-    allocator: std.mem.Allocator,
-    printer: *Printer,
-    paths: *Constants.Paths.Paths,
-    manifest: *Manifest,
+    ctx: *Context,
 
     pub fn init(
-        allocator: std.mem.Allocator,
-        printer: *Printer,
-        paths: *Constants.Paths.Paths,
-        manifest: *Manifest,
+        ctx: *Context,
     ) ArtifactPruner {
         return ArtifactPruner{
-            .allocator = allocator,
-            .printer = printer,
-            .paths = paths,
-            .manifest = manifest,
+            .ctx = ctx,
         };
     }
 
@@ -36,20 +29,20 @@ pub const ArtifactPruner = struct {
     /// Prunes all Artifact versions
     /// With zero targets
     pub fn pruneVersions(self: *ArtifactPruner, artifact_type: Structs.Extras.ArtifactType) !void {
-        const versions_directory = try std.fs.path.join(self.allocator, &.{
-            if (artifact_type == .zig) self.paths.zig_root else self.paths.zep_root,
+        const versions_directory = try std.fs.path.join(self.ctx.allocator, &.{
+            if (artifact_type == .zig) self.ctx.paths.zig_root else self.ctx.paths.zep_root,
             "d",
         });
-        defer self.allocator.free(versions_directory);
+        defer self.ctx.allocator.free(versions_directory);
 
         if (!Fs.existsDir(versions_directory)) {
-            try self.printer.append("No versions installed!\n\n", .{}, .{});
+            try self.ctx.printer.append("No versions installed!\n\n", .{}, .{});
             return;
         }
 
-        const manifest = try self.manifest.readManifest(
+        const manifest = try self.ctx.manifest.readManifest(
             Structs.Manifests.ArtifactManifest,
-            if (artifact_type == .zig) self.paths.zig_manifest else self.paths.zep_manifest,
+            if (artifact_type == .zig) self.ctx.paths.zig_manifest else self.ctx.paths.zep_manifest,
         );
         defer manifest.deinit();
         if (manifest.value.path.len == 0) {
@@ -67,8 +60,8 @@ pub const ArtifactPruner = struct {
 
         while (try it.next()) |entry| {
             if (entry.kind != .directory) continue;
-            const version_path = try std.fs.path.join(self.allocator, &.{ versions_directory, entry.name });
-            defer self.allocator.free(version_path);
+            const version_path = try std.fs.path.join(self.ctx.allocator, &.{ versions_directory, entry.name });
+            defer self.ctx.allocator.free(version_path);
 
             var version_directory = try Fs.openDir(version_path);
             defer version_directory.close();
@@ -84,7 +77,5 @@ pub const ArtifactPruner = struct {
                 try Fs.deleteTreeIfExists(version_path);
             }
         }
-
-        try self.printer.append("Done.\n", .{}, .{});
     }
 };

@@ -4,133 +4,117 @@ const clap = @import("clap");
 const DoctorArgs = struct {
     fix: bool,
 };
-pub fn parseDoctor(
-    iter: *std.process.ArgIterator,
-) !DoctorArgs {
-    const params = [_]clap.Param(u8){
-        .{
-            .id = 'f',
-            .names = .{ .short = 'f', .long = "fix" },
-            .takes_value = .none,
-        },
-    };
+pub fn parseDoctor() !DoctorArgs {
+    const params = comptime clap.parseParamsComptime(
+        \\-f, --fix             Display this help and exit.
+        \\<str>...
+        \\
+    );
+
+    const allocator = std.heap.page_allocator;
 
     var diag = clap.Diagnostic{};
-    var parser = clap.streaming.Clap(u8, std.process.ArgIterator){
-        .params = &params,
-        .iter = iter,
+    var res = clap.parse(clap.Help, &params, clap.parsers.default, .{
         .diagnostic = &diag,
+        .allocator = allocator,
+    }) catch |err| {
+        // Report useful error and exit.
+        try diag.reportToFile(.stderr(), err);
+        return err;
     };
-
-    var fix: bool = false;
-    // Because we use a streaming parser, we have to consume each argument parsed individually.
-    while (true) {
-        const arg = parser.next() catch break;
-        if (arg == null) break;
-
-        switch (arg.?.param.id) {
-            'f' => {
-                fix = true;
-            },
-            else => continue,
-        }
-    }
+    defer res.deinit();
 
     return DoctorArgs{
-        .fix = fix,
+        .fix = res.args.fix != 0,
+    };
+}
+
+const UninstallArgs = struct {
+    global: bool,
+    force: bool,
+};
+pub fn parseUninstall() !UninstallArgs {
+    const params = comptime clap.parseParamsComptime(
+        \\-g, --global             Display this help and exit.
+        \\-f, --force             Display this help and exit.
+        \\<str>...
+        \\
+    );
+
+    const allocator = std.heap.page_allocator;
+
+    var diag = clap.Diagnostic{};
+    var res = clap.parse(clap.Help, &params, clap.parsers.default, .{
+        .diagnostic = &diag,
+        .allocator = allocator,
+    }) catch |err| {
+        // Report useful error and exit.
+        try diag.reportToFile(.stderr(), err);
+        return err;
+    };
+    defer res.deinit();
+
+    return UninstallArgs{
+        .global = res.args.global != 0,
+        .force = res.args.force != 0,
     };
 }
 
 const InstallArgs = struct {
     inj: bool,
 };
-pub fn parseInstall(
-    iter: *std.process.ArgIterator,
-) !InstallArgs {
-    const params = [_]clap.Param(u8){
-        .{
-            .id = 'i',
-            .names = .{ .short = 'i', .long = "inj" },
-            .takes_value = .none,
-        },
-    };
+pub fn parseInstall() !InstallArgs {
+    const params = comptime clap.parseParamsComptime(
+        \\-i, --inj             Display this help and exit.
+        \\<str>...
+        \\
+    );
+
+    const allocator = std.heap.page_allocator;
 
     var diag = clap.Diagnostic{};
-    var parser = clap.streaming.Clap(u8, std.process.ArgIterator){
-        .params = &params,
-        .iter = iter,
+    var res = clap.parse(clap.Help, &params, clap.parsers.default, .{
         .diagnostic = &diag,
+        .allocator = allocator,
+    }) catch |err| {
+        // Report useful error and exit.
+        try diag.reportToFile(.stderr(), err);
+        return err;
     };
-
-    var inj: bool = false;
-    // Because we use a streaming parser, we have to consume each argument parsed individually.
-    while (true) {
-        const arg = parser.next() catch break;
-        if (arg == null) break;
-
-        switch (arg.?.param.id) {
-            'i' => inj = true,
-            else => {},
-        }
-    }
+    defer res.deinit();
 
     return InstallArgs{
-        .inj = inj,
+        .inj = res.args.inj != 0,
     };
 }
 
 const BootstrapArgs = struct {
     zig: []const u8,
     deps: [][]const u8,
-
-    pub fn deinit(self: *BootstrapArgs, allocator: std.mem.Allocator) void {
-        allocator.free(self.zig);
-        for (self.deps) |dep| {
-            allocator.free(dep);
-        }
-    }
 };
-pub fn parseBootstrap(
-    allocator: std.mem.Allocator,
-    iter: *std.process.ArgIterator,
-) !BootstrapArgs {
-    const params = [_]clap.Param(u8){
-        .{
-            .id = 'z',
-            .names = .{ .short = 'z', .long = "zig" },
-            .takes_value = .one,
-        },
-        .{
-            .id = 'd',
-            .names = .{ .short = 'd', .long = "deps" },
-            .takes_value = .one,
-        },
-    };
+pub fn parseBootstrap() !BootstrapArgs {
+    const params = comptime clap.parseParamsComptime(
+        \\-z, --zig <str>  An option parameter which can be specified multiple times.
+        \\-d, --deps <str>  An option parameter which can be specified multiple times.
+        \\<str>...
+        \\
+    );
+
+    const allocator = std.heap.page_allocator;
 
     var diag = clap.Diagnostic{};
-    var parser = clap.streaming.Clap(u8, std.process.ArgIterator){
-        .params = &params,
-        .iter = iter,
+    var res = clap.parse(clap.Help, &params, clap.parsers.default, .{
         .diagnostic = &diag,
+        .allocator = allocator,
+    }) catch |err| {
+        // Report useful error and exit.
+        try diag.reportToFile(.stderr(), err);
+        return err;
     };
+    defer res.deinit();
 
-    var zig: []const u8 = "0.14.0";
-    var raw_deps: []const u8 = "";
-    // Because we use a streaming parser, we have to consume each argument parsed individually.
-    while (true) {
-        const arg = parser.next() catch break;
-        if (arg == null) break;
-
-        switch (arg.?.param.id) {
-            'z' => {
-                zig = arg.?.value orelse "";
-            },
-            'd' => {
-                raw_deps = arg.?.value orelse "";
-            },
-            else => continue,
-        }
-    }
+    const zig: []const u8 = res.args.zig orelse "0.14.0";
+    const raw_deps: []const u8 = res.args.deps orelse "";
 
     var deps = try std.ArrayList([]const u8).initCapacity(allocator, 20);
     var deps_split = std.mem.splitScalar(u8, raw_deps, ',');
@@ -149,55 +133,30 @@ pub fn parseBootstrap(
 const RunnerArgs = struct {
     target: []const u8,
     args: [][]const u8,
-
-    pub fn deinit(self: *RunnerArgs, allocator: std.mem.Allocator) void {
-        allocator.free(self.target);
-        for (self.args) |arg| {
-            allocator.free(arg);
-        }
-    }
 };
-pub fn parseRunner(
-    allocator: std.mem.Allocator,
-    iter: *std.process.ArgIterator,
-) !RunnerArgs {
-    const params = [_]clap.Param(u8){
-        .{
-            .id = 't',
-            .names = .{ .short = 't', .long = "target" },
-            .takes_value = .one,
-        },
-        .{
-            .id = 'a',
-            .names = .{ .short = 'a', .long = "args" },
-            .takes_value = .one,
-        },
-    };
+pub fn parseRunner() !RunnerArgs {
+    const params = comptime clap.parseParamsComptime(
+        \\-t, --target <str>  An option parameter which can be specified multiple times.
+        \\-a, --args <str>  An option parameter which can be specified multiple times.
+        \\<str>...
+        \\
+    );
+
+    const allocator = std.heap.page_allocator;
 
     var diag = clap.Diagnostic{};
-    var parser = clap.streaming.Clap(u8, std.process.ArgIterator){
-        .params = &params,
-        .iter = iter,
+    var res = clap.parse(clap.Help, &params, clap.parsers.default, .{
         .diagnostic = &diag,
+        .allocator = allocator,
+    }) catch |err| {
+        // Report useful error and exit.
+        try diag.reportToFile(.stderr(), err);
+        return err;
     };
+    defer res.deinit();
 
-    var target: []const u8 = "";
-    var raw_args: []const u8 = "";
-    // Because we use a streaming parser, we have to consume each argument parsed individually.
-    while (true) {
-        const arg = parser.next() catch break;
-        if (arg == null) break;
-
-        switch (arg.?.param.id) {
-            't' => {
-                target = arg.?.value orelse "";
-            },
-            'a' => {
-                raw_args = arg.?.value orelse "";
-            },
-            else => continue,
-        }
-    }
+    const target: []const u8 = res.args.target orelse "";
+    const raw_args: []const u8 = res.args.args orelse "";
 
     var args = try std.ArrayList([]const u8).initCapacity(allocator, 3);
     var args_split = std.mem.splitScalar(u8, raw_args, ' ');

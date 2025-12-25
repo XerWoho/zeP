@@ -1,7 +1,7 @@
 const std = @import("std");
 const Constants = @import("constants");
 
-const logly = @import("logly");
+pub const logly = @import("logly");
 
 pub var logger_instance: ?*logly.Logger = null;
 

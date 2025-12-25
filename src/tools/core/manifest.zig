@@ -6,19 +6,20 @@ const Structs = @import("structs");
 
 const Fs = @import("io").Fs;
 const Json = @import("json.zig").Json;
+const Package = @import("package.zig").Package;
 
 pub const Manifest = struct {
     allocator: std.mem.Allocator,
-    json: *Json,
-    paths: *Constants.Paths.Paths,
+    json: Json,
+    paths: Constants.Paths.Paths,
 
     pub fn init(
         allocator: std.mem.Allocator,
-        json: *Json,
-        paths: *Constants.Paths.Paths,
+        json: Json,
+        paths: Constants.Paths.Paths,
     ) !Manifest {
         const logger = Logger.get();
-        try logger.debug("Manifest: init", @src());
+        try logger.info("Manifest: init", @src());
         return .{
             .allocator = allocator,
             .json = json,
@@ -33,7 +34,7 @@ pub const Manifest = struct {
         manifest: ManifestType,
     ) !void {
         const logger = Logger.get();
-        try logger.debugf("writeManifest: writing manifest to {s}", .{path}, @src());
+        try logger.infof("writeManifest: writing manifest to {s}", .{path}, @src());
 
         try Fs.deleteFileIfExists(path);
 
@@ -53,7 +54,7 @@ pub const Manifest = struct {
         path: []const u8,
     ) !std.json.Parsed(ManifestType) {
         const logger = Logger.get();
-        try logger.debugf("readManifest: reading manifest from {s}", .{path}, @src());
+        try logger.infof("readManifest: reading manifest from {s}", .{path}, @src());
 
         if (!Fs.existsFile(path)) {
             try logger.warnf("readManifest: file not found, writing default manifest {s}", .{path}, @src());
@@ -71,7 +72,7 @@ pub const Manifest = struct {
             return try self.readManifest(ManifestType, path);
         };
 
-        try logger.debugf("readManifest: successfully read and parsed manifest {s}", .{path}, @src());
+        try logger.infof("readManifest: successfully read and parsed manifest {s}", .{path}, @src());
         return parsed;
     }
 
@@ -88,7 +89,7 @@ pub const Manifest = struct {
         linked_path: []const u8,
     ) !void {
         const logger = Logger.get();
-        try logger.debugf("addPathToManifest: package={s} path={s}", .{ package_id, linked_path }, @src());
+        try logger.infof("addPathToManifest: package={s} path={s}", .{ package_id, linked_path }, @src());
 
         var package_manifest = try self.readManifest(
             Structs.Manifests.PackagesManifest,
@@ -123,7 +124,7 @@ pub const Manifest = struct {
         package_manifest.value.packages = list.items;
 
         try self.json.writePretty(self.paths.pkg_manifest, package_manifest.value);
-        try logger.debugf("addPathToManifest: manifest updated for package {s}", .{package_id}, @src());
+        try logger.infof("addPathToManifest: manifest updated for package {s}", .{package_id}, @src());
     }
 
     pub fn removePathFromManifest(
@@ -132,8 +133,9 @@ pub const Manifest = struct {
         linked_path: []const u8,
     ) !void {
         const logger = Logger.get();
-        try logger.debugf("removePathFromManifest: package={s} path={s}", .{ package_id, linked_path }, @src());
+        try logger.infof("removePathFromManifest: package={s} path={s}", .{ package_id, linked_path }, @src());
 
+        std.debug.print("{s}", .{self.paths.pkg_manifest});
         var package_manifest = try self.readManifest(
             Structs.Manifests.PackagesManifest,
             self.paths.pkg_manifest,
@@ -162,7 +164,7 @@ pub const Manifest = struct {
 
         if (list_path.items.len > 0) {
             try list.append(self.allocator, Structs.Manifests.PackagePaths{ .name = package_id, .paths = list_path.items });
-            try logger.debugf("removePathFromManifest: updated manifest for package {s}", .{package_id}, @src());
+            try logger.infof("removePathFromManifest: updated manifest for package {s}", .{package_id}, @src());
         } else {
             var buf: [128]u8 = undefined;
             const package_path = try std.fmt.bufPrint(&buf, "{s}/{s}/", .{ self.paths.pkg_root, package_id });
@@ -174,6 +176,171 @@ pub const Manifest = struct {
 
         package_manifest.value.packages = list.items;
         try self.json.writePretty(self.paths.pkg_manifest, package_manifest.value);
-        try logger.debugf("removePathFromManifest: manifest finalized for package {s}", .{package_id}, @src());
+        try logger.infof("removePathFromManifest: manifest finalized for package {s}", .{package_id}, @src());
+    }
+
+    pub fn manifestAdd(
+        self: *Manifest,
+        pkg: *Structs.ZepFiles.PackageJsonStruct,
+        package_name: []const u8,
+        package_id: []const u8,
+    ) !void {
+        pkg.packages = try filterOut(
+            self.allocator,
+            pkg.packages,
+            package_name,
+            []const u8,
+            struct {
+                fn match(a: []const u8, b: []const u8) bool {
+                    return std.mem.startsWith(u8, a, b); // first remove the previous package Name
+                }
+            }.match,
+        );
+
+        pkg.packages = try appendUnique(
+            []const u8,
+            pkg.packages,
+            package_id,
+            self.allocator,
+            struct {
+                fn match(a: []const u8, b: []const u8) bool {
+                    return std.mem.startsWith(u8, a, b);
+                }
+            }.match,
+        );
+
+        try self.json.writePretty(Constants.Extras.package_files.manifest, pkg);
+    }
+
+    pub fn lockAdd(
+        self: *Manifest,
+        lock: *Structs.ZepFiles.PackageLockStruct,
+        package: Package,
+    ) !void {
+        const new_entry = Structs.ZepFiles.LockPackageStruct{
+            .name = package.id,
+            .hash = package.package_hash,
+            .source = package.package.url,
+            .zig_version = package.package.zig_version,
+            .root_file = package.package.root_file,
+        };
+
+        lock.packages = try filterOut(
+            self.allocator,
+            lock.packages,
+            package.package_name,
+            Structs.ZepFiles.LockPackageStruct,
+            struct {
+                fn match(item: Structs.ZepFiles.LockPackageStruct, needle: []const u8) bool {
+                    return std.mem.startsWith(u8, item.name, needle);
+                }
+            }.match,
+        );
+
+        lock.packages = try appendUnique(
+            Structs.ZepFiles.LockPackageStruct,
+            lock.packages,
+            new_entry,
+            self.allocator,
+            struct {
+                fn match(item: Structs.ZepFiles.LockPackageStruct, needle: Structs.ZepFiles.LockPackageStruct) bool {
+                    return std.mem.startsWith(u8, item.name, needle.name);
+                }
+            }.match,
+        );
+
+        var package_json = try self.readManifest(
+            Structs.ZepFiles.PackageJsonStruct,
+            Constants.Extras.package_files.manifest,
+        );
+        defer package_json.deinit();
+        lock.root = package_json.value;
+
+        try self.json.writePretty(Constants.Extras.package_files.lock, lock);
+    }
+
+    pub fn lockRemove(
+        self: *Manifest,
+        lock: *Structs.ZepFiles.PackageLockStruct,
+        package_name: []const u8,
+    ) !void {
+        lock.packages = try filterOut(
+            self.allocator,
+            lock.packages,
+            package_name,
+            Structs.ZepFiles.LockPackageStruct,
+            struct {
+                fn match(item: Structs.ZepFiles.LockPackageStruct, needle: []const u8) bool {
+                    return std.mem.startsWith(u8, item.name, needle);
+                }
+            }.match,
+        );
+
+        var package_json = try self.readManifest(
+            Structs.ZepFiles.PackageJsonStruct,
+            Constants.Extras.package_files.manifest,
+        );
+        defer package_json.deinit();
+        lock.root = package_json.value;
+
+        try self.json.writePretty(Constants.Extras.package_files.lock, lock);
+    }
+
+    pub fn manifestRemove(
+        self: *Manifest,
+        pkg: *Structs.ZepFiles.PackageJsonStruct,
+        package_id: []const u8,
+    ) !void {
+        pkg.packages = try filterOut(
+            self.allocator,
+            pkg.packages,
+            package_id,
+            []const u8,
+            struct {
+                fn match(item: []const u8, needle: []const u8) bool {
+                    return std.mem.eql(u8, item, needle);
+                }
+            }.match,
+        );
+
+        try self.json.writePretty(Constants.Extras.package_files.manifest, pkg);
     }
 };
+
+fn appendUnique(
+    comptime T: type,
+    list: []const T,
+    new_item: T,
+    allocator: std.mem.Allocator,
+    matchFn: fn (a: T, b: T) bool,
+) ![]T {
+    var arr = try std.ArrayList(T).initCapacity(allocator, 10);
+    defer arr.deinit(allocator);
+
+    for (list) |item| {
+        try arr.append(allocator, item);
+        if (matchFn(item, new_item))
+            return arr.toOwnedSlice(allocator);
+    }
+
+    try arr.append(allocator, new_item);
+    return arr.toOwnedSlice(allocator);
+}
+
+fn filterOut(
+    allocator: std.mem.Allocator,
+    list: anytype,
+    filter: []const u8,
+    comptime T: type,
+    matchFn: fn (a: T, b: []const u8) bool,
+) ![]T {
+    var out = try std.ArrayList(T).initCapacity(allocator, 10);
+    defer out.deinit(allocator);
+
+    for (list) |item| {
+        if (!matchFn(item, filter))
+            try out.append(allocator, item);
+    }
+
+    return out.toOwnedSlice(allocator);
+}

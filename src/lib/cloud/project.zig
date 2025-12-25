@@ -4,48 +4,32 @@ const Constants = @import("constants");
 const Structs = @import("structs");
 
 const Prompt = @import("cli").Prompt;
-const Printer = @import("cli").Printer;
 const Fs = @import("io").Fs;
-
-const Manifest = @import("core").Manifest;
 const Compressor = @import("core").Compressor;
-const Fetch = @import("core").Fetch;
+
+const Context = @import("context").Context;
 
 /// Handles Projects
 pub const Project = struct {
-    allocator: std.mem.Allocator,
-    printer: *Printer,
-    manifest: *Manifest,
-    paths: *Constants.Paths.Paths,
-    fetcher: *Fetch,
+    ctx: *Context,
 
-    pub fn init(
-        allocator: std.mem.Allocator,
-        printer: *Printer,
-        manifest: *Manifest,
-        paths: *Constants.Paths.Paths,
-        fetcher: *Fetch,
-    ) Project {
+    pub fn init(ctx: *Context) Project {
         return .{
-            .allocator = allocator,
-            .printer = printer,
-            .manifest = manifest,
-            .paths = paths,
-            .fetcher = fetcher,
+            .ctx = ctx,
         };
     }
 
     pub fn getProjects(self: *Project) ![]Structs.Fetch.ProjectStruct {
-        var auth = try self.manifest.readManifest(
+        var auth = try self.ctx.manifest.readManifest(
             Structs.Manifests.AuthManifest,
-            self.paths.auth_manifest,
+            self.ctx.paths.auth_manifest,
         );
         defer auth.deinit();
 
-        var client = std.http.Client{ .allocator = self.allocator };
+        var client = std.http.Client{ .allocator = self.ctx.allocator };
         defer client.deinit();
 
-        const res = try self.fetcher.fetch(
+        const res = try self.ctx.fetcher.fetch(
             "http://localhost:5000/api/get/projects",
             &client,
             .{
@@ -59,7 +43,7 @@ pub const Project = struct {
 
         const encoded = res.value.object
             .get("projects") orelse return error.InvalidFetch;
-        const decoded = try self.allocator.alloc(
+        const decoded = try self.ctx.allocator.alloc(
             u8,
             try std.base64.standard.Decoder.calcSizeForSlice(encoded.string),
         );
@@ -67,13 +51,13 @@ pub const Project = struct {
         try std.base64.standard.Decoder.decode(decoded, encoded.string);
         const parsed: std.json.Parsed([]Structs.Fetch.ProjectStruct) = try std.json.parseFromSlice(
             []Structs.Fetch.ProjectStruct,
-            self.allocator,
+            self.ctx.allocator,
             decoded,
             .{},
         );
         defer parsed.deinit();
         const parsed_projects = parsed.value;
-        const parsed_projects_duped = try self.allocator.dupe(Structs.Fetch.ProjectStruct, parsed_projects);
+        const parsed_projects_duped = try self.ctx.allocator.dupe(Structs.Fetch.ProjectStruct, parsed_projects);
         return parsed_projects_duped;
     }
 
@@ -82,15 +66,15 @@ pub const Project = struct {
         releases: std.json.Parsed([]Structs.Fetch.ReleaseStruct),
     } {
         const url = try std.fmt.allocPrint(
-            self.allocator,
+            self.ctx.allocator,
             "http://localhost:5000/api/get/project?name={s}",
             .{name},
         );
-        defer self.allocator.free(url);
+        defer self.ctx.allocator.free(url);
 
-        var client = std.http.Client{ .allocator = self.allocator };
+        var client = std.http.Client{ .allocator = self.ctx.allocator };
         defer client.deinit();
-        const get_project_response = try self.fetcher.fetch(
+        const get_project_response = try self.ctx.fetcher.fetch(
             url,
             &client,
             .{
@@ -104,27 +88,27 @@ pub const Project = struct {
             return error.InvalidFetch;
         }
         const project = get_project_object.get("project") orelse return error.InvalidFetch;
-        const project_decoded = try self.allocator.alloc(
+        const project_decoded = try self.ctx.allocator.alloc(
             u8,
             try std.base64.standard.Decoder.calcSizeForSlice(project.string),
         );
         try std.base64.standard.Decoder.decode(project_decoded, project.string);
         const project_parsed: std.json.Parsed(Structs.Fetch.ProjectStruct) = try std.json.parseFromSlice(
             Structs.Fetch.ProjectStruct,
-            self.allocator,
+            self.ctx.allocator,
             project_decoded,
             .{},
         );
 
         const releases = get_project_object.get("releases") orelse return error.InvalidFetch;
-        const release_decoded = try self.allocator.alloc(
+        const release_decoded = try self.ctx.allocator.alloc(
             u8,
             try std.base64.standard.Decoder.calcSizeForSlice(releases.string),
         );
         try std.base64.standard.Decoder.decode(release_decoded, releases.string);
         const release_parsed: std.json.Parsed([]Structs.Fetch.ReleaseStruct) = try std.json.parseFromSlice(
             []Structs.Fetch.ReleaseStruct,
-            self.allocator,
+            self.ctx.allocator,
             release_decoded,
             .{},
         );
@@ -136,27 +120,27 @@ pub const Project = struct {
     }
 
     pub fn delete(self: *Project) !void {
-        var auth_manifest = try self.manifest.readManifest(Structs.Manifests.AuthManifest, self.paths.auth_manifest);
+        var auth_manifest = try self.ctx.manifest.readManifest(Structs.Manifests.AuthManifest, self.ctx.paths.auth_manifest);
         defer auth_manifest.deinit();
 
         const projects = try self.getProjects();
-        try self.printer.append("Available projects:\n", .{}, .{});
+        try self.ctx.printer.append("Available projects:\n", .{}, .{});
         for (projects, 0..) |p, i| {
-            try self.printer.append(" [{d}] - {s}\n", .{ i, p.Name }, .{});
+            try self.ctx.printer.append(" [{d}] - {s}\n", .{ i, p.Name }, .{});
         }
-        try self.printer.append("\n", .{}, .{});
+        try self.ctx.printer.append("\n", .{}, .{});
 
         var stdin_buf: [128]u8 = undefined;
         var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
         const stdin = &stdin_reader.interface;
         const index_str = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             stdin,
             "TARGET >> ",
             .{ .required = true },
         );
-        try self.printer.append("\n", .{}, .{});
+        try self.ctx.printer.append("\n", .{}, .{});
 
         const index = try std.fmt.parseInt(
             usize,
@@ -170,7 +154,7 @@ pub const Project = struct {
         const target = projects[index];
         const target_id = target.ID;
 
-        var client = std.http.Client{ .allocator = self.allocator };
+        var client = std.http.Client{ .allocator = self.ctx.allocator };
         defer client.deinit();
 
         const fetched_project = try self.getProject(target.Name);
@@ -180,7 +164,7 @@ pub const Project = struct {
         const releases = fetched_project.releases;
         defer releases.deinit();
         if (releases.value.len != 0) {
-            try self.printer.append(
+            try self.ctx.printer.append(
                 " ! Selected project has {d} release(s)\n\n",
                 .{releases.value.len},
                 .{
@@ -188,7 +172,7 @@ pub const Project = struct {
                 },
             );
             for (releases.value) |r| {
-                try self.printer.append(
+                try self.ctx.printer.append(
                     "  > {s} {s}\n    ({s})\n",
                     .{
                         project.value.Name,
@@ -198,14 +182,14 @@ pub const Project = struct {
                     .{},
                 );
             }
-            try self.printer.append(
+            try self.ctx.printer.append(
                 "\nYou want to continue?\n\n",
                 .{},
                 .{},
             );
             const yes_delete_project = try Prompt.input(
-                self.allocator,
-                self.printer,
+                self.ctx.allocator,
+                &self.ctx.printer,
                 stdin,
                 "(y/N) ",
                 .{},
@@ -214,7 +198,7 @@ pub const Project = struct {
             if (!std.mem.startsWith(u8, yes_delete_project, "y") and
                 !std.mem.startsWith(u8, yes_delete_project, "Y")) return;
         } else {
-            try self.printer.append(
+            try self.ctx.printer.append(
                 "Deleting project...\n\n",
                 .{},
                 .{ .color = .red },
@@ -228,7 +212,7 @@ pub const Project = struct {
             .id = target_id,
         };
 
-        const delete_project_response = try self.fetcher.fetch(
+        const delete_project_response = try self.ctx.fetcher.fetch(
             "http://localhost:5000/api/delete/project",
             &client,
             .{
@@ -239,7 +223,7 @@ pub const Project = struct {
                         .value = auth_manifest.value.token,
                     },
                 },
-                .payload = try std.json.Stringify.valueAlloc(self.allocator, delete_project_payload, .{}),
+                .payload = try std.json.Stringify.valueAlloc(self.ctx.allocator, delete_project_payload, .{}),
             },
         );
         defer delete_project_response.deinit();
@@ -252,43 +236,43 @@ pub const Project = struct {
 
     pub fn list(self: *Project) !void {
         const projects = try self.getProjects();
-        try self.printer.append("Available projects:\n", .{}, .{});
+        try self.ctx.printer.append("Available projects:\n", .{}, .{});
         for (projects) |r| {
-            try self.printer.append(" - {s}\n  > {s}\n", .{ r.Name, r.ID }, .{});
+            try self.ctx.printer.append(" - {s}\n  > {s}\n", .{ r.Name, r.ID }, .{});
         }
-        try self.printer.append("\n", .{}, .{});
+        try self.ctx.printer.append("\n", .{}, .{});
     }
 
     pub fn create(self: *Project) !void {
-        var auth_manifest = try self.manifest.readManifest(Structs.Manifests.AuthManifest, self.paths.auth_manifest);
+        var auth_manifest = try self.ctx.manifest.readManifest(Structs.Manifests.AuthManifest, self.ctx.paths.auth_manifest);
         defer auth_manifest.deinit();
         var stdin_buf: [128]u8 = undefined;
         var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
         const stdin = &stdin_reader.interface;
         const project_release = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             stdin,
             " > Name*: ",
             .{ .required = true },
         );
         const project_description = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             stdin,
             " > Description: ",
             .{},
         );
         const project_docs = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             stdin,
             " > Docs: ",
             .{},
         );
         const project_tags = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             stdin,
             " > Tags (seperated by ,): ",
             .{},
@@ -305,9 +289,9 @@ pub const Project = struct {
             .description = project_description,
             .tags = project_tags,
         };
-        var client = std.http.Client{ .allocator = self.allocator };
+        var client = std.http.Client{ .allocator = self.ctx.allocator };
         defer client.deinit();
-        const project_response = try self.fetcher.fetch(
+        const project_response = try self.ctx.fetcher.fetch(
             "http://localhost:5000/api/post/project",
             &client,
             .{
@@ -317,7 +301,7 @@ pub const Project = struct {
                         .value = auth_manifest.value.token,
                     },
                 },
-                .payload = try std.json.Stringify.valueAlloc(self.allocator, project_payload, .{}),
+                .payload = try std.json.Stringify.valueAlloc(self.ctx.allocator, project_payload, .{}),
             },
         );
         defer project_response.deinit();

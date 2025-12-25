@@ -23,8 +23,8 @@ pub fn paths(allocator: std.mem.Allocator) !Paths {
         .base = base,
         .root = try std.fs.path.join(allocator, &.{ base, "zeP" }),
         .prebuilt = try std.fs.path.join(allocator, &.{ base, "zeP", "prebuilt" }),
-        .zepped = try std.fs.path.join(allocator, &.{ base, "zeP", "zepped" }),
-        .custom = try std.fs.path.join(allocator, &.{ base, "zeP", "customPackages" }),
+        .cached = try std.fs.path.join(allocator, &.{ base, "zeP", "cached" }),
+        .custom = try std.fs.path.join(allocator, &.{ base, "zeP", "custom" }),
 
         .pkg_root = try std.fs.path.join(allocator, &.{ base, "zeP", "pkg" }),
         .zig_root = try std.fs.path.join(allocator, &.{ base, "zeP", "zig" }),
@@ -46,7 +46,7 @@ pub const Paths = struct {
     root: []const u8,
     prebuilt: []const u8,
     custom: []const u8,
-    zepped: []const u8,
+    cached: []const u8,
 
     pkg_root: []const u8,
     zig_root: []const u8,
@@ -64,7 +64,7 @@ pub const Paths = struct {
         self.allocator.free(self.root);
         self.allocator.free(self.prebuilt);
         self.allocator.free(self.custom);
-        self.allocator.free(self.zepped);
+        self.allocator.free(self.cached);
 
         self.allocator.free(self.pkg_root);
         self.allocator.free(self.zig_root);

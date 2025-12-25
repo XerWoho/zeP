@@ -1,25 +1,21 @@
 const std = @import("std");
-const builtin = @import("builtin");
 
 const Constants = @import("constants");
 const Structs = @import("structs");
 
-const Printer = @import("cli").Printer;
 const Prompt = @import("cli").Prompt;
 const Fs = @import("io").Fs;
 const Hash = @import("core").Hash;
 
-pub const CustomPackage = struct {
-    allocator: std.mem.Allocator,
-    printer: *Printer,
-    paths: *Constants.Paths.Paths,
+const Context = @import("context").Context;
 
-    pub fn init(
-        allocator: std.mem.Allocator,
-        printer: *Printer,
-        paths: *Constants.Paths.Paths,
-    ) CustomPackage {
-        return CustomPackage{ .allocator = allocator, .printer = printer, .paths = paths };
+pub const CustomPackage = struct {
+    ctx: *Context,
+
+    pub fn init(ctx: *Context) CustomPackage {
+        return CustomPackage{
+            .ctx = ctx,
+        };
     }
 
     fn getOrDefault(value: []const u8, def: []const u8) []const u8 {
@@ -28,15 +24,15 @@ pub const CustomPackage = struct {
 
     fn promptVersionData(self: CustomPackage, stdin: anytype) !Structs.Packages.PackageVersions {
         const url = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             stdin,
             "> *Url ([http(s)][.zip]): ",
             .{ .required = true, .validate = &verifyUrl },
         );
         const root_file = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             stdin,
             "> *Root file: ",
             .{
@@ -45,25 +41,25 @@ pub const CustomPackage = struct {
         );
 
         const version = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             stdin,
             "> Version [0.1.0]: ",
             .{},
         );
 
         const zig_version = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             stdin,
             "> Zig Version [0.14.0]: ",
             .{},
         );
 
-        const hash = Hash.hashData(self.allocator, url) catch |err| {
+        const hash = Hash.hashData(self.ctx.allocator, url) catch |err| {
             switch (err) {
                 else => {
-                    try self.printer.append("\nINVALID URL!\nABORTING!\n", .{}, .{ .color = .red });
+                    try self.ctx.printer.append("\nINVALID URL!\nABORTING!\n", .{}, .{ .color = .red });
                 },
             }
             return error.InvalidUrl;
@@ -82,34 +78,34 @@ pub const CustomPackage = struct {
         var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
         const stdin = &stdin_reader.interface;
 
-        try self.printer.append("--- ADDING CUSTOM PACKAGE MODE ---\n\n", .{}, .{
+        try self.ctx.printer.append("--- ADDING CUSTOM PACKAGE MODE ---\n\n", .{}, .{
             .color = .yellow,
             .weight = .bold,
         });
 
         const package_name = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             stdin,
             "> *Package Name: ",
             .{
                 .required = true,
             },
         );
-        defer self.allocator.free(package_name);
+        defer self.ctx.allocator.free(package_name);
 
         var buf: [256]u8 = undefined;
         const custom_package_path = try std.fmt.bufPrint(
             &buf,
             "{s}/{s}.json",
             .{
-                self.paths.custom,
+                self.ctx.paths.custom,
                 package_name,
             },
         );
 
         if (Fs.existsFile(custom_package_path)) {
-            try self.printer.append("-- PACKAGE EXISTS [ADD VERSION MODE] --\n\n", .{}, .{
+            try self.ctx.printer.append("-- PACKAGE EXISTS [ADD VERSION MODE] --\n\n", .{}, .{
                 .color = .yellow,
                 .weight = .bold,
             });
@@ -117,19 +113,19 @@ pub const CustomPackage = struct {
             const v = try self.promptVersionData(stdin);
             try self.addVersionToPackage(custom_package_path, v);
 
-            try self.printer.append("\nSuccessfully added new version - {s}\n\n", .{v.version}, .{ .color = .green });
+            try self.ctx.printer.append("\nSuccessfully added new version - {s}\n\n", .{v.version}, .{ .color = .green });
             return;
         }
 
         // New package mode
         const author = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             stdin,
             "> Author: ",
             .{},
         );
-        defer self.allocator.free(author);
+        defer self.ctx.allocator.free(author);
 
         const v = self.promptVersionData(stdin) catch |err| {
             switch (err) {
@@ -139,8 +135,8 @@ pub const CustomPackage = struct {
             return;
         };
 
-        var versions = try std.ArrayList(Structs.Packages.PackageVersions).initCapacity(self.allocator, 10);
-        try versions.append(self.allocator, v);
+        var versions = try std.ArrayList(Structs.Packages.PackageVersions).initCapacity(self.ctx.allocator, 10);
+        try versions.append(self.ctx.allocator, v);
 
         const pkg = Structs.Packages.PackageStruct{
             .name = package_name,
@@ -150,7 +146,7 @@ pub const CustomPackage = struct {
         };
 
         try self.addPackage(custom_package_path, pkg);
-        try self.printer.append("\nSuccessfully added custom package - {s}\n\n", .{package_name}, .{ .color = .green });
+        try self.ctx.printer.append("\nSuccessfully added custom package - {s}\n\n", .{package_name}, .{ .color = .green });
     }
 
     fn addPackage(self: CustomPackage, custom_package_path: []const u8, package_json: Structs.Packages.PackageStruct) !void {
@@ -159,8 +155,8 @@ pub const CustomPackage = struct {
         }
 
         const package_file = try Fs.openOrCreateFile(custom_package_path);
-        const stringify = try std.json.Stringify.valueAlloc(self.allocator, package_json, .{ .whitespace = .indent_2 });
-        defer self.allocator.free(stringify);
+        const stringify = try std.json.Stringify.valueAlloc(self.ctx.allocator, package_json, .{ .whitespace = .indent_2 });
+        defer self.ctx.allocator.free(stringify);
 
         _ = try package_file.write(stringify);
     }
@@ -168,23 +164,23 @@ pub const CustomPackage = struct {
     fn addVersionToPackage(self: CustomPackage, custom_package_path: []const u8, version: Structs.Packages.PackageVersions) !void {
         const package_file = try Fs.openOrCreateFile(custom_package_path);
         defer package_file.close();
-        const data = try package_file.readToEndAlloc(self.allocator, Constants.Default.mb * 5);
-        var parsed: std.json.Parsed(Structs.Packages.PackageStruct) = try std.json.parseFromSlice(Structs.Packages.PackageStruct, self.allocator, data, .{});
+        const data = try package_file.readToEndAlloc(self.ctx.allocator, Constants.Default.mb * 5);
+        var parsed: std.json.Parsed(Structs.Packages.PackageStruct) = try std.json.parseFromSlice(Structs.Packages.PackageStruct, self.ctx.allocator, data, .{});
         defer parsed.deinit();
 
-        var versions_array = try std.ArrayList(Structs.Packages.PackageVersions).initCapacity(self.allocator, 10);
+        var versions_array = try std.ArrayList(Structs.Packages.PackageVersions).initCapacity(self.ctx.allocator, 10);
         const versions = parsed.value.versions;
         for (versions) |v| {
             if (std.mem.eql(u8, v.version, version.version)) {
-                try self.printer.append("\nSpecified version already in use!\nOverwriting...\n", .{}, .{ .color = .red });
+                try self.ctx.printer.append("\nSpecified version already in use!\nOverwriting...\n", .{}, .{ .color = .red });
                 continue;
             }
-            try versions_array.append(self.allocator, v);
+            try versions_array.append(self.ctx.allocator, v);
         }
-        try versions_array.append(self.allocator, version);
+        try versions_array.append(self.ctx.allocator, version);
         parsed.value.versions = versions_array.items;
-        const stringify = try std.json.Stringify.valueAlloc(self.allocator, parsed.value, .{ .whitespace = .indent_2 });
-        defer self.allocator.free(stringify);
+        const stringify = try std.json.Stringify.valueAlloc(self.ctx.allocator, parsed.value, .{ .whitespace = .indent_2 });
+        defer self.ctx.allocator.free(stringify);
 
         try package_file.seekTo(0);
         try package_file.setEndPos(0);
@@ -192,21 +188,21 @@ pub const CustomPackage = struct {
     }
 
     pub fn removePackage(self: CustomPackage, package_name: []const u8) !void {
-        try self.printer.append("Removing package...\n", .{}, .{});
+        try self.ctx.printer.append("Removing package...\n", .{}, .{});
 
         var buf: [256]u8 = undefined;
         const custom_package_path = try std.fmt.bufPrint(
             &buf,
             "{s}/{s}.json",
-            .{ self.paths.custom, package_name },
+            .{ self.ctx.paths.custom, package_name },
         );
 
         if (Fs.existsFile(custom_package_path)) {
-            try self.printer.append("Package found...\n", .{}, .{});
+            try self.ctx.printer.append("Package found...\n", .{}, .{});
             try Fs.deleteFileIfExists(custom_package_path);
-            try self.printer.append("Deleted.\n\n", .{}, .{});
+            try self.ctx.printer.append("Deleted.\n\n", .{}, .{});
         } else {
-            try self.printer.append("Package not found...\n\n", .{}, .{});
+            try self.ctx.printer.append("Package not found...\n\n", .{}, .{});
         }
     }
 };

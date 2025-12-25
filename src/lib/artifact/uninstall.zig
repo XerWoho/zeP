@@ -7,18 +7,15 @@ const Printer = @import("cli").Printer;
 
 const ArtifactSwitcher = @import("switch.zig").ArtifactSwitcher;
 
+const Context = @import("context").Context;
+
 /// Handles uninstalling Artifact versions
 pub const ArtifactUninstaller = struct {
-    allocator: std.mem.Allocator,
-    printer: *Printer,
+    ctx: *Context,
 
-    pub fn init(
-        allocator: std.mem.Allocator,
-        printer: *Printer,
-    ) ArtifactUninstaller {
+    pub fn init(ctx: *Context) ArtifactUninstaller {
         return ArtifactUninstaller{
-            .allocator = allocator,
-            .printer = printer,
+            .ctx = ctx,
         };
     }
 
@@ -27,10 +24,10 @@ pub const ArtifactUninstaller = struct {
     }
 
     pub fn uninstall(self: *ArtifactUninstaller, path: []const u8) !void {
-        try self.printer.append("Deleting Artifact version at path: {s}\n", .{path}, .{});
+        try self.ctx.printer.append("Deleting Artifact version at path: {s}\n", .{path}, .{});
 
         // Recursively delete folder
         try Fs.deleteTreeIfExists(path);
-        try self.printer.append("Artifact version deleted successfully.\n\n", .{}, .{ .color = .green });
+        try self.ctx.printer.append("Artifact version deleted successfully.\n\n", .{}, .{ .color = .green });
     }
 };

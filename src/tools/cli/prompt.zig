@@ -19,7 +19,7 @@ pub fn input(
     opts: InputStruct,
 ) ![]const u8 {
     const logger = Logger.get();
-    try logger.debugf("prompt input: input prompt={s} opts={any}", .{ prompt, opts }, @src());
+    try logger.infof("prompt input: input prompt={s} opts={any}", .{ prompt, opts }, @src());
     try printer.append("{s}", .{prompt}, .{});
 
     var stdout_buf: [128]u8 = undefined;
@@ -27,10 +27,9 @@ pub fn input(
     const stdout = &stdout_writer.interface;
     while (true) {
         if (opts.initial_value) |v| {
-            _ = try stdout.write(v);
-            _ = try stdout.write(" => ");
+            try printer.append("{s} => ", .{v}, .{});
         }
-        try logger.debug("prompt input: reading input", @src());
+        try logger.info("prompt input: reading input", @src());
         const read_line = try stdin.takeDelimiterInclusive('\n');
         defer allocator.free(read_line);
         const line = std.mem.trimRight(u8, read_line, "\r\n");
@@ -48,6 +47,7 @@ pub fn input(
             if (opts.initial_value) |v| {
                 try logger.warn("prompt input [optional], line length is zero", @src());
                 try stdout.flush();
+                printer.pop(1);
                 try printer.append("{s}\n", .{v}, .{});
                 return try allocator.dupe(u8, v);
             }
@@ -66,7 +66,7 @@ pub fn input(
 
         const duped_line = try allocator.dupe(u8, line);
         try printer.append("{s}\n", .{duped_line}, .{});
-        try logger.debug("prompt input: input done, flushing stdout", @src());
+        try logger.info("prompt input: input done, flushing stdout", @src());
         return duped_line;
     }
 }

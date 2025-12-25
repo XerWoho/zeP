@@ -7,7 +7,7 @@ pub fn hashData(allocator: std.mem.Allocator, url: []const u8) ![]u8 {
     const logger = Logger.get();
     const start = std.time.milliTimestamp();
 
-    try logger.debugf("hashData: start url={s}", .{url}, @src());
+    try logger.infof("hashData: start url={s}", .{url}, @src());
 
     const uri = std.Uri.parse(url) catch |err| {
         try logger.warnf("hashData: invalid url={s} err={}", .{ url, err }, @src());
@@ -21,7 +21,7 @@ pub fn hashData(allocator: std.mem.Allocator, url: []const u8) ![]u8 {
 
     var body = std.Io.Writer.Allocating.init(allocator);
 
-    try logger.debugf("hashData: fetching url={s}", .{url}, @src());
+    try logger.infof("hashData: fetching url={s}", .{url}, @src());
 
     const fetched = client.fetch(.{
         .location = .{ .uri = uri },
@@ -46,7 +46,7 @@ pub fn hashData(allocator: std.mem.Allocator, url: []const u8) ![]u8 {
     const out = try std.fmt.allocPrint(allocator, "{x}", .{hash});
 
     const elapsed = std.time.milliTimestamp() - start;
-    try logger.debugf(
+    try logger.infof(
         "hashData: done url={s} bytes={} time={}ms",
         .{ url, data.len, elapsed },
         @src(),

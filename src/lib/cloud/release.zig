@@ -4,12 +4,8 @@ const Constants = @import("constants");
 const Structs = @import("structs");
 
 const Prompt = @import("cli").Prompt;
-const Printer = @import("cli").Printer;
 const Fs = @import("io").Fs;
-
-const Manifest = @import("core").Manifest;
 const Compressor = @import("core").Compressor;
-const Fetch = @import("core").Fetch;
 
 const Projects = @import("project.zig").Project;
 
@@ -22,60 +18,44 @@ const FetchOptions = struct {
 const boundary =
     "----eb542ed298bc07fa2f58d09191f02dbbffbaa477";
 
+const Context = @import("context").Context;
+
 /// Handles Projects
 pub const Release = struct {
-    allocator: std.mem.Allocator,
-    printer: *Printer,
-    manifest: *Manifest,
-    paths: *Constants.Paths.Paths,
-    fetcher: *Fetch,
+    ctx: *Context,
 
     pub fn init(
-        allocator: std.mem.Allocator,
-        printer: *Printer,
-        manifest: *Manifest,
-        paths: *Constants.Paths.Paths,
-        fetcher: *Fetch,
+        ctx: *Context,
     ) Release {
         return .{
-            .allocator = allocator,
-            .printer = printer,
-            .manifest = manifest,
-            .paths = paths,
-            .fetcher = fetcher,
+            .ctx = ctx,
         };
     }
 
     pub fn delete(self: *Release) !void {
-        var auth_manifest = try self.manifest.readManifest(Structs.Manifests.AuthManifest, self.paths.auth_manifest);
+        var auth_manifest = try self.ctx.manifest.readManifest(Structs.Manifests.AuthManifest, self.ctx.paths.auth_manifest);
         defer auth_manifest.deinit();
 
-        var initted_project = Projects.init(
-            self.allocator,
-            self.printer,
-            self.manifest,
-            self.paths,
-            self.fetcher,
-        );
+        var initted_project = Projects.init(self.ctx);
 
         const projects = try initted_project.getProjects();
-        try self.printer.append("Available projects:\n", .{}, .{});
+        try self.ctx.printer.append("Available projects:\n", .{}, .{});
         for (projects, 0..) |r, i| {
-            try self.printer.append(" [{d}] - {s}\n", .{ i, r.Name }, .{});
+            try self.ctx.printer.append(" [{d}] - {s}\n", .{ i, r.Name }, .{});
         }
-        try self.printer.append("\n", .{}, .{});
+        try self.ctx.printer.append("\n", .{}, .{});
 
         var stdin_buf: [128]u8 = undefined;
         var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
         const stdin = &stdin_reader.interface;
         const project_index_str = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             stdin,
             "TARGET >> ",
             .{ .required = true },
         );
-        try self.printer.append("\n", .{}, .{});
+        try self.ctx.printer.append("\n", .{}, .{});
 
         const project_index = try std.fmt.parseInt(
             usize,
@@ -87,7 +67,7 @@ pub const Release = struct {
             return error.InvalidSelection;
 
         const project_target = projects[project_index];
-        var client = std.http.Client{ .allocator = self.allocator };
+        var client = std.http.Client{ .allocator = self.ctx.allocator };
         defer client.deinit();
 
         const fetched_project = try initted_project.getProject(project_target.Name);
@@ -97,23 +77,23 @@ pub const Release = struct {
         const releases = fetched_project.releases;
         defer releases.deinit();
 
-        try self.printer.append("Available releases:\n", .{}, .{});
+        try self.ctx.printer.append("Available releases:\n", .{}, .{});
         for (releases.value, 0..) |v, i| {
-            try self.printer.append(
+            try self.ctx.printer.append(
                 "  [{d}] - {s} {s}\n",
                 .{ i, project_target.Name, v.Release },
                 .{ .color = .bright_blue },
             );
         }
-        try self.printer.append("\n", .{}, .{});
+        try self.ctx.printer.append("\n", .{}, .{});
         const release_index_str = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             stdin,
             "TARGET >> ",
             .{ .required = true },
         );
-        try self.printer.append("\n", .{}, .{});
+        try self.ctx.printer.append("\n", .{}, .{});
 
         const release_index = try std.fmt.parseInt(
             usize,
@@ -135,7 +115,7 @@ pub const Release = struct {
             .project_id = project_target.ID,
         };
 
-        const delete_release_response = try self.fetcher.fetch(
+        const delete_release_response = try self.ctx.fetcher.fetch(
             "http://localhost:5000/api/delete/release",
             &client,
             .{
@@ -146,7 +126,7 @@ pub const Release = struct {
                         .value = auth_manifest.value.token,
                     },
                 },
-                .payload = try std.json.Stringify.valueAlloc(self.allocator, delete_release_payload, .{}),
+                .payload = try std.json.Stringify.valueAlloc(self.ctx.allocator, delete_release_payload, .{}),
             },
         );
         defer delete_release_response.deinit();
@@ -158,32 +138,26 @@ pub const Release = struct {
     }
 
     pub fn list(self: *Release) !void {
-        var initted_project = Projects.init(
-            self.allocator,
-            self.printer,
-            self.manifest,
-            self.paths,
-            self.fetcher,
-        );
+        var initted_project = Projects.init(self.ctx);
 
         const projects = try initted_project.getProjects();
-        try self.printer.append("Available projects:\n", .{}, .{});
+        try self.ctx.printer.append("Available projects:\n", .{}, .{});
         for (projects, 0..) |r, i| {
-            try self.printer.append(" [{d}] - {s}\n", .{ i, r.Name }, .{});
+            try self.ctx.printer.append(" [{d}] - {s}\n", .{ i, r.Name }, .{});
         }
-        try self.printer.append("\n", .{}, .{});
+        try self.ctx.printer.append("\n", .{}, .{});
 
         var stdin_buf: [128]u8 = undefined;
         var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
         const stdin = &stdin_reader.interface;
         const project_index_str = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            self.ctx.printer,
             stdin,
             "TARGET >> ",
             .{ .required = true },
         );
-        try self.printer.append("\n", .{}, .{});
+        try self.ctx.printer.append("\n", .{}, .{});
 
         const project_index = try std.fmt.parseInt(
             usize,
@@ -202,32 +176,31 @@ pub const Release = struct {
         const releases = fetched_project.releases;
         defer releases.deinit();
 
-        try self.printer.append("Available releases:\n", .{}, .{});
+        try self.ctx.printer.append("Available releases:\n", .{}, .{});
         for (releases.value, 0..) |v, i| {
-            try self.printer.append(
+            try self.ctx.printer.append(
                 "  [{d}] - {s} {s}\n",
                 .{ i, project_target.Name, v.Release },
                 .{ .color = .bright_blue },
             );
         }
-        try self.printer.append("\n", .{}, .{});
+        try self.ctx.printer.append("\n", .{}, .{});
     }
 
     const target_output_file = ".zep/.pkg/pkg.tar.zstd";
     fn compressProject(
         self: *Release,
-        compressor: *Compressor,
     ) ![]const u8 {
         const output = target_output_file;
 
-        if (try compressor.compress(".", output)) {
-            try self.printer.append(
+        if (try self.ctx.compressor.compress("", output)) {
+            try self.ctx.printer.append(
                 "Compressed!\n\n",
                 .{},
                 .{ .color = .green },
             );
         } else {
-            try self.printer.append(
+            try self.ctx.printer.append(
                 "Compression failed...\n\n",
                 .{},
                 .{ .color = .red },
@@ -243,7 +216,7 @@ pub const Release = struct {
         value: []const u8,
     ) ![]const u8 {
         return std.fmt.allocPrint(
-            self.allocator,
+            self.ctx.allocator,
             "--{s}\r\n" ++
                 "Content-Disposition: form-data; name=\"{s}\"\r\n\r\n" ++
                 "{s}\r\n",
@@ -257,7 +230,7 @@ pub const Release = struct {
         mime: []const u8,
     ) ![]const u8 {
         return std.fmt.allocPrint(
-            self.allocator,
+            self.ctx.allocator,
             "--{s}\r\n" ++
                 "Content-Disposition: form-data; name=\"package\"; filename=\"{s}\"\r\n" ++
                 "Content-Type: {s}\r\n\r\n",
@@ -266,25 +239,19 @@ pub const Release = struct {
     }
 
     pub fn create(self: *Release) !void {
-        var auth = try self.manifest.readManifest(
+        var auth = try self.ctx.manifest.readManifest(
             Structs.Manifests.AuthManifest,
-            self.paths.auth_manifest,
+            self.ctx.paths.auth_manifest,
         );
         defer auth.deinit();
 
-        var initted_project = Projects.init(
-            self.allocator,
-            self.printer,
-            self.manifest,
-            self.paths,
-            self.fetcher,
-        );
+        var initted_project = Projects.init(self.ctx);
 
         const projects = try initted_project.getProjects();
-        defer self.allocator.free(projects);
+        defer self.ctx.allocator.free(projects);
 
         if (projects.len == 0) {
-            try self.printer.append(
+            try self.ctx.printer.append(
                 "No project available!\nCreate project first!\n\n",
                 .{},
                 .{ .color = .red },
@@ -292,31 +259,31 @@ pub const Release = struct {
             return;
         }
 
-        try self.printer.append(
+        try self.ctx.printer.append(
             "Select Project target:\n\n",
             .{},
             .{ .color = .blue, .weight = .bold },
         );
 
         for (projects, 0..) |r, i| {
-            try self.printer.append(
+            try self.ctx.printer.append(
                 " - [{d}] {s}\n",
                 .{ i, r.Name },
                 .{},
             );
         }
-        try self.printer.append("\n", .{}, .{});
+        try self.ctx.printer.append("\n", .{}, .{});
 
         var stdin_buf: [128]u8 = undefined;
         var reader = std.fs.File.stdin().reader(&stdin_buf);
         const index_str = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             &reader.interface,
             "TARGET >> ",
             .{ .required = true },
         );
-        try self.printer.append("\n", .{}, .{});
+        try self.ctx.printer.append("\n", .{}, .{});
 
         const index = try std.fmt.parseInt(
             usize,
@@ -330,44 +297,38 @@ pub const Release = struct {
         const target = projects[index];
 
         const p_release = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             &reader.interface,
             " > Release*: ",
             .{ .required = true },
         );
 
         const zig_version = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             &reader.interface,
             " > Zig Version*: ",
             .{ .required = true },
         );
 
         const root_file = try Prompt.input(
-            self.allocator,
-            self.printer,
+            self.ctx.allocator,
+            &self.ctx.printer,
             &reader.interface,
             " > Root File*: ",
             .{ .required = true },
         );
-        try self.printer.append("\n", .{}, .{});
+        try self.ctx.printer.append("\n", .{}, .{});
 
-        var compressor = try Compressor.init(
-            self.allocator,
-            self.printer,
-            self.paths,
-        );
-
-        const archive = try self.compressProject(&compressor);
+        const archive = try self.compressProject();
 
         const file = try Fs.openFile(archive);
         defer file.close();
 
         const stat = try file.stat();
-        const data = try self.allocator.alloc(u8, stat.size);
-        defer self.allocator.free(data);
+        const data = try self.ctx.allocator.alloc(u8, stat.size);
+        defer self.ctx.allocator.free(data);
         _ = try file.readAll(data);
 
         var hasher = std.crypto.hash.sha2.Sha256.init(.{});
@@ -377,10 +338,10 @@ pub const Release = struct {
         hasher.final(&digest);
 
         const hash_hex =
-            try std.fmt.allocPrint(self.allocator, "{x}", .{digest});
+            try std.fmt.allocPrint(self.ctx.allocator, "{x}", .{digest});
 
         const body = try std.mem.concat(
-            self.allocator,
+            self.ctx.allocator,
             u8,
             &.{
                 try self.formFileHeader(target_output_file, "application/zstd"),
@@ -392,14 +353,14 @@ pub const Release = struct {
                 try self.formField("zig_version", zig_version),
                 try self.formField("root_file", root_file),
                 try std.fmt.allocPrint(
-                    self.allocator,
+                    self.ctx.allocator,
                     "--{s}--\r\n",
                     .{boundary},
                 ),
             },
         );
 
-        var client = std.http.Client{ .allocator = self.allocator };
+        var client = std.http.Client{ .allocator = self.ctx.allocator };
         defer client.deinit();
 
         const uri =
@@ -424,10 +385,10 @@ pub const Release = struct {
         var read_buf: [Constants.Default.kb]u8 = undefined;
         var response_reader = head.reader(&read_buf);
         const response_buffer_len = response_reader.bufferedLen();
-        const response_buffer = try self.allocator.alloc(u8, response_buffer_len);
+        const response_buffer = try self.ctx.allocator.alloc(u8, response_buffer_len);
         _ = try response_reader.readSliceAll(response_buffer);
 
-        try self.printer.append(
+        try self.ctx.printer.append(
             "Release {s} has been successfully projectd!\n",
             .{
                 p_release,
@@ -435,7 +396,7 @@ pub const Release = struct {
             .{ .color = .bright_green },
         );
 
-        try self.printer.append(
+        try self.ctx.printer.append(
             "Install project via\n $ zep install {s}@{s}\n\n",
             .{
                 target.Name,

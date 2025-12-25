@@ -11,27 +11,17 @@ const Fs = @import("io").Fs;
 const Manifest = @import("core").Manifest;
 const Fetch = @import("core").Fetch;
 
+const Context = @import("context").Context;
+
 /// Handles Auth
 pub const Auth = struct {
-    allocator: std.mem.Allocator,
-    printer: *Printer,
-    manifest: *Manifest,
-    paths: *Constants.Paths.Paths,
-    fetcher: *Fetch,
+    ctx: *Context,
 
     pub fn init(
-        allocator: std.mem.Allocator,
-        printer: *Printer,
-        manifest: *Manifest,
-        paths: *Constants.Paths.Paths,
-        fetcher: *Fetch,
+        ctx: *Context,
     ) !Auth {
         return Auth{
-            .allocator = allocator,
-            .printer = printer,
-            .manifest = manifest,
-            .paths = paths,
-            .fetcher = fetcher,
+            .ctx = ctx,
         };
     }
 
@@ -49,13 +39,13 @@ pub const Auth = struct {
     };
 
     fn getUserData(self: *Auth) !std.json.Parsed(User) {
-        var auth_manifest = try self.manifest.readManifest(Structs.Manifests.AuthManifest, self.paths.auth_manifest);
+        var auth_manifest = try self.ctx.manifest.readManifest(Structs.Manifests.AuthManifest, self.ctx.paths.auth_manifest);
         defer auth_manifest.deinit();
         if (auth_manifest.value.token.len == 0) return error.NotAuthed;
 
-        var client = std.http.Client{ .allocator = self.allocator };
+        var client = std.http.Client{ .allocator = self.ctx.allocator };
         defer client.deinit();
-        const profile_response = try self.fetcher.fetch(
+        const profile_response = try self.ctx.fetcher.fetch(
             "http://localhost:5000/api/get/profile",
             &client,
             .{
@@ -77,9 +67,9 @@ pub const Auth = struct {
 
         const user = profile_object.get("user") orelse return error.FetchFailed;
         const encoded = user.string;
-        const decoded = try self.allocator.alloc(u8, try std.base64.standard.Decoder.calcSizeForSlice(encoded));
+        const decoded = try self.ctx.allocator.alloc(u8, try std.base64.standard.Decoder.calcSizeForSlice(encoded));
         try std.base64.standard.Decoder.decode(decoded, encoded);
-        const parsed: std.json.Parsed(User) = try std.json.parseFromSlice(User, self.allocator, decoded, .{});
+        const parsed: std.json.Parsed(User) = try std.json.parseFromSlice(User, self.ctx.allocator, decoded, .{});
         return parsed;
     }
 
@@ -87,10 +77,10 @@ pub const Auth = struct {
         const user = try self.getUserData();
         defer user.deinit();
 
-        try self.printer.append(" - {s}\n", .{user.value.Username}, .{ .color = .bright_blue });
-        try self.printer.append("   > id: {s}\n", .{user.value.Id}, .{});
-        try self.printer.append("   > email: {s}\n", .{user.value.Email}, .{});
-        try self.printer.append("   > created at: {s}\n\n", .{user.value.CreatedAt}, .{});
+        try self.ctx.printer.append(" - {s}\n", .{user.value.Username}, .{ .color = .bright_blue });
+        try self.ctx.printer.append("   > id: {s}\n", .{user.value.Id}, .{});
+        try self.ctx.printer.append("   > email: {s}\n", .{user.value.Email}, .{});
+        try self.ctx.printer.append("   > created at: {s}\n\n", .{user.value.CreatedAt}, .{});
     }
 
     pub fn register(self: *Auth) !void {
@@ -106,15 +96,33 @@ pub const Auth = struct {
         var stdin_buf: [128]u8 = undefined;
         var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
         const stdin = &stdin_reader.interface;
-        const username = try Prompt.input(self.allocator, self.printer, stdin, " > Enter username: ", .{
-            .required = true,
-        });
-        const email = try Prompt.input(self.allocator, self.printer, stdin, " > Enter email: ", .{
-            .required = true,
-        });
-        const password = try Prompt.input(self.allocator, self.printer, stdin, " > Enter password: ", .{
-            .required = true,
-        });
+        const username = try Prompt.input(
+            self.ctx.allocator,
+            &self.ctx.printer,
+            stdin,
+            " > Enter username: ",
+            .{
+                .required = true,
+            },
+        );
+        const email = try Prompt.input(
+            self.ctx.allocator,
+            &self.ctx.printer,
+            stdin,
+            " > Enter email: ",
+            .{
+                .required = true,
+            },
+        );
+        const password = try Prompt.input(
+            self.ctx.allocator,
+            &self.ctx.printer,
+            stdin,
+            " > Enter password: ",
+            .{
+                .required = true,
+            },
+        );
 
         const RegisterPayload = struct {
             username: []const u8,
@@ -127,12 +135,12 @@ pub const Auth = struct {
             .password = password,
         };
 
-        var client = std.http.Client{ .allocator = self.allocator };
+        var client = std.http.Client{ .allocator = self.ctx.allocator };
         defer client.deinit();
-        const register_response = try self.fetcher.fetch(
+        const register_response = try self.ctx.fetcher.fetch(
             "http://localhost:5000/api/auth/register",
             &client,
-            .{ .payload = try std.json.Stringify.valueAlloc(self.allocator, register_payload, .{}) },
+            .{ .payload = try std.json.Stringify.valueAlloc(self.ctx.allocator, register_payload, .{}) },
         );
         defer register_response.deinit();
         const register_object = register_response.value.object;
@@ -141,9 +149,15 @@ pub const Auth = struct {
             return;
         }
 
-        const code = try Prompt.input(self.allocator, self.printer, stdin, "Enter code (from mail): ", .{
-            .required = true,
-        });
+        const code = try Prompt.input(
+            self.ctx.allocator,
+            &self.ctx.printer,
+            stdin,
+            "Enter code (from mail): ",
+            .{
+                .required = true,
+            },
+        );
         const VerifyPayload = struct {
             code: []const u8,
             email: []const u8,
@@ -152,11 +166,11 @@ pub const Auth = struct {
             .code = code,
             .email = email,
         };
-        const verify_response = try self.fetcher.fetch(
+        const verify_response = try self.ctx.fetcher.fetch(
             "http://localhost:5000/api/auth/verify",
             &client,
             .{
-                .payload = try std.json.Stringify.valueAlloc(self.allocator, verify_payload, .{}),
+                .payload = try std.json.Stringify.valueAlloc(self.ctx.allocator, verify_payload, .{}),
             },
         );
         defer verify_response.deinit();
@@ -166,22 +180,34 @@ pub const Auth = struct {
             return;
         }
         const jwt_token = verify_object.get("jwt") orelse return;
-        var auth_manifest = try self.manifest.readManifest(Structs.Manifests.AuthManifest, self.paths.auth_manifest);
+        var auth_manifest = try self.ctx.manifest.readManifest(Structs.Manifests.AuthManifest, self.ctx.paths.auth_manifest);
         defer auth_manifest.deinit();
         auth_manifest.value.token = jwt_token.string;
-        try self.manifest.writeManifest(Structs.Manifests.AuthManifest, self.paths.auth_manifest, auth_manifest.value);
+        try self.ctx.manifest.writeManifest(Structs.Manifests.AuthManifest, self.ctx.paths.auth_manifest, auth_manifest.value);
     }
 
     pub fn login(self: *Auth) !void {
         var stdin_buf: [128]u8 = undefined;
         var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
         const stdin = &stdin_reader.interface;
-        const email = try Prompt.input(self.allocator, self.printer, stdin, " > Enter email: ", .{
-            .required = true,
-        });
-        const password = try Prompt.input(self.allocator, self.printer, stdin, " > Enter password: ", .{
-            .required = true,
-        });
+        const email = try Prompt.input(
+            self.ctx.allocator,
+            &self.ctx.printer,
+            stdin,
+            " > Enter email: ",
+            .{
+                .required = true,
+            },
+        );
+        const password = try Prompt.input(
+            self.ctx.allocator,
+            &self.ctx.printer,
+            stdin,
+            " > Enter password: ",
+            .{
+                .required = true,
+            },
+        );
 
         const AuthPayload = struct {
             email: []const u8,
@@ -192,13 +218,13 @@ pub const Auth = struct {
             .password = password,
         };
 
-        var client = std.http.Client{ .allocator = self.allocator };
+        var client = std.http.Client{ .allocator = self.ctx.allocator };
         defer client.deinit();
 
-        const login_response = try self.fetcher.fetch(
+        const login_response = try self.ctx.fetcher.fetch(
             "http://localhost:5000/api/auth/login",
             &client,
-            .{ .payload = try std.json.Stringify.valueAlloc(self.allocator, login_payload, .{}) },
+            .{ .payload = try std.json.Stringify.valueAlloc(self.ctx.allocator, login_payload, .{}) },
         );
         defer login_response.deinit();
         const login_object = login_response.value.object;
@@ -210,19 +236,19 @@ pub const Auth = struct {
         const token = login_object.get("jwt") orelse {
             return;
         };
-        var auth_manifest = try self.manifest.readManifest(Structs.Manifests.AuthManifest, self.paths.auth_manifest);
+        var auth_manifest = try self.ctx.manifest.readManifest(Structs.Manifests.AuthManifest, self.ctx.paths.auth_manifest);
         defer auth_manifest.deinit();
         auth_manifest.value.token = token.string;
-        try self.manifest.writeManifest(Structs.Manifests.AuthManifest, self.paths.auth_manifest, auth_manifest.value);
+        try self.ctx.manifest.writeManifest(Structs.Manifests.AuthManifest, self.ctx.paths.auth_manifest, auth_manifest.value);
     }
 
     pub fn logout(self: *Auth) !void {
-        var auth_manifest = try self.manifest.readManifest(Structs.Manifests.AuthManifest, self.paths.auth_manifest);
+        var auth_manifest = try self.ctx.manifest.readManifest(Structs.Manifests.AuthManifest, self.ctx.paths.auth_manifest);
         defer auth_manifest.deinit();
 
-        var client = std.http.Client{ .allocator = self.allocator };
+        var client = std.http.Client{ .allocator = self.ctx.allocator };
         defer client.deinit();
-        const logout_response = try self.fetcher.fetch(
+        const logout_response = try self.ctx.fetcher.fetch(
             "http://localhost:5000/api/auth/logout",
             &client,
             .{
@@ -243,6 +269,6 @@ pub const Auth = struct {
         }
 
         auth_manifest.value.token = "";
-        try self.manifest.writeManifest(Structs.Manifests.AuthManifest, self.paths.auth_manifest, auth_manifest.value);
+        try self.ctx.manifest.writeManifest(Structs.Manifests.AuthManifest, self.ctx.paths.auth_manifest, auth_manifest.value);
     }
 };

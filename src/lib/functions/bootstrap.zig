@@ -1,45 +1,35 @@
 const std = @import("std");
-const builtin = @import("builtin");
 
 const Locales = @import("locales");
 const Constants = @import("constants");
 const Structs = @import("structs");
 
-const Manifest = @import("core").Manifest;
-const Json = @import("core").Json;
-const Fetch = @import("core").Fetch;
-const Printer = @import("cli").Printer;
 const Fs = @import("io").Fs;
 
 const Artifact = @import("../artifact/artifact.zig").Artifact;
-const Installer = @import("../packages/install.zig").Installer;
+const Installer = @import("../packages/install.zig");
 const Init = @import("../packages/init.zig").Init;
+
+const Context = @import("context").Context;
 
 /// Handles bootstrapping
 pub fn bootstrap(
-    allocator: std.mem.Allocator,
-    printer: *Printer,
-    json: *Json,
-    paths: *Constants.Paths.Paths,
-    manifest: *Manifest,
-    fetcher: *Fetch,
+    ctx: *Context,
     zig_version: []const u8,
     deps: [][]const u8,
 ) !void {
     const previous_verbosity = Locales.VERBOSITY_MODE;
     Locales.VERBOSITY_MODE = 0;
 
-    var zig = try Artifact.init(allocator, printer, paths, manifest, .zig);
+    var zig = try Artifact.init(ctx, .zig);
     defer zig.deinit();
 
-    const default_target = if (builtin.os.tag == .windows) Constants.Default.default_targets.windows else Constants.Default.default_targets.linux;
+    const default_target = Constants.Default.resolveDefaultTarget();
     try zig.install(zig_version, default_target);
     Locales.VERBOSITY_MODE = previous_verbosity;
 
     var initer = try Init.init(
-        allocator,
-        printer,
-        json,
+        ctx,
         false,
     );
     try initer.commitInit();
@@ -50,20 +40,15 @@ pub fn bootstrap(
         const package_version = d.next();
 
         var installer = Installer.init(
-            allocator,
-            printer,
-            json,
-            paths,
-            manifest,
-            fetcher,
+            ctx,
             false,
         ) catch |err| {
             switch (err) {
                 error.PackageNotFound => {
-                    try printer.append("{s} not found.\n", .{package_name}, .{});
+                    try ctx.printer.append("{s} not found.\n", .{package_name}, .{});
                 },
                 else => {
-                    try printer.append("{s} failed to init.\n", .{package_name}, .{});
+                    try ctx.printer.append("{s} failed to init.\n", .{package_name}, .{});
                 },
             }
             continue;
@@ -74,10 +59,10 @@ pub fn bootstrap(
         ) catch |err| {
             switch (err) {
                 error.AlreadyInstalled => {
-                    try printer.append("{s} already installed.\n", .{package_name}, .{});
+                    try ctx.printer.append("{s} already installed.\n", .{package_name}, .{});
                 },
                 else => {
-                    try printer.append("{s} failed to install.\n", .{package_name}, .{});
+                    try ctx.printer.append("{s} failed to install.\n", .{package_name}, .{});
                 },
             }
         };

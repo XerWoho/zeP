@@ -29,7 +29,12 @@ pub const Fingerprint = packed struct(u64) {
     }
 };
 
-pub fn createZigProject(printer: *Printer, allocator: std.mem.Allocator, name: []const u8, default_zig_version: ?[]const u8) !void {
+pub fn createZigProject(
+    printer: *Printer,
+    allocator: std.mem.Allocator,
+    name: []const u8,
+    default_zig_version: ?[]const u8,
+) !void {
     const logger = Logger.get();
 
     const zig_main_path = "src/main.zig";

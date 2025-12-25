@@ -1,71 +1,48 @@
 const std = @import("std");
-
-const Locales = @import("locales");
-const Constants = @import("constants");
-const Structs = @import("structs");
-
-const Json = @import("core").Json;
-const Package = @import("core").Package;
-const Fetch = @import("core").Fetch;
-const Printer = @import("cli").Printer;
-
-const Init = @import("init.zig");
-const Uninstaller = @import("uninstall.zig");
+const Context = @import("context").Context;
 
 pub const Lister = struct {
-    allocator: std.mem.Allocator,
-    json: *Json,
-    printer: *Printer,
-    paths: *Constants.Paths.Paths,
-    fetcher: *Fetch,
+    ctx: *Context,
     package_name: []const u8,
 
     pub fn init(
-        allocator: std.mem.Allocator,
-        printer: *Printer,
-        json: *Json,
-        paths: *Constants.Paths.Paths,
-        fetcher: *Fetch,
+        ctx: *Context,
         package_name: []const u8,
     ) Lister {
         return Lister{
-            .json = json,
-            .allocator = allocator,
-            .printer = printer,
-            .paths = paths,
-            .fetcher = fetcher,
+            .ctx = ctx,
             .package_name = package_name,
         };
     }
 
     pub fn list(self: *Lister) !void {
-        const parsed_package = self.fetcher.fetchPackage(self.package_name) catch |err| {
+        const parsed_package = self.ctx.fetcher.fetchPackage(self.package_name) catch |err| {
             switch (err) {
                 error.PackageNotFound => {
-                    try self.printer.append("Package not found...\n\n", .{}, .{ .color = .red });
+                    try self.ctx.printer.append("Package not found...\n\n", .{}, .{ .color = .red });
                     return;
                 },
                 else => {
-                    try self.printer.append("Parsing package failed...\n\n", .{}, .{ .color = .red });
+                    try self.ctx.printer.append("Parsing package failed...\n\n", .{}, .{ .color = .red });
                     return;
                 },
             }
         };
         defer parsed_package.deinit();
 
-        try self.printer.append("Package Found! - {s}\n\n", .{self.package_name}, .{ .color = .green });
+        try self.ctx.printer.append("Package Found! - {s}\n\n", .{self.package_name}, .{ .color = .green });
 
         const versions = parsed_package.value.versions;
-        try self.printer.append("Available versions:\n", .{}, .{});
+        try self.ctx.printer.append("Available versions:\n", .{}, .{});
         if (versions.len == 0) {
-            try self.printer.append("  NO VERSIONS FOUND!\n\n", .{}, .{ .color = .red });
+            try self.ctx.printer.append("  NO VERSIONS FOUND!\n\n", .{}, .{ .color = .red });
             return;
         } else {
             for (versions) |v| {
-                try self.printer.append("  > version: {s} (zig: {s})\n", .{ v.version, v.zig_version }, .{});
+                try self.ctx.printer.append("  > version: {s} (zig: {s})\n", .{ v.version, v.zig_version }, .{});
             }
         }
-        try self.printer.append("\n", .{}, .{});
+        try self.ctx.printer.append("\n", .{}, .{});
 
         return;
     }

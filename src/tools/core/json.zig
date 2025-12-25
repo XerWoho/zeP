@@ -11,14 +11,14 @@ const Manifest = @import("manifest.zig");
 /// writing into files.
 pub const Json = struct {
     allocator: std.mem.Allocator,
-    paths: *Constants.Paths.Paths,
+    paths: Constants.Paths.Paths,
 
     pub fn init(
         allocator: std.mem.Allocator,
-        paths: *Constants.Paths.Paths,
+        paths: Constants.Paths.Paths,
     ) !Json {
         const logger = Logger.get();
-        try logger.debug("Json: init", @src());
+        try logger.info("Json: init", @src());
         return Json{
             .allocator = allocator,
             .paths = paths,
@@ -32,7 +32,7 @@ pub const Json = struct {
         max: usize,
     ) !std.json.Parsed(T) {
         const logger = Logger.get();
-        try logger.debugf("parseJsonFromFile: reading {s}", .{path}, @src());
+        try logger.infof("parseJsonFromFile: reading {s}", .{path}, @src());
 
         if (!Fs.existsFile(path)) {
             try logger.warnf("parseJsonFromFile: file not found {s}", .{path}, @src());
@@ -44,7 +44,7 @@ pub const Json = struct {
 
         const data = try file.readToEndAlloc(self.allocator, max);
         const parsed = try std.json.parseFromSlice(T, self.allocator, data, .{});
-        try logger.debugf("parseJsonFromFile: parsed {s} successfully", .{path}, @src());
+        try logger.infof("parseJsonFromFile: parsed {s} successfully", .{path}, @src());
         return parsed;
     }
 
@@ -54,7 +54,7 @@ pub const Json = struct {
         data: anytype,
     ) !void {
         const logger = Logger.get();
-        try logger.debugf("writePretty: writing to {s}", .{path}, @src());
+        try logger.infof("writePretty: writing to {s}", .{path}, @src());
 
         const str = try std.json.Stringify.valueAlloc(
             self.allocator,

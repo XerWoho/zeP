@@ -17,11 +17,13 @@
       }
     ],
     "description": "A new zig Package manager, and version manager for zig.",
-    "version": "0.8",
+    "version": "0.9",
     "license": "GPLv3",
     "packages": [
       "clap@0.11.0",
-      "logly@0.0.8"
+      "logly@0.0.8",
+      "bufzilla@0.3.0",
+      "zeit@0.7.0"
     ],
     "dev_packages": [],
     "build": {
@@ -43,6 +45,20 @@
       "source": "https://github.com/muhammad-fiaz/logly.zig/archive/refs/tags/0.0.8.zip",
       "zig_version": "0.15.1",
       "root_file": "/src/logly.zig"
+    },
+    {
+      "name": "bufzilla@0.3.0",
+      "hash": "8dc3df227682f1e4a08b60431e44da9a0fa4d0b8bc0c2a419ffc7a5aa02c10fe",
+      "source": "https://github.com/theseyan/bufzilla/archive/refs/tags/v0.3.0.zip",
+      "zig_version": "0.15.2",
+      "root_file": "/src/lib.zig"
+    },
+    {
+      "name": "zeit@0.7.0",
+      "hash": "e933d2730ef3504f7b830707c10c6a6df10544d26425db828e991a4ff84ebdbc",
+      "source": "https://github.com/rockorager/zeit/archive/refs/tags/v0.7.0.zip",
+      "zig_version": "0.15.1",
+      "root_file": "/src/zeit.zig"
     }
   ]
 }

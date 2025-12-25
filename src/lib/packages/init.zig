@@ -1,20 +1,16 @@
 const std = @import("std");
-const builtin = @import("builtin");
 
 const Constants = @import("constants");
 const Structs = @import("structs");
 
 const Fs = @import("io").Fs;
-const Printer = @import("cli").Printer;
 const Prompt = @import("cli").Prompt;
-
-const Json = @import("core").Json;
 const ZigInit = @import("core").ZigInit;
 
+const Context = @import("context").Context;
+
 pub const Init = struct {
-    allocator: std.mem.Allocator,
-    json: *Json,
-    printer: *Printer,
+    ctx: *Context,
 
     zig_version: []const u8 = "0.14.0",
     name: []const u8 = "",
@@ -22,29 +18,25 @@ pub const Init = struct {
     license: []const u8 = "",
 
     pub fn init(
-        allocator: std.mem.Allocator,
-        printer: *Printer,
-        json: *Json,
+        ctx: *Context,
         default: bool,
     ) !Init {
         if (default) {
             return Init{
-                .allocator = allocator,
-                .json = json,
-                .printer = printer,
+                .ctx = ctx,
             };
         }
 
         var zig_version: []const u8 = "0.14.0";
         const child = std.process.Child.run(.{
-            .allocator = allocator,
+            .allocator = ctx.allocator,
             .argv = &[_][]const u8{ "zig", "version" },
         }) catch |err| {
             switch (err) {
                 else => {
-                    try printer.append("Zig is not installed!\nExiting!\n\n", .{}, .{ .color = .red });
-                    try printer.append("\nSUGGESTION:\n", .{}, .{ .color = .blue });
-                    try printer.append(" - Install zig\n $ zep zig install <version>\n\n", .{}, .{});
+                    try ctx.printer.append("Zig is not installed!\nExiting!\n\n", .{}, .{ .color = .red });
+                    try ctx.printer.append("\nSUGGESTION:\n", .{}, .{ .color = .blue });
+                    try ctx.printer.append(" - Install zig\n $ zep zig install <version>\n\n", .{}, .{});
                     std.process.exit(0);
                 },
             }
@@ -52,7 +44,7 @@ pub const Init = struct {
         };
 
         zig_version = child.stdout[0 .. child.stdout.len - 1];
-        try printer.append("--- INITING ZEP MODE ---\n\n", .{}, .{
+        try ctx.printer.append("--- INITING ZEP MODE ---\n\n", .{}, .{
             .color = .blue,
             .weight = .bold,
         });
@@ -61,8 +53,8 @@ pub const Init = struct {
         const stdin = &stdin_reader.interface;
 
         const name = try Prompt.input(
-            allocator,
-            printer,
+            ctx.allocator,
+            &ctx.printer,
             stdin,
             "> *Name: ",
             .{
@@ -70,26 +62,24 @@ pub const Init = struct {
             },
         );
         const description = try Prompt.input(
-            allocator,
-            printer,
+            ctx.allocator,
+            &ctx.printer,
             stdin,
             "> Description: ",
             .{},
         );
         const license = try Prompt.input(
-            allocator,
-            printer,
+            ctx.allocator,
+            &ctx.printer,
             stdin,
             "> License: ",
             .{},
         );
 
         return Init{
-            .allocator = allocator,
-            .json = json,
-            .zig_version = zig_version,
-            .printer = printer,
+            .ctx = ctx,
 
+            .zig_version = zig_version,
             .license = license,
             .name = name,
             .description = description,
@@ -97,20 +87,20 @@ pub const Init = struct {
     }
 
     pub fn commitInit(self: *Init) !void {
-        try self.printer.append("Initing zep project...\n", .{}, .{});
+        try self.ctx.printer.append("Initing Zep project...\n", .{}, .{});
 
         try self.createFolders();
         try self.createFiles();
 
         // auto init zig
         try ZigInit.createZigProject(
-            self.printer,
-            self.allocator,
+            &self.ctx.printer,
+            self.ctx.allocator,
             self.name,
             self.zig_version,
         );
 
-        try self.printer.append("Finished initing!\n", .{}, .{ .color = .green });
+        try self.ctx.printer.append("Finished initing!\n\n", .{}, .{ .color = .green });
     }
 
     fn createFolders(_: *Init) !void {
@@ -130,11 +120,11 @@ pub const Init = struct {
         const lock = Structs.ZepFiles.PackageLockStruct{ .root = pkg };
 
         if (!Fs.existsFile(Constants.Extras.package_files.manifest)) {
-            try self.json.writePretty(Constants.Extras.package_files.manifest, pkg);
+            try self.ctx.json.writePretty(Constants.Extras.package_files.manifest, pkg);
         }
 
         if (!Fs.existsFile(Constants.Extras.package_files.lock)) {
-            try self.json.writePretty(Constants.Extras.package_files.lock, lock);
+            try self.ctx.json.writePretty(Constants.Extras.package_files.lock, lock);
         }
 
         const gitignore = ".gitignore";

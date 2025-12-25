@@ -11,16 +11,16 @@ const Json = @import("json.zig").Json;
 /// writing into files.
 pub const Fetch = struct {
     allocator: std.mem.Allocator,
-    json: *Json,
-    paths: *Constants.Paths.Paths,
+    json: Json,
+    paths: Constants.Paths.Paths,
 
     pub fn init(
         allocator: std.mem.Allocator,
-        json: *Json,
-        paths: *Constants.Paths.Paths,
+        json: Json,
+        paths: Constants.Paths.Paths,
     ) !Fetch {
         const logger = Logger.get();
-        try logger.debug("Fetch: init", @src());
+        try logger.info("Fetch: init", @src());
         return Fetch{
             .allocator = allocator,
             .paths = paths,
@@ -117,7 +117,7 @@ pub const Fetch = struct {
 
     pub fn fetchPackage(self: *Fetch, package_name: []const u8) !std.json.Parsed(Structs.Packages.PackageStruct) {
         const logger = Logger.get();
-        try logger.debugf("getPackage: fetching package {s}", .{package_name}, @src());
+        try logger.infof("getPackage: fetching package {s}", .{package_name}, @src());
 
         var client = std.http.Client{ .allocator = self.allocator };
         defer client.deinit();
@@ -172,7 +172,7 @@ pub const Fetch = struct {
             if (fetched.status == .not_found) break :blk;
             const data = body.written();
             const parsed = try std.json.parseFromSlice(Structs.Packages.PackageStruct, self.allocator, data, .{});
-            try logger.debugf("parsePackage: successfully fetched and parsed {s} from URL", .{url}, @src());
+            try logger.infof("parsePackage: successfully fetched and parsed {s} from URL", .{url}, @src());
             return parsed;
         }
 
@@ -190,7 +190,7 @@ pub const Fetch = struct {
         }
 
         const parsed = try self.json.parseJsonFromFile(Structs.Packages.PackageStruct, local_path, Constants.Default.mb * 10);
-        try logger.debugf("getPackage: loaded package from local file {s}", .{local_path}, @src());
+        try logger.infof("getPackage: loaded package from local file {s}", .{local_path}, @src());
         return parsed;
     }
 };

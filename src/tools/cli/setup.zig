@@ -9,7 +9,7 @@ const Printer = @import("printer.zig").Printer;
 
 fn setupEnviromentPath(tmp_path: []const u8) !void {
     const logger = Logger.get();
-    try logger.debug("setting up: enviroment path", @src());
+    try logger.info("setting up: enviroment path", @src());
 
     if (builtin.os.tag != .linux) return;
     const sh_file =
@@ -48,8 +48,8 @@ fn setupEnviromentPath(tmp_path: []const u8) !void {
 /// usage.
 pub fn setup(
     allocator: std.mem.Allocator,
-    printer: *Printer,
     paths: *Constants.Paths.Paths,
+    printer: *Printer,
 ) !void {
     const logger = Logger.get();
     try logger.info("setting up: create paths", @src());
@@ -57,7 +57,7 @@ pub fn setup(
     const create_paths = [5][]const u8{
         paths.root,
         paths.zep_root,
-        paths.zepped,
+        paths.cached,
         paths.pkg_root,
         paths.zig_root,
     };

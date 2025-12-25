@@ -5,67 +5,53 @@ const Structs = @import("structs");
 const Locales = @import("locales");
 
 const Fs = @import("io").Fs;
-const Json = @import("core").Json;
-const Manifest = @import("core").Manifest;
-const Printer = @import("cli").Printer;
 
 const Uninstaller = @import("uninstall.zig").Uninstaller;
 const Init = @import("init.zig").Init;
 
-pub fn purge(
-    allocator: std.mem.Allocator,
-    printer: *Printer,
-    json: *Json,
-    paths: *Constants.Paths.Paths,
-    manifest: *Manifest,
-) !void {
-    try printer.append("Purging packages...\n", .{}, .{});
+const Context = @import("context").Context;
+pub fn purge(ctx: *Context) !void {
+    try ctx.printer.append("Purging packages...\n", .{}, .{});
 
     const previous_verbosity = Locales.VERBOSITY_MODE;
     Locales.VERBOSITY_MODE = 0;
 
     if (!Fs.existsFile(Constants.Extras.package_files.manifest)) {
-        // Initialize zep.json if missing
-        try printer.append("zep.json not initialized.\n", .{}, .{});
+        // Initialize zep.ctx.json if missing
+        try ctx.printer.append("zep.ctx.json not initialized.\n", .{}, .{});
         var initer = try Init.init(
-            allocator,
-            printer,
-            json,
+            ctx,
             true,
         );
         try initer.commitInit();
-        try printer.append("Nothing to uninstall.\n", .{}, .{});
+        try ctx.printer.append("Nothing to uninstall.\n", .{}, .{});
         return;
     }
-    var package_json = try manifest.readManifest(
+    var package_json = try ctx.manifest.readManifest(
         Structs.ZepFiles.PackageJsonStruct,
         Constants.Extras.package_files.manifest,
     );
     defer package_json.deinit();
 
-    var uninstaller = try Uninstaller.init(
-        allocator,
-        printer,
-        json,
-        paths,
-        manifest,
+    var uninstaller = Uninstaller.init(
+        ctx,
     );
     for (package_json.value.packages) |package_id| {
         var split = std.mem.splitScalar(u8, package_id, '@');
         const package_name = split.first();
-        try printer.append(" > Uninstalling - {s}...\n", .{package_id}, .{ .verbosity = 0 });
+        try ctx.printer.append(" > Uninstalling - {s}...\n", .{package_id}, .{ .verbosity = 0 });
         uninstaller.uninstall(package_name) catch {
-            try printer.append(" >> failed!\n", .{}, .{ .verbosity = 0, .color = .red });
+            try ctx.printer.append(" >> failed!\n", .{}, .{ .verbosity = 0, .color = .red });
             std.Thread.sleep(std.time.ms_per_s * 100);
             continue;
         };
 
-        try printer.append(" >> done!\n", .{}, .{ .verbosity = 0, .color = .green });
+        try ctx.printer.append(" >> done!\n", .{}, .{ .verbosity = 0, .color = .green });
 
         // small delay to avoid race conditions
         std.Thread.sleep(std.time.ms_per_s * 100);
     }
 
-    try printer.append("\nPurged packages!\n", .{}, .{ .verbosity = 0, .color = .green });
+    try ctx.printer.append("\nPurged packages!\n", .{}, .{ .verbosity = 0, .color = .green });
     Locales.VERBOSITY_MODE = previous_verbosity;
 }

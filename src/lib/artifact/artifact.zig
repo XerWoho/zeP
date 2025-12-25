@@ -5,10 +5,7 @@ const Structs = @import("structs");
 const Constants = @import("constants");
 
 const Fs = @import("io").Fs;
-const Printer = @import("cli").Printer;
 const Prompt = @import("cli").Prompt;
-
-const Manifest = @import("core").Manifest;
 
 const ArtifactInstaller = @import("install.zig");
 const ArtifactUninstaller = @import("uninstall.zig");
@@ -23,11 +20,10 @@ pub const VersionData = struct {
     version: []const u8,
 };
 
+const Context = @import("context").Context;
+
 pub const Artifact = struct {
-    allocator: std.mem.Allocator,
-    printer: *Printer,
-    paths: *Constants.Paths.Paths,
-    manifest: *Manifest,
+    ctx: *Context,
 
     installer: ArtifactInstaller.ArtifactInstaller,
     uninstaller: ArtifactUninstaller.ArtifactUninstaller,
@@ -39,46 +35,17 @@ pub const Artifact = struct {
     artifact_name: []const u8,
 
     pub fn init(
-        allocator: std.mem.Allocator,
-        printer: *Printer,
-        paths: *Constants.Paths.Paths,
-        manifest: *Manifest,
+        ctx: *Context,
         artifact_type: Structs.Extras.ArtifactType,
     ) !Artifact {
-        const installer = ArtifactInstaller.ArtifactInstaller.init(
-            allocator,
-            printer,
-            paths,
-            manifest,
-        );
-        const uninstaller = ArtifactUninstaller.ArtifactUninstaller.init(
-            allocator,
-            printer,
-        );
-        const lister = ArtifactLister.ArtifactLister.init(
-            allocator,
-            printer,
-            paths,
-            manifest,
-        );
-        const switcher = ArtifactSwitcher.ArtifactSwitcher.init(
-            allocator,
-            printer,
-            paths,
-            manifest,
-        );
-        const pruner = ArtifactPruner.ArtifactPruner.init(
-            allocator,
-            printer,
-            paths,
-            manifest,
-        );
+        const installer = ArtifactInstaller.ArtifactInstaller.init(ctx);
+        const uninstaller = ArtifactUninstaller.ArtifactUninstaller.init(ctx);
+        const lister = ArtifactLister.ArtifactLister.init(ctx);
+        const switcher = ArtifactSwitcher.ArtifactSwitcher.init(ctx);
+        const pruner = ArtifactPruner.ArtifactPruner.init(ctx);
 
         return Artifact{
-            .allocator = allocator,
-            .printer = printer,
-            .paths = paths,
-            .manifest = manifest,
+            .ctx = ctx,
             .installer = installer,
             .uninstaller = uninstaller,
             .lister = lister,
@@ -98,7 +65,7 @@ pub const Artifact = struct {
 
     /// Fetch version metadata from Artifact JSON
     fn fetchVersion(self: *Artifact, target_version: []const u8) !std.json.Value {
-        var client = std.http.Client{ .allocator = self.allocator };
+        var client = std.http.Client{ .allocator = self.ctx.allocator };
         defer client.deinit();
 
         const uri = try std.Uri.parse(
@@ -108,7 +75,7 @@ pub const Artifact = struct {
                 Constants.Default.zep_download_index,
         );
 
-        var body = std.Io.Writer.Allocating.init(self.allocator);
+        var body = std.Io.Writer.Allocating.init(self.ctx.allocator);
         const fetched = try client.fetch(std.http.Client.FetchOptions{
             .location = .{
                 .uri = uri,
@@ -121,7 +88,7 @@ pub const Artifact = struct {
             return error.NotFound;
         }
         const data = body.written();
-        const parsed = try std.json.parseFromSlice(std.json.Value, self.allocator, data, .{});
+        const parsed = try std.json.parseFromSlice(std.json.Value, self.ctx.allocator, data, .{});
         const obj = parsed.value.object;
 
         if (std.mem.eql(u8, target_version, "latest") or target_version.len == 0) {
@@ -132,7 +99,7 @@ pub const Artifact = struct {
 
     /// Get structured version info
     pub fn getVersion(self: *Artifact, target_version: []const u8, target: []const u8) !VersionData {
-        try self.printer.append("Getting target version...\n", .{}, .{});
+        try self.ctx.printer.append("Getting target version...\n", .{}, .{});
 
         const version_data = try self.fetchVersion(target_version);
 
@@ -158,9 +125,9 @@ pub const Artifact = struct {
         const name = version_name[0 .. version_name.len - n];
 
         const path = try std.fs.path.join(
-            self.allocator,
+            self.ctx.allocator,
             &.{
-                if (self.artifact_type == .zig) self.paths.zig_root else self.paths.zep_root,
+                if (self.artifact_type == .zig) self.ctx.paths.zig_root else self.ctx.paths.zep_root,
                 "d",
                 resolved_version,
                 target,
@@ -178,31 +145,37 @@ pub const Artifact = struct {
     pub fn install(self: *Artifact, target_version: []const u8, target: []const u8) anyerror!void {
         if (self.artifact_type == .zep) {
             if (!std.mem.eql(u8, Constants.Default.version, target_version)) {
-                try self.printer.append("Warning: {s} is below 0.8, which is incompatible with the newer versions.\n", .{target_version}, .{});
-                try self.printer.append("After installing this version, you will not be able to switch to 0.8 or later versions.\n", .{}, .{});
+                try self.ctx.printer.append("Warning: {s} is below 0.8, which is incompatible with the newer versions.\n", .{target_version}, .{});
+                try self.ctx.printer.append("After installing this version, you will not be able to switch to 0.8 or later versions.\n", .{}, .{});
 
                 var stdin_buf: [128]u8 = undefined;
                 var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
                 const stdin = &stdin_reader.interface;
 
-                const answer = try Prompt.input(self.allocator, self.printer, stdin, "Continue? (y/N) ", .{});
+                const answer = try Prompt.input(
+                    self.ctx.allocator,
+                    &self.ctx.printer,
+                    stdin,
+                    "Continue? (y/N) ",
+                    .{},
+                );
                 if (answer.len == 0 or
                     std.mem.startsWith(u8, answer, "n") or
                     std.mem.startsWith(u8, answer, "N"))
                 {
-                    try self.printer.append("\nOk.\n", .{}, .{});
+                    try self.ctx.printer.append("\nOk.\n", .{}, .{});
                     return;
                 }
             }
         }
 
-        try self.printer.append("Installing version: {s}\nWith target: {s}\n\n", .{ target_version, target }, .{});
+        try self.ctx.printer.append("Installing version: {s}\nWith target: {s}\n\n", .{ target_version, target }, .{});
         const version = try self.getVersion(target_version, target);
         if (version.path.len == 0) return error.VersionHasNoPath;
 
         if (Fs.existsDir(version.path)) {
-            try self.printer.append("{s} version already installed.\n", .{self.artifact_name}, .{});
-            try self.printer.append("Switching to {s} - {s}.\n\n", .{ target_version, target }, .{});
+            try self.ctx.printer.append("{s} version already installed.\n", .{self.artifact_name}, .{});
+            try self.ctx.printer.append("Switching to {s} - {s}.\n\n", .{ target_version, target }, .{});
             try self.switchVersion(target_version, target);
             return;
         }
@@ -221,17 +194,17 @@ pub const Artifact = struct {
         target_version: []const u8,
         target: []const u8,
     ) !void {
-        try self.printer.append("Uninstalling version: {s}\nWith target: {s}\n\n", .{ target_version, target }, .{});
+        try self.ctx.printer.append("Uninstalling version: {s}\nWith target: {s}\n\n", .{ target_version, target }, .{});
         const version = try self.getVersion(target_version, target);
         if (!Fs.existsDir(version.path)) {
-            try self.printer.append("{s} version is not installed.\n\n", .{self.artifact_name}, .{});
+            try self.ctx.printer.append("{s} version is not installed.\n\n", .{self.artifact_name}, .{});
             return;
         }
 
         const version_dir = try std.fs.path.join(
-            self.allocator,
+            self.ctx.allocator,
             &.{
-                if (self.artifact_type == .zig) self.paths.zig_root else self.paths.zep_root,
+                if (self.artifact_type == .zig) self.ctx.paths.zig_root else self.ctx.paths.zep_root,
                 "d",
                 version.version,
             },
@@ -243,9 +216,9 @@ pub const Artifact = struct {
             version_dir_includes_folders = true;
             break;
         }
-        const manifest = try self.manifest.readManifest(
+        const manifest = try self.ctx.manifest.readManifest(
             Structs.Manifests.ArtifactManifest,
-            if (self.artifact_type == .zig) self.paths.zig_manifest else self.paths.zep_manifest,
+            if (self.artifact_type == .zig) self.ctx.paths.zig_manifest else self.ctx.paths.zep_manifest,
         );
         defer manifest.deinit();
 
@@ -266,25 +239,31 @@ pub const Artifact = struct {
     pub fn switchVersion(self: *Artifact, target_version: []const u8, target: []const u8) anyerror!void {
         if (self.artifact_type == .zep) {
             if (!std.mem.eql(u8, Constants.Default.version, target_version)) {
-                try self.printer.append("Warning: {s} is below 0.8, which is incompatible with the newer versions.\n", .{target_version}, .{});
-                try self.printer.append("After switching to this version, you will not be able to switch to 0.8 or later versions.\n", .{}, .{});
+                try self.ctx.printer.append("Warning: {s} is below 0.8, which is incompatible with the newer versions.\n", .{target_version}, .{});
+                try self.ctx.printer.append("After switching to this version, you will not be able to switch to 0.8 or later versions.\n", .{}, .{});
 
                 var stdin_buf: [128]u8 = undefined;
                 var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
                 const stdin = &stdin_reader.interface;
 
-                const answer = try Prompt.input(self.allocator, self.printer, stdin, "Continue? (y/N) ", .{});
+                const answer = try Prompt.input(
+                    self.ctx.allocator,
+                    &self.ctx.printer,
+                    stdin,
+                    "Continue? (y/N) ",
+                    .{},
+                );
                 if (answer.len == 0 or
                     std.mem.startsWith(u8, answer, "n") or
                     std.mem.startsWith(u8, answer, "N"))
                 {
-                    try self.printer.append("\nOk.\n", .{}, .{});
+                    try self.ctx.printer.append("\nOk.\n", .{}, .{});
                     return;
                 }
             }
         }
 
-        try self.printer.append(
+        try self.ctx.printer.append(
             "[{s}] Switching version: {s}\nWith target: {s}\n\n",
             .{
                 self.artifact_name,

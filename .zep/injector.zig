@@ -12,4 +12,16 @@ pub fn imp(b: *std.Build, exe: *std.Build.Module) void {
  });
  exe.addImport("logly", loglyMod);
  // ----------
+ // bufzilla MODULE
+ const bufzillaMod = b.createModule(.{
+     .root_source_file = b.path(".zep/bufzilla/src/lib.zig"),
+ });
+ exe.addImport("bufzilla", bufzillaMod);
+ // ----------
+ // zeit MODULE
+ const zeitMod = b.createModule(.{
+     .root_source_file = b.path(".zep/zeit/src/zeit.zig"),
+ });
+ exe.addImport("zeit", zeitMod);
+ // ----------
 }

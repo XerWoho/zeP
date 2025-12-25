@@ -4,28 +4,18 @@ const Locales = @import("locales");
 const Constants = @import("constants");
 
 const Fs = @import("io").Fs;
-const Printer = @import("cli").Printer;
 const Package = @import("core").Package;
-const Compressor = @import("core").Compressor;
 
 const TEMPORARY_DIRECTORY_PATH = ".zep/.ZEPtmp";
 
-pub const Cacher = struct {
-    allocator: std.mem.Allocator,
-    compressor: Compressor,
-    printer: *Printer,
-    paths: *Constants.Paths.Paths,
+const Context = @import("context").Context;
 
-    pub fn init(
-        allocator: std.mem.Allocator,
-        printer: *Printer,
-        paths: *Constants.Paths.Paths,
-    ) !Cacher {
+pub const Cacher = struct {
+    ctx: *Context,
+
+    pub fn init(ctx: *Context) Cacher {
         return .{
-            .allocator = allocator,
-            .compressor = try Compressor.init(allocator, printer, paths),
-            .printer = printer,
-            .paths = paths,
+            .ctx = ctx,
         };
     }
 
@@ -36,16 +26,16 @@ pub const Cacher = struct {
         package_id: []const u8,
     ) ![]u8 {
         const zstd_id = try std.fmt.allocPrint(
-            self.allocator,
+            self.ctx.allocator,
             "{s}.tar.zstd",
             .{
                 package_id,
             },
         );
         const cache_fp = try std.fs.path.join(
-            self.allocator,
+            self.ctx.allocator,
             &.{
-                self.paths.zepped,
+                self.ctx.paths.cached,
                 zstd_id,
             },
         );
@@ -58,9 +48,9 @@ pub const Cacher = struct {
         package_id: []const u8,
     ) ![]u8 {
         const extract_p = try std.fs.path.join(
-            self.allocator,
+            self.ctx.allocator,
             &.{
-                self.paths.pkg_root,
+                self.ctx.paths.pkg_root,
                 package_id,
             },
         );
@@ -73,7 +63,7 @@ pub const Cacher = struct {
         package_id: []const u8,
     ) ![]u8 {
         const tmp_p = try std.fs.path.join(
-            self.allocator,
+            self.ctx.allocator,
             &.{
                 TEMPORARY_DIRECTORY_PATH,
                 package_id,
@@ -87,6 +77,7 @@ pub const Cacher = struct {
         self: *Cacher,
         package_id: []const u8,
     ) !bool {
+        try self.ctx.printer.append("\nChecking Cache...\n", .{}, .{});
         const path = try self.cacheFilePath(
             package_id,
         );
@@ -96,11 +87,8 @@ pub const Cacher = struct {
     pub fn getPackageFromCache(
         self: *Cacher,
         package_id: []const u8,
-    ) !bool {
-        const is_cached = try self.isPackageCached(
-            package_id,
-        );
-        if (!is_cached) return false;
+    ) !void {
+        try self.ctx.printer.append(" > CACHE HIT!\n", .{}, .{ .color = .green });
 
         const temporary_output_path = try self.tmpOutputPath(
             package_id,
@@ -109,36 +97,46 @@ pub const Cacher = struct {
         defer {
             temporary_directory.close();
             Fs.deleteTreeIfExists(TEMPORARY_DIRECTORY_PATH) catch {
-                self.printer.append("\nFailed to delete {s}!\n", .{TEMPORARY_DIRECTORY_PATH}, .{ .color = .red }) catch {};
+                self.ctx.printer.append("\nFailed to delete {s}!\n", .{TEMPORARY_DIRECTORY_PATH}, .{ .color = .red }) catch {};
             };
-            self.allocator.free(temporary_output_path);
+            self.ctx.allocator.free(temporary_output_path);
         }
 
         const cache_path = try self.cacheFilePath(
             package_id,
         );
-        defer self.allocator.free(cache_path);
+        defer self.ctx.allocator.free(cache_path);
 
         const extract_path = try self.extractPath(
             package_id,
         );
-        defer self.allocator.free(extract_path);
+        defer self.ctx.allocator.free(extract_path);
 
-        return try self.compressor.decompress(cache_path, extract_path);
+        self.ctx.compressor.decompress(cache_path, extract_path) catch {
+            try self.ctx.printer.append(" ! CACHING FAILED!\n\n", .{}, .{ .color = .red });
+        };
     }
 
-    pub fn setPackageToCache(self: *Cacher, package_id: []const u8) !bool {
+    pub fn setPackageToCache(self: *Cacher, package_id: []const u8) !void {
+        try self.ctx.printer.append("Package not cached...\n", .{}, .{});
+
         const target_folder = try std.fs.path.join(
-            self.allocator,
+            self.ctx.allocator,
             &.{
-                self.paths.pkg_root,
+                self.ctx.paths.pkg_root,
                 package_id,
             },
         );
-        defer self.allocator.free(target_folder);
+        defer self.ctx.allocator.free(target_folder);
 
-        try self.printer.append("Compressing now...", .{}, .{});
-        return try self.compressor.compress(target_folder, try self.cacheFilePath(package_id));
+        try self.ctx.printer.append("Caching now...\n", .{}, .{});
+        const compress_path = try self.cacheFilePath(package_id);
+        const is_cached = try self.ctx.compressor.compress(target_folder, compress_path);
+        if (is_cached) {
+            try self.ctx.printer.append(" > PACKAGE CACHED!\n\n", .{}, .{ .color = .green });
+        } else {
+            try self.ctx.printer.append(" ! CACHING FAILED!\n\n", .{}, .{ .color = .red });
+        }
     }
 
     pub fn deletePackageFromCache(
@@ -150,7 +148,7 @@ pub const Cacher = struct {
             &buf,
             "{s}/{s}.tar.zstd",
             .{
-                self.paths.zepped,
+                self.ctx.paths.cached,
                 package_id,
             },
         );

@@ -15,11 +15,13 @@
     }
   ],
   "description": "A new zig Package manager, and version manager for zig.",
-  "version": "0.8",
+  "version": "0.9",
   "license": "GPLv3",
   "packages": [
     "clap@0.11.0",
-    "logly@0.0.8"
+    "logly@0.0.8",
+    "bufzilla@0.3.0",
+    "zeit@0.7.0"
   ],
   "dev_packages": [],
   "build": {

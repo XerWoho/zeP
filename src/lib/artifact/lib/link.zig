@@ -5,19 +5,15 @@ const Constants = @import("constants");
 const Structs = @import("structs");
 
 const Fs = @import("io").Fs;
-const Manifest = @import("core").Manifest;
+
+const Context = @import("context").Context;
 
 /// Updates the symbolic link to point to the currently active Artifact installation
-pub fn updateLink(
-    artifact_type: Structs.Extras.ArtifactType,
-    paths: *Constants.Paths.Paths,
-    manifest: *Manifest,
-) !void {
-    var allocator = std.heap.page_allocator;
+pub fn updateLink(artifact_type: Structs.Extras.ArtifactType, ctx: *Context) !void {
     // Load manifest and get absolute path
-    const read_manifest = try manifest.readManifest(
+    const read_manifest = try ctx.manifest.readManifest(
         Structs.Manifests.ArtifactManifest,
-        if (artifact_type == .zig) paths.zig_manifest else paths.zep_manifest,
+        if (artifact_type == .zig) ctx.paths.zig_manifest else ctx.paths.zep_manifest,
     );
     if (read_manifest.value.path.len == 0) {
         if (artifact_type == .zig) {
@@ -30,8 +26,8 @@ pub fn updateLink(
 
     defer read_manifest.deinit();
 
-    const absolute_path = try std.fs.realpathAlloc(allocator, read_manifest.value.path);
-    defer allocator.free(absolute_path);
+    const absolute_path = try std.fs.realpathAlloc(ctx.allocator, read_manifest.value.path);
+    defer ctx.allocator.free(absolute_path);
 
     if (builtin.os.tag == .windows) {
         var buf: [256]u8 = undefined;
@@ -43,8 +39,8 @@ pub fn updateLink(
             },
         );
 
-        const artifact_path = try std.fs.path.join(allocator, &.{ absolute_path, exe });
-        defer allocator.free(artifact_path);
+        const artifact_path = try std.fs.path.join(ctx.allocator, &.{ absolute_path, exe });
+        defer ctx.allocator.free(artifact_path);
         if (!Fs.existsFile(artifact_path)) {
             if (artifact_type == .zig) {
                 std.debug.print("\nZig file does not exists! {s}\n", .{artifact_path});
@@ -55,9 +51,9 @@ pub fn updateLink(
         }
 
         const sym_link_path_directory = try std.fs.path.join(
-            allocator,
+            ctx.allocator,
             &.{
-                if (artifact_type == .zig) paths.zig_root else paths.zep_root, "e",
+                if (artifact_type == .zig) ctx.paths.zig_root else ctx.paths.zep_root, "e",
             },
         );
         if (!Fs.existsDir(sym_link_path_directory)) {
@@ -65,13 +61,13 @@ pub fn updateLink(
         }
 
         const sym_link_path = try std.fs.path.join(
-            allocator,
+            ctx.allocator,
             &.{
                 sym_link_path_directory,
                 exe,
             },
         );
-        defer allocator.free(sym_link_path);
+        defer ctx.allocator.free(sym_link_path);
         Fs.deleteFileIfExists(sym_link_path) catch {};
         Fs.deleteDirIfExists(sym_link_path) catch {};
 
@@ -80,15 +76,15 @@ pub fn updateLink(
         var artifact_target: []const u8 = "zig";
         if (artifact_type == .zep) {
             artifact_target = "zeP";
-            const check_exe_path = try std.fs.path.join(allocator, &.{ absolute_path, "zeP" });
-            defer allocator.free(check_exe_path);
+            const check_exe_path = try std.fs.path.join(ctx.allocator, &.{ absolute_path, "zeP" });
+            defer ctx.allocator.free(check_exe_path);
             if (!Fs.existsFile(check_exe_path)) {
                 artifact_target = "zep";
             }
         }
 
-        const artifact_path = try std.fs.path.join(allocator, &.{ absolute_path, artifact_target });
-        defer allocator.free(artifact_path);
+        const artifact_path = try std.fs.path.join(ctx.allocator, &.{ absolute_path, artifact_target });
+        defer ctx.allocator.free(artifact_path);
 
         if (!Fs.existsFile(artifact_path)) {
             if (artifact_type == .zig) {
@@ -103,8 +99,8 @@ pub fn updateLink(
         defer artifact_target_file.close();
         try artifact_target_file.chmod(0o755);
 
-        const sym_link_path = try std.fs.path.join(allocator, &.{ paths.base, "bin", if (artifact_type == .zig) "zig" else "zep" });
-        defer allocator.free(sym_link_path);
+        const sym_link_path = try std.fs.path.join(ctx.allocator, &.{ ctx.paths.base, "bin", if (artifact_type == .zig) "zig" else "zep" });
+        defer ctx.allocator.free(sym_link_path);
         Fs.deleteFileIfExists(sym_link_path) catch {};
         Fs.deleteDirIfExists(sym_link_path) catch {};
 

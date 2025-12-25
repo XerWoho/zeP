@@ -102,6 +102,8 @@ pub const Printer = struct {
 
     pub fn append(self: *Printer, comptime fmt: []const u8, args: anytype, options: AppendOptions) !void {
         if (options.verbosity > Locales.VERBOSITY_MODE) return;
+        try self.clearScreen();
+
         const data = try std.fmt.allocPrint(self.allocator, fmt, args);
         try self.data.append(
             self.allocator,
@@ -125,47 +127,55 @@ pub const Printer = struct {
         return;
     }
 
-    pub fn clearLine(_: *Printer, n: usize) !void {
+    pub fn clearLines(_: *Printer, n: usize) !void {
         if (n == 0) return;
 
         var stdout_buf: [1028]u8 = undefined;
         var stdout_writer = std.fs.File.writer(std.fs.File.stdout(), &stdout_buf);
         var stdout = &stdout_writer.interface;
-        for (0..n) |i| {
-            try stdout.print("\x1b[2K\r", .{}); // Clear line
-            if (@as(i8, @intCast(i)) - 1 < n) try stdout.print("\x1b[1A", .{});
-        }
 
-        try stdout.print("\x1b[2K\r", .{}); // Clear line
+        for (0..n) |i| {
+            try stdout.print("\x1b[2K\r", .{}); // clear line
+            if (@as(i8, @intCast(i)) - 1 < n) try stdout.print("\x1b[1A", .{}); // move up
+        }
+        try stdout.print("\x1b[2K\r", .{}); // clear line
         try stdout.flush();
     }
 
-    pub fn clearScreen(self: *Printer) !void {
-        if (self.data.items.len < 2) return;
-
-        var count: u16 = 0;
-        for (0..self.data.items.len - 1) |i| {
-            const data = self.data.items[i];
-            const d = data.data;
-            var small_count: usize = 0;
-            for (d) |c| {
-                if (c == '\n') small_count += 1;
-            }
-            count += @intCast(small_count);
+    fn lineCount(s: []const u8) usize {
+        var lines: usize = 0;
+        for (s) |c| {
+            if (c == '\n') lines += 1;
         }
+        return lines;
+    }
 
-        try self.clearLine(count);
+    fn totalCount(self: *Printer) usize {
+        var total: usize = 0;
+        for (self.data.items) |d| {
+            total += lineCount(d.data);
+        }
+        return total;
+    }
+
+    pub fn clearScreen(self: *Printer) !void {
+        const count = self.totalCount();
+        try self.clearLines(count);
     }
 
     pub fn print(self: *Printer) !void {
-        try self.clearScreen();
+        var buf: [512 * 16]u8 = undefined;
+        const writer = std.fs.File.stdout().writer(&buf);
+        var w = writer.interface;
+
         for (self.data.items) |d| {
-            std.debug.print("{s}{s}{s}\x1b[0m", .{
+            try w.print("{s}{s}{s}\x1b[0m", .{
                 getWeight(d.weight),
                 getColor(d.color),
                 d.data,
             });
         }
+        try w.flush();
         return;
     }
 };

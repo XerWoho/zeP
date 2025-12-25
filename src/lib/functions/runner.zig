@@ -4,41 +4,29 @@ const builtin = @import("builtin");
 const Constants = @import("constants");
 const Structs = @import("structs");
 
-const Manifest = @import("core").Manifest;
-const Printer = @import("cli").Printer;
 const Fs = @import("io").Fs;
 
 const Builder = @import("builder.zig").Builder;
 
+const Context = @import("context").Context;
+
 /// Handles running a build
 pub const Runner = struct {
-    allocator: std.mem.Allocator,
-    printer: *Printer,
-    manifest: *Manifest,
+    ctx: *Context,
 
     /// Initializes Runner
-    pub fn init(
-        allocator: std.mem.Allocator,
-        printer: *Printer,
-        manifest: *Manifest,
-    ) Runner {
+    pub fn init(ctx: *Context) Runner {
         return Runner{
-            .allocator = allocator,
-            .printer = printer,
-            .manifest = manifest,
+            .ctx = ctx,
         };
     }
 
     /// Initializes a Child Processor, and executes specified file
     pub fn run(self: *Runner, target_exe: []const u8, args: [][]const u8) !void {
-        var builder = try Builder.init(
-            self.allocator,
-            self.printer,
-            self.manifest,
-        );
-        try self.printer.append("\nBuilding executeable...\n\n", .{}, .{ .color = .green });
+        var builder = try Builder.init(self.ctx);
+        try self.ctx.printer.append("\nBuilding executeable...\n\n", .{}, .{ .color = .green });
         var target_files = try builder.build();
-        defer target_files.deinit(self.allocator);
+        defer target_files.deinit(self.ctx.allocator);
 
         var target_file = target_files.items[0];
         if (target_files.items.len > 0 and target_exe.len > 0) {
@@ -51,13 +39,13 @@ pub const Runner = struct {
             }
         }
 
-        var exec_args = try std.ArrayList([]const u8).initCapacity(self.allocator, 5);
+        var exec_args = try std.ArrayList([]const u8).initCapacity(self.ctx.allocator, 5);
         for (args) |arg| {
-            try exec_args.append(self.allocator, arg);
+            try exec_args.append(self.ctx.allocator, arg);
         }
 
         if (builtin.os.tag == .windows) {
-            try exec_args.insert(self.allocator, 0, target_file);
+            try exec_args.insert(self.ctx.allocator, 0, target_file);
         } else {
             var buf: [256]u8 = undefined;
             const exec = try std.fmt.bufPrint(
@@ -65,15 +53,15 @@ pub const Runner = struct {
                 "./{s}",
                 .{target_file},
             );
-            try exec_args.insert(self.allocator, 0, exec);
+            try exec_args.insert(self.ctx.allocator, 0, exec);
         }
 
-        self.printer.pop(50);
+        self.ctx.printer.pop(50);
 
-        const cmd = try std.mem.join(self.allocator, " ", exec_args.items);
-        defer self.allocator.free(cmd);
-        try self.printer.append("\nRunning...\n $ {s}\n\n\n", .{cmd}, .{ .color = .green });
-        var process = std.process.Child.init(exec_args.items, self.allocator);
+        const cmd = try std.mem.join(self.ctx.allocator, " ", exec_args.items);
+        defer self.ctx.allocator.free(cmd);
+        try self.ctx.printer.append("\nRunning...\n $ {s}\n\n\n", .{cmd}, .{ .color = .green });
+        var process = std.process.Child.init(exec_args.items, self.ctx.allocator);
         _ = process.spawnAndWait() catch {};
     }
 };

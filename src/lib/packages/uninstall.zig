@@ -5,33 +5,17 @@ const Constants = @import("constants");
 const Structs = @import("structs");
 
 const Fs = @import("io").Fs;
-const Printer = @import("cli").Printer;
 const Injector = @import("core").Injector;
-const Manifest = @import("core").Manifest;
-const Json = @import("core").Json;
+const Context = @import("context").Context;
 
 /// Handles the uninstallation of a package
 pub const Uninstaller = struct {
-    allocator: std.mem.Allocator,
-    printer: *Printer,
-    paths: *Constants.Paths.Paths,
-    json: *Json,
-    manifest: *Manifest,
+    ctx: *Context,
 
     /// Initialize the uninstaller with allocator, package name, and printer
-    pub fn init(
-        allocator: std.mem.Allocator,
-        printer: *Printer,
-        json: *Json,
-        paths: *Constants.Paths.Paths,
-        manifest: *Manifest,
-    ) !Uninstaller {
+    pub fn init(ctx: *Context) Uninstaller {
         return Uninstaller{
-            .allocator = allocator,
-            .json = json,
-            .printer = printer,
-            .paths = paths,
-            .manifest = manifest,
+            .ctx = ctx,
         };
     }
 
@@ -42,7 +26,7 @@ pub const Uninstaller = struct {
         self: *Uninstaller,
         package_name: []const u8,
     ) !void {
-        const lock = try self.manifest.readManifest(
+        const lock = try self.ctx.manifest.readManifest(
             Structs.ZepFiles.PackageLockStruct,
             Constants.Extras.package_files.lock,
         );
@@ -68,54 +52,54 @@ pub const Uninstaller = struct {
         }
 
         const package_id = try std.fmt.allocPrint(
-            self.allocator,
+            self.ctx.allocator,
             "{s}@{s}",
             .{ package_name, package_version },
         );
-        defer self.allocator.free(package_id);
+        defer self.ctx.allocator.free(package_id);
 
-        try self.printer.append("Deleting Package...\n[{s}]\n\n", .{package_name}, .{});
+        try self.ctx.printer.append("Deleting Package...\n[{s}]\n\n", .{package_name}, .{});
         try self.removePackageFromJson(package_id);
 
         var injector = try Injector.init(
-            self.allocator,
-            self.printer,
-            self.manifest,
+            self.ctx.allocator,
+            &self.ctx.printer,
+            &self.ctx.manifest,
             false,
         );
         try injector.initInjector();
 
         // Remove symbolic link
         const symbolic_link_path = try std.fs.path.join(
-            self.allocator,
+            self.ctx.allocator,
             &.{
                 Constants.Extras.package_files.zep_folder,
                 package_name,
             },
         );
-        defer self.allocator.free(symbolic_link_path);
+        defer self.ctx.allocator.free(symbolic_link_path);
 
         if (Fs.existsDir(symbolic_link_path)) {
             Fs.deleteTreeIfExists(symbolic_link_path) catch {};
             Fs.deleteFileIfExists(symbolic_link_path) catch {};
 
-            const cwd = try std.fs.cwd().realpathAlloc(self.allocator, ".");
-            defer self.allocator.free(cwd);
+            const cwd = try std.fs.cwd().realpathAlloc(self.ctx.allocator, ".");
+            defer self.ctx.allocator.free(cwd);
 
-            const absolute_path = try std.fs.path.join(self.allocator, &.{ cwd, symbolic_link_path });
-            defer self.allocator.free(absolute_path);
+            const absolute_path = try std.fs.path.join(self.ctx.allocator, &.{ cwd, symbolic_link_path });
+            defer self.ctx.allocator.free(absolute_path);
 
             // ! Handles the deletion of the package
             // ! as the package can ONLY be deleted,
             // ! if no other project uses it
             // !
-            try self.manifest.removePathFromManifest(
+            try self.ctx.manifest.removePathFromManifest(
                 package_id,
                 absolute_path,
             );
         }
         try self.removePackageFromJson(package_id);
-        try self.printer.append("Successfully deleted - {s}\n\n", .{package_name}, .{ .color = .green });
+        try self.ctx.printer.append("Successfully deleted - {s}\n\n", .{package_name}, .{ .color = .green });
     }
 
     /// Remove package from `zep.json` and `zep.lock`
@@ -123,11 +107,11 @@ pub const Uninstaller = struct {
         self: *Uninstaller,
         package_id: []const u8,
     ) !void {
-        var package_json = try self.manifest.readManifest(
+        var package_json = try self.ctx.manifest.readManifest(
             Structs.ZepFiles.PackageJsonStruct,
             Constants.Extras.package_files.manifest,
         );
-        var lock_json = try self.manifest.readManifest(
+        var lock_json = try self.ctx.manifest.readManifest(
             Structs.ZepFiles.PackageLockStruct,
             Constants.Extras.package_files.lock,
         );
@@ -137,87 +121,14 @@ pub const Uninstaller = struct {
 
         const previous_verbosity = Locales.VERBOSITY_MODE;
         Locales.VERBOSITY_MODE = 0;
-        try manifestRemove(
+        try self.ctx.manifest.manifestRemove(
             &package_json.value,
             package_id,
-            self.json,
         );
-        try lockRemove(
+        try self.ctx.manifest.lockRemove(
             &lock_json.value,
             package_id,
-            self.json,
-            self.manifest,
         );
         Locales.VERBOSITY_MODE = previous_verbosity;
     }
 };
-
-fn filterOut(
-    allocator: std.mem.Allocator,
-    list: anytype,
-    filter: []const u8,
-    comptime T: type,
-    matchFn: fn (a: T, b: []const u8) bool,
-) ![]T {
-    var out = try std.ArrayList(T).initCapacity(allocator, 10);
-    defer out.deinit(allocator);
-
-    for (list) |item| {
-        if (!matchFn(item, filter))
-            try out.append(allocator, item);
-    }
-
-    return out.toOwnedSlice(allocator);
-}
-
-fn lockRemove(
-    lock: *Structs.ZepFiles.PackageLockStruct,
-    package_name: []const u8,
-    json: *Json,
-    manifest: *Manifest,
-) !void {
-    const alloc = std.heap.page_allocator;
-
-    lock.packages = try filterOut(
-        alloc,
-        lock.packages,
-        package_name,
-        Structs.ZepFiles.LockPackageStruct,
-        struct {
-            fn match(item: Structs.ZepFiles.LockPackageStruct, ctx: []const u8) bool {
-                return std.mem.startsWith(u8, item.name, ctx);
-            }
-        }.match,
-    );
-
-    var package_json = try manifest.readManifest(
-        Structs.ZepFiles.PackageJsonStruct,
-        Constants.Extras.package_files.manifest,
-    );
-    defer package_json.deinit();
-    lock.root = package_json.value;
-
-    try json.writePretty(Constants.Extras.package_files.lock, lock);
-}
-
-fn manifestRemove(
-    pkg: *Structs.ZepFiles.PackageJsonStruct,
-    package_id: []const u8,
-    json: *Json,
-) !void {
-    const alloc = std.heap.page_allocator;
-
-    pkg.packages = try filterOut(
-        alloc,
-        pkg.packages,
-        package_id,
-        []const u8,
-        struct {
-            fn match(item: []const u8, ctx: []const u8) bool {
-                return std.mem.eql(u8, item, ctx);
-            }
-        }.match,
-    );
-
-    try json.writePretty(Constants.Extras.package_files.manifest, pkg);
-}
