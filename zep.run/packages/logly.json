@@ -4,6 +4,13 @@
   "docs": "",
   "versions": [
     {
+      "version": "0.0.9",
+      "url": "https://github.com/muhammad-fiaz/logly.zig/archive/refs/tags/0.0.9.zip",
+      "root_file": "/src/logly.zig",
+      "zig_version": "0.15.1",
+      "sha256sum": "c3587a8ca4dca2c1f0b4bd22f72ede4bcb728a51d3fa60a6f71e3471951af8a3"
+    },
+    {
       "version": "0.0.8",
       "url": "https://github.com/muhammad-fiaz/logly.zig/archive/refs/tags/0.0.8.zip",
       "root_file": "/src/logly.zig",
