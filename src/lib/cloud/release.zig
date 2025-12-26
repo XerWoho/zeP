@@ -113,7 +113,7 @@ pub fn delete(self: *Release) !void {
     };
 
     const delete_release_response = try self.ctx.fetcher.fetch(
-        "http://localhost:5000/api/delete/release",
+        Constants.Default.zep_url ++ "/api/delete/release",
         &client,
         .{
             .method = .DELETE,
@@ -352,7 +352,7 @@ pub fn create(self: *Release) !void {
     defer client.deinit();
 
     const uri =
-        try std.Uri.parse("http://localhost:5000/api/post/release");
+        try std.Uri.parse(Constants.Default.zep_url ++ "/api/post/release");
 
     var req = try client.request(.POST, uri, .{});
     defer req.deinit();

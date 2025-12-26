@@ -31,7 +31,7 @@ pub fn getProjects(self: *Project) ![]Structs.Fetch.ProjectStruct {
     defer client.deinit();
 
     const res = try self.ctx.fetcher.fetch(
-        "http://localhost:5000/api/get/projects",
+        Constants.Default.zep_url ++ "/api/get/projects",
         &client,
         .{
             .method = .GET,
@@ -68,7 +68,7 @@ pub fn getProject(self: *Project, name: []const u8) !?struct {
 } {
     const url = try std.fmt.allocPrint(
         self.ctx.allocator,
-        "http://localhost:5000/api/get/project?name={s}",
+        Constants.Default.zep_url ++ "/api/get/project?name={s}",
         .{name},
     );
     defer self.ctx.allocator.free(url);
@@ -208,7 +208,7 @@ pub fn delete(self: *Project) !void {
     };
 
     const delete_project_response = try self.ctx.fetcher.fetch(
-        "http://localhost:5000/api/delete/project",
+        Constants.Default.zep_url ++ "/api/delete/project",
         &client,
         .{
             .method = .DELETE,
@@ -242,7 +242,7 @@ fn projectNameAvailable(project_name: []const u8) bool {
     const allocator = std.heap.page_allocator;
     const url = std.fmt.allocPrint(
         allocator,
-        "http://localhost:5000/api/get/project?name={s}",
+        Constants.Default.zep_url ++ "/api/get/project?name={s}",
         .{project_name},
     ) catch return false;
     defer allocator.free(url);
@@ -305,7 +305,7 @@ pub fn create(self: *Project) !void {
     var client = std.http.Client{ .allocator = self.ctx.allocator };
     defer client.deinit();
     const project_response = try self.ctx.fetcher.fetch(
-        "http://localhost:5000/api/post/project",
+        Constants.Default.zep_url ++ "/api/post/project",
         &client,
         .{
             .headers = &.{

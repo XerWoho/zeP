@@ -35,7 +35,7 @@ fn verifyUsername(a: []const u8) bool {
 
     const url = std.fmt.allocPrint(
         allocator,
-        "http://localhost:5000/api/get/name?name={s}",
+        Constants.Default.zep_url ++ "/api/get/name?name={s}",
         .{a},
     ) catch return false;
     defer allocator.free(url);
@@ -77,7 +77,7 @@ fn getUserData(self: *Auth) !std.json.Parsed(User) {
     var client = std.http.Client{ .allocator = self.ctx.allocator };
     defer client.deinit();
     const profile_response = try self.ctx.fetcher.fetch(
-        "http://localhost:5000/api/whoami",
+        Constants.Default.zep_url ++ "/api/whoami",
         &client,
         .{
             .method = .GET,
@@ -169,7 +169,7 @@ pub fn register(self: *Auth) !void {
     blk: {
         const url = try std.fmt.allocPrint(
             self.ctx.allocator,
-            "http://localhost:5000/api/get/email?email={s}",
+            Constants.Default.zep_url ++ "/api/get/email?email={s}",
             .{email},
         );
         defer self.ctx.allocator.free(url);
@@ -222,7 +222,7 @@ pub fn register(self: *Auth) !void {
     };
 
     const register_response = try self.ctx.fetcher.fetch(
-        "http://localhost:5000/api/auth/register",
+        Constants.Default.zep_url ++ "/api/auth/register",
         &client,
         .{ .payload = try std.json.Stringify.valueAlloc(self.ctx.allocator, register_payload, .{}) },
     );
@@ -250,7 +250,7 @@ pub fn register(self: *Auth) !void {
         .email = email,
     };
     const verify_response = try self.ctx.fetcher.fetch(
-        "http://localhost:5000/api/auth/verify",
+        Constants.Default.zep_url ++ "/api/auth/verify",
         &client,
         .{
             .payload = try std.json.Stringify.valueAlloc(self.ctx.allocator, verify_payload, .{}),
@@ -308,7 +308,7 @@ pub fn login(self: *Auth) !void {
     defer client.deinit();
 
     const login_response = try self.ctx.fetcher.fetch(
-        "http://localhost:5000/api/auth/login",
+        Constants.Default.zep_url ++ "/api/auth/login",
         &client,
         .{ .payload = try std.json.Stringify.valueAlloc(self.ctx.allocator, login_payload, .{}) },
     );
@@ -335,7 +335,7 @@ pub fn logout(self: *Auth) !void {
     var client = std.http.Client{ .allocator = self.ctx.allocator };
     defer client.deinit();
     const logout_response = try self.ctx.fetcher.fetch(
-        "http://localhost:5000/api/auth/logout",
+        Constants.Default.zep_url ++ "/api/auth/logout",
         &client,
         .{
             .method = .GET,

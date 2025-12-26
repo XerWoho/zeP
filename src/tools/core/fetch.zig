@@ -62,7 +62,7 @@ pub fn fetchProject(self: *Fetch, name: []const u8) !struct {
 } {
     const url = try std.fmt.allocPrint(
         self.allocator,
-        "http://localhost:5000/api/get/project?name={s}",
+        Constants.Default.zep_url ++ "/api/get/project?name={s}",
         .{name},
     );
     defer self.allocator.free(url);
