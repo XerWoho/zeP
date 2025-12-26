@@ -26,8 +26,7 @@ fn packageList(ctx: *Context) !void {
     const package = ctx.args[3];
     var split = std.mem.splitScalar(u8, package, '@');
     const package_name = split.first();
-    var lister = Lister.init(ctx, package_name);
-    lister.list() catch |err| {
+    Lister.list(ctx, package_name) catch |err| {
         switch (err) {
             error.PackageNotFound => {
                 try ctx.printer.append("Package not found...\n\n", .{}, .{ .color = .red });

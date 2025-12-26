@@ -47,14 +47,10 @@ pub fn init(
         .color = .blue,
         .weight = .bold,
     });
-    var stdin_buf: [Constants.Default.kb * 4]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-    const stdin = &stdin_reader.interface;
 
     const name = try Prompt.input(
         ctx.allocator,
         &ctx.printer,
-        stdin,
         "> *Name: ",
         .{
             .required = true,
@@ -63,14 +59,12 @@ pub fn init(
     const description = try Prompt.input(
         ctx.allocator,
         &ctx.printer,
-        stdin,
         "> Description: ",
         .{},
     );
     const license = try Prompt.input(
         ctx.allocator,
         &ctx.printer,
-        stdin,
         "> License: ",
         .{},
     );

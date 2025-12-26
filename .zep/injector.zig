@@ -12,4 +12,10 @@ pub fn imp(b: *std.Build, exe: *std.Build.Module) void {
  });
  exe.addImport("logly", loglyMod);
  // ----------
+ // mvzr MODULE
+ const mvzrMod = b.createModule(.{
+     .root_source_file = b.path(".zep/mvzr/src/mvzr.zig"),
+ });
+ exe.addImport("mvzr", mvzrMod);
+ // ----------
 }

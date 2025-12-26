@@ -39,9 +39,6 @@ pub fn add(self: *Command) !void {
     defer cmds.deinit(
         self.ctx.allocator,
     );
-    var stdin_buf: [128]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-    const stdin = &stdin_reader.interface;
 
     try self.ctx.printer.append("--- ADDING COMMAND MODE ---\n\n", .{}, .{
         .color = .yellow,
@@ -51,7 +48,6 @@ pub fn add(self: *Command) !void {
     const command_name = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "> *Command Name: ",
         .{
             .required = true,
@@ -68,7 +64,6 @@ pub fn add(self: *Command) !void {
             const input = try Prompt.input(
                 self.ctx.allocator,
                 &self.ctx.printer,
-                stdin,
                 "",
                 .{},
             );
@@ -93,7 +88,6 @@ pub fn add(self: *Command) !void {
     const command = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "> *Command: ",
         .{
             .required = true,

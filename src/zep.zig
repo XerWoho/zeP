@@ -75,15 +75,17 @@ pub fn start(alloc: std.mem.Allocator) !Context {
     }
 
     if (!is_created) {
-        var stdin_buf: [128]u8 = undefined;
-        var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-        const stdin = &stdin_reader.interface;
-
         try printer.append("\nNo setup detected. Run '$ zep setup'?\n", .{}, .{
             .color = .blue,
             .weight = .bold,
         });
-        const answer = try Prompt.input(alloc, &printer, stdin, "(Y/n) > ", .{});
+
+        const answer = try Prompt.input(
+            alloc,
+            &printer,
+            "(Y/n) > ",
+            .{},
+        );
         if (answer.len == 0 or
             std.mem.startsWith(u8, answer, "y") or
             std.mem.startsWith(u8, answer, "Y"))
@@ -98,14 +100,10 @@ pub fn start(alloc: std.mem.Allocator) !Context {
 
     const zep_version_exists = Fs.existsFile(paths.zep_manifest);
     if (!zep_version_exists) {
-        var stdin_buf: [128]u8 = undefined;
-        var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-        const stdin = &stdin_reader.interface;
         try printer.append("\nzep appears to be running outside fitting directory. Run '$ zep zep install'?\n", .{}, .{});
         const answer = try Prompt.input(
             alloc,
             &printer,
-            stdin,
             "(Y/n) > ",
             .{},
         );

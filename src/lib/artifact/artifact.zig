@@ -158,14 +158,9 @@ pub fn install(self: *Artifact, target_version: []const u8, target: []const u8) 
             try self.ctx.printer.append("Warning: {s} is below 0.8, which is incompatible with the newer versions.\n", .{v}, .{});
             try self.ctx.printer.append("After installing this version, you will not be able to switch to 0.8 or later versions.\n", .{}, .{});
 
-            var stdin_buf: [128]u8 = undefined;
-            var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-            const stdin = &stdin_reader.interface;
-
             const answer = try Prompt.input(
                 self.ctx.allocator,
                 &self.ctx.printer,
-                stdin,
                 "Continue? (y/N) ",
                 .{},
             );
@@ -252,14 +247,9 @@ pub fn switchVersion(self: *Artifact, target_version: []const u8, target: []cons
             try self.ctx.printer.append("Warning: {s} is below 0.8, which is incompatible with the newer versions.\n", .{target_version}, .{});
             try self.ctx.printer.append("After switching to this version, you will not be able to switch to 0.8 or later versions.\n", .{}, .{});
 
-            var stdin_buf: [128]u8 = undefined;
-            var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-            const stdin = &stdin_reader.interface;
-
             const answer = try Prompt.input(
                 self.ctx.allocator,
                 &self.ctx.printer,
-                stdin,
                 "Continue? (y/N) ",
                 .{},
             );

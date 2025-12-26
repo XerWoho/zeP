@@ -15,12 +15,42 @@ const Fetch = @import("core").Fetch;
 
 const Context = @import("context");
 
+const mvzr = @import("mvzr");
+fn verifyEmail(a: []const u8) bool {
+    const email_patt = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}";
+    const email_regex = mvzr.compile(email_patt).?;
+    return email_regex.isMatch(a);
+}
+
+fn verifyUsername(a: []const u8) bool {
+    const username_patt = "^[a-zA-Z0-9]{3,}";
+    const username_regex = mvzr.compile(username_patt).?;
+    if (!username_regex.isMatch(a)) return false;
+
+    const allocator = std.heap.page_allocator;
+    var body = std.Io.Writer.Allocating.init(allocator);
+
+    var client = std.http.Client{ .allocator = allocator };
+    defer client.deinit();
+
+    const url = std.fmt.allocPrint(
+        allocator,
+        "http://localhost:5000/api/get/name?name={s}",
+        .{a},
+    ) catch return false;
+    defer allocator.free(url);
+    const f = client.fetch(.{
+        .location = .{ .url = url },
+        .method = .GET,
+        .response_writer = &body.writer,
+    }) catch return false;
+    return f.status != .ok;
+}
+
 /// Handles Auth
 ctx: *Context,
 
-pub fn init(
-    ctx: *Context,
-) !Auth {
+pub fn init(ctx: *Context) !Auth {
     return Auth{
         .ctx = ctx,
     };
@@ -47,7 +77,7 @@ fn getUserData(self: *Auth) !std.json.Parsed(User) {
     var client = std.http.Client{ .allocator = self.ctx.allocator };
     defer client.deinit();
     const profile_response = try self.ctx.fetcher.fetch(
-        "http://localhost:5000/api/get/profile",
+        "http://localhost:5000/api/whoami",
         &client,
         .{
             .method = .GET,
@@ -75,7 +105,19 @@ fn getUserData(self: *Auth) !std.json.Parsed(User) {
 }
 
 pub fn whoami(self: *Auth) !void {
-    const user = try self.getUserData();
+    const user = self.getUserData() catch |err| {
+        switch (err) {
+            error.NotAuthed => {
+                try self.ctx.printer.append(
+                    "Not authenticated.\n",
+                    .{},
+                    .{ .color = .bright_red },
+                );
+                return;
+            },
+            else => return err,
+        }
+    };
     defer user.deinit();
 
     try self.ctx.printer.append(" - {s}\n", .{user.value.Username}, .{ .color = .bright_blue });
@@ -83,12 +125,6 @@ pub fn whoami(self: *Auth) !void {
     try self.ctx.printer.append("   > email: {s}\n", .{user.value.Email}, .{});
     try self.ctx.printer.append("   > created at: {s}\n\n", .{user.value.CreatedAt}, .{});
 }
-
-var s = struct {
-    fn comparePassword(p: []const u8) bool {
-        return std.mem.eql(u8, password, p);
-    }
-}.comparePassword;
 
 pub fn register(self: *Auth) !void {
     blk: {
@@ -105,52 +141,72 @@ pub fn register(self: *Auth) !void {
         .weight = .bold,
     });
 
-    var stdin_buf: [128]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-    const stdin = &stdin_reader.interface;
     const username = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         " > Enter username*: ",
         .{
             .required = true,
-        },
-    );
-    const email = try Prompt.input(
-        self.ctx.allocator,
-        &self.ctx.printer,
-        stdin,
-        " > Enter email*: ",
-        .{
-            .required = true,
-        },
-    );
-    const password = try Prompt.input(
-        self.ctx.allocator,
-        &self.ctx.printer,
-        stdin,
-        " > Enter password*: ",
-        .{
-            .required = true,
+            .validate = &verifyUsername,
+            .invalid_error_msg = "(invalid / occupied) username",
         },
     );
 
-    var s = struct {
-        fn comparePassword(p: []const u8) bool {
-            return std.mem.eql(u8, password, p);
+    const email = try Prompt.input(
+        self.ctx.allocator,
+        &self.ctx.printer,
+        " > Enter email*: ",
+        .{
+            .required = true,
+            .validate = &verifyEmail,
+            .invalid_error_msg = "invalid email",
+        },
+    );
+
+    var client = std.http.Client{ .allocator = self.ctx.allocator };
+    defer client.deinit();
+
+    blk: {
+        const url = try std.fmt.allocPrint(
+            self.ctx.allocator,
+            "http://localhost:5000/api/get/email?email={s}",
+            .{email},
+        );
+        defer self.ctx.allocator.free(url);
+        const check = self.ctx.fetcher.fetch(url, &client, .{ .method = .GET }) catch |err| {
+            switch (err) {
+                error.NotFound => break :blk,
+                else => return err,
+            }
+        };
+
+        const obj = check.value.object;
+        const success = obj.get("success") orelse return error.InvalidFetch;
+        if (success.bool) {
+            try self.ctx.printer.append("\nEmail already in use! Login via\n $ zep auth login\n\n", .{}, .{});
+            return;
         }
-    }.comparePassword;
+    }
+
+    const password = try Prompt.input(
+        self.ctx.allocator,
+        &self.ctx.printer,
+        " > Enter password*: ",
+        .{
+            .required = true,
+            .password = true,
+        },
+    );
 
     _ = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         " > Repeat password*: ",
         .{
             .required = true,
-            .validate = &s,
+            .compare = password,
             .invalid_error_msg = "passwords do not match.",
+            .password = true,
         },
     );
 
@@ -165,8 +221,6 @@ pub fn register(self: *Auth) !void {
         .password = password,
     };
 
-    var client = std.http.Client{ .allocator = self.ctx.allocator };
-    defer client.deinit();
     const register_response = try self.ctx.fetcher.fetch(
         "http://localhost:5000/api/auth/register",
         &client,
@@ -182,7 +236,6 @@ pub fn register(self: *Auth) !void {
     const code = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "Enter code (from mail): ",
         .{
             .required = true,
@@ -222,25 +275,23 @@ pub fn login(self: *Auth) !void {
         .weight = .bold,
     });
 
-    var stdin_buf: [128]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-    const stdin = &stdin_reader.interface;
     const email = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         " > Enter email: ",
         .{
             .required = true,
+            .validate = &verifyEmail,
+            .invalid_error_msg = "invalid email",
         },
     );
     const password = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         " > Enter password: ",
         .{
             .required = true,
+            .password = true,
         },
     );
 

@@ -43,44 +43,27 @@ pub fn build(builder: *std.Build) void {
 
     const localesMod = builder.createModule(.{ .root_source_file = builder.path("src/locales.zig") });
     const constantsMod = builder.createModule(.{ .root_source_file = builder.path("src/constants/_index.zig") });
+
     const loggersMod = builder.createModule(.{ .root_source_file = builder.path("src/logger.zig") });
+    loggersMod.addImport("constants", constantsMod);
     __zepinj__.imp(builder, loggersMod);
 
-    const structsMod = builder.createModule(.{
-        .root_source_file = builder.path("src/structs/_index.zig"),
-        .imports = &.{
-            std.Build.Module.Import{ .name = "constants", .module = constantsMod },
-            std.Build.Module.Import{ .name = "logger", .module = loggersMod },
-        },
-    });
-    const iosMod = builder.createModule(.{
-        .root_source_file = builder.path("src/tools/io/_index.zig"),
-        .imports = &.{
-            std.Build.Module.Import{ .name = "constants", .module = constantsMod },
-            std.Build.Module.Import{ .name = "logger", .module = loggersMod },
-        },
-    });
-    const clisMod = builder.createModule(.{
-        .root_source_file = builder.path("src/tools/cli/_index.zig"),
-        .imports = &.{
-            std.Build.Module.Import{ .name = "structs", .module = structsMod },
-            std.Build.Module.Import{ .name = "constants", .module = constantsMod },
-            std.Build.Module.Import{ .name = "locales", .module = localesMod },
-            std.Build.Module.Import{ .name = "io", .module = iosMod },
-            std.Build.Module.Import{ .name = "logger", .module = loggersMod },
-        },
-    });
-    const coresMod = builder.createModule(.{
-        .root_source_file = builder.path("src/tools/core/_index.zig"),
-        .imports = &.{
-            std.Build.Module.Import{ .name = "structs", .module = structsMod },
-            std.Build.Module.Import{ .name = "locales", .module = localesMod },
-            std.Build.Module.Import{ .name = "constants", .module = constantsMod },
-            std.Build.Module.Import{ .name = "io", .module = iosMod },
-            std.Build.Module.Import{ .name = "cli", .module = clisMod },
-            std.Build.Module.Import{ .name = "logger", .module = loggersMod },
-        },
-    });
+    const structsMod = builder.createModule(.{ .root_source_file = builder.path("src/structs/_index.zig") });
+    structsMod.addImport("constants", constantsMod);
+
+    const iosMod = builder.createModule(.{ .root_source_file = builder.path("src/tools/io/_index.zig") });
+    const clisMod = builder.createModule(.{ .root_source_file = builder.path("src/tools/cli/_index.zig") });
+    clisMod.addImport("io", iosMod);
+    clisMod.addImport("constants", constantsMod);
+    clisMod.addImport("locales", localesMod);
+
+    const coresMod = builder.createModule(.{ .root_source_file = builder.path("src/tools/core/_index.zig") });
+    coresMod.addImport("io", iosMod);
+    coresMod.addImport("cli", clisMod);
+    coresMod.addImport("constants", constantsMod);
+    coresMod.addImport("locales", localesMod);
+    coresMod.addImport("structs", structsMod);
+
     coresMod.addIncludePath(.{
         .cwd_relative = "c/zstd/lib",
     });
@@ -89,7 +72,6 @@ pub fn build(builder: *std.Build) void {
     __zepinj__.imp(builder, argsMod);
 
     const contextMod = builder.createModule(.{ .root_source_file = builder.path("src/context.zig") });
-    contextMod.addImport("args", argsMod);
     contextMod.addImport("constants", constantsMod);
     contextMod.addImport("cli", clisMod);
     contextMod.addImport("core", coresMod);

@@ -101,9 +101,6 @@ fn shouldInject(
             return inject_method.nothing;
     }
 
-    var stdin_buf: [128]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-    const stdin = &stdin_reader.interface;
     const prompt = try std.fmt.allocPrint(
         self.allocator,
         "Import packages for \"{s}\"? (Y/n) ",
@@ -114,7 +111,6 @@ fn shouldInject(
     const ans = try Prompt.input(
         self.allocator,
         self.printer,
-        stdin,
         prompt,
         .{},
     );
@@ -284,10 +280,6 @@ pub fn injectIntoBuildZig(self: *Injector) !void {
     const excluded_modules = injector_manifest.value.excluded_modules;
 
     display_module_blk: {
-        var stdin_buf: [128]u8 = undefined;
-        var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-        const stdin = &stdin_reader.interface;
-
         try self.printer.append("Modules currently imported:\n", .{}, .{ .color = .blue, .weight = .bold });
         for (included_modules) |mod| {
             try self.printer.append("  + {s}\n", .{mod}, .{});
@@ -297,7 +289,6 @@ pub fn injectIntoBuildZig(self: *Injector) !void {
         const ans = try Prompt.input(
             self.allocator,
             self.printer,
-            stdin,
             "Keep these imports? (Y/n) ",
             .{},
         );
@@ -388,10 +379,6 @@ pub fn injectIntoBuildZig(self: *Injector) !void {
     }
 
     verify_module_blk: {
-        var stdin_buf: [128]u8 = undefined;
-        var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-        const stdin = &stdin_reader.interface;
-
         const module_count: u8 = @intCast(new_excluded_modules.items.len + new_included_modules.items.len);
         self.printer.pop(module_count * 2); // pop the prompt, aswell as the answer
         try self.printer.clearLines(module_count);
@@ -427,7 +414,6 @@ pub fn injectIntoBuildZig(self: *Injector) !void {
             const ans = try Prompt.input(
                 self.allocator,
                 self.printer,
-                stdin,
                 "Apply changes? (Y/n) ",
                 .{},
             );

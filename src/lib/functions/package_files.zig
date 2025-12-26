@@ -33,9 +33,6 @@ pub fn modify(self: *PackageFiles) !void {
     );
     defer zep_json.deinit();
 
-    var stdin_buf: [128]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-    const stdin = &stdin_reader.interface;
     try self.ctx.printer.append("--- MODIFYING JSON MODE ---\n", .{}, .{
         .color = .yellow,
         .weight = .bold,
@@ -44,7 +41,6 @@ pub fn modify(self: *PackageFiles) !void {
     const author = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "> Author: ",
         .{
             .initial_value = zep_json.value.author,
@@ -54,7 +50,6 @@ pub fn modify(self: *PackageFiles) !void {
     const description = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "> Description: ",
         .{
             .initial_value = zep_json.value.description,
@@ -64,7 +59,6 @@ pub fn modify(self: *PackageFiles) !void {
     const name = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "> Name: ",
         .{
             .initial_value = zep_json.value.name,
@@ -74,7 +68,6 @@ pub fn modify(self: *PackageFiles) !void {
     const license = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "> License: ",
         .{
             .initial_value = zep_json.value.license,
@@ -84,7 +77,6 @@ pub fn modify(self: *PackageFiles) !void {
     const repo = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "> Repo: ",
         .{
             .initial_value = zep_json.value.repo,
@@ -94,7 +86,6 @@ pub fn modify(self: *PackageFiles) !void {
     const version = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "> Version: ",
         .{
             .initial_value = zep_json.value.version,
@@ -104,7 +95,6 @@ pub fn modify(self: *PackageFiles) !void {
     const zig_version = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "> Zig Version: ",
         .{
             .initial_value = zep_json.value.zig_version,

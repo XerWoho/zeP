@@ -147,7 +147,6 @@ fn fetchPackage(
     const package_name = split.first();
     const package_version = split.next() orelse "";
 
-    try self.ctx.printer.append("{any}\n\n", .{install_unverified_packages}, .{});
     if (install_unverified_packages) {
         const u = resolveCloudUrl(&project, package_name, package_version);
         if (u) |cloud_url| {

@@ -120,9 +120,6 @@ pub fn clean(self: *Cache, name: ?[]const u8) !void {
 
     var opened_cached_iter = opened_cached.iterate();
 
-    var stdin_buf: [128]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-    const stdin = &stdin_reader.interface;
     try self.ctx.printer.append("\nCleaning cache:\n", .{}, .{});
 
     const UNITS = [5][]const u8{ "B", "KB", "MB", "GB", "TB" };
@@ -145,7 +142,6 @@ pub fn clean(self: *Cache, name: ?[]const u8) !void {
     const input = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         prompt,
         .{},
     );

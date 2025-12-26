@@ -46,13 +46,9 @@ pub fn delete(self: *Release) !void {
     }
     try self.ctx.printer.append("\n", .{}, .{});
 
-    var stdin_buf: [128]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-    const stdin = &stdin_reader.interface;
     const project_index_str = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "TARGET >> ",
         .{ .required = true },
     );
@@ -91,7 +87,6 @@ pub fn delete(self: *Release) !void {
     const release_index_str = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "TARGET >> ",
         .{ .required = true },
     );
@@ -149,13 +144,9 @@ pub fn list(self: *Release) !void {
     }
     try self.ctx.printer.append("\n", .{}, .{});
 
-    var stdin_buf: [128]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-    const stdin = &stdin_reader.interface;
     const project_index_str = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "TARGET >> ",
         .{ .required = true },
     );
@@ -276,12 +267,9 @@ pub fn create(self: *Release) !void {
     }
     try self.ctx.printer.append("\n", .{}, .{});
 
-    var stdin_buf: [128]u8 = undefined;
-    var reader = std.fs.File.stdin().reader(&stdin_buf);
     const index_str = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        &reader.interface,
         "TARGET >> ",
         .{ .required = true },
     );
@@ -301,7 +289,6 @@ pub fn create(self: *Release) !void {
     const p_release = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        &reader.interface,
         " > Release*: ",
         .{ .required = true },
     );
@@ -309,7 +296,6 @@ pub fn create(self: *Release) !void {
     const zig_version = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        &reader.interface,
         " > Zig Version*: ",
         .{ .required = true },
     );
@@ -317,7 +303,6 @@ pub fn create(self: *Release) !void {
     const root_file = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        &reader.interface,
         " > Root File*: ",
         .{ .required = true },
     );

@@ -21,7 +21,8 @@
     "license": "GPLv3",
     "packages": [
       "clap@0.11.0",
-      "logly@0.0.9"
+      "logly@0.0.9",
+      "mvzr@0.3.7"
     ],
     "dev_packages": [],
     "build": {
@@ -43,6 +44,13 @@
       "source": "https://github.com/muhammad-fiaz/logly.zig/archive/refs/tags/0.0.9.zip",
       "zig_version": "0.15.1",
       "root_file": "/src/logly.zig"
+    },
+    {
+      "name": "mvzr@0.3.7",
+      "hash": "c3c797c0b6dda78ee206be823bbd505c612d533816fd7b12435ed1ae20ec0597",
+      "source": "https://github.com/mnemnion/mvzr/archive/refs/tags/v0.3.7.zip",
+      "zig_version": "0.15.0",
+      "root_file": "/src/mvzr.zig"
     }
   ]
 }

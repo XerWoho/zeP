@@ -130,13 +130,9 @@ pub fn delete(self: *Project) !void {
     }
     try self.ctx.printer.append("\n", .{}, .{});
 
-    var stdin_buf: [128]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-    const stdin = &stdin_reader.interface;
     const index_str = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "TARGET >> ",
         .{ .required = true },
     );
@@ -190,7 +186,6 @@ pub fn delete(self: *Project) !void {
         const yes_delete_project = try Prompt.input(
             self.ctx.allocator,
             &self.ctx.printer,
-            stdin,
             "(y/N) ",
             .{},
         );
@@ -270,40 +265,28 @@ pub fn create(self: *Project) !void {
 
     var auth_manifest = try self.ctx.manifest.readManifest(Structs.Manifests.AuthManifest, self.ctx.paths.auth_manifest);
     defer auth_manifest.deinit();
-    var stdin_buf: [128]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-    const stdin = &stdin_reader.interface;
     const project_name = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         " > Name*: ",
         .{ .required = true, .validate = &projectNameAvailable },
     );
 
-    // const p = try self.getProject(project_name);
-    // if(p == null) return false;
-
-    // const n = project_name;
-
     const project_description = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         " > Description: ",
         .{},
     );
     const project_docs = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         " > Docs: ",
         .{},
     );
     const project_tags = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         " > Tags (seperated by ,): ",
         .{},
     );

@@ -23,18 +23,16 @@ fn getOrDefault(value: []const u8, def: []const u8) []const u8 {
     return if (value.len > 0) value else def;
 }
 
-fn promptVersionData(self: *CustomPackage, stdin: anytype) !Structs.Packages.PackageVersions {
+fn promptVersionData(self: *CustomPackage) !Structs.Packages.PackageVersions {
     const url = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "> *Url ([http(s)][.zip]): ",
         .{ .required = true, .validate = &verifyUrl },
     );
     const root_file = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "> *Root file: ",
         .{
             .required = true,
@@ -44,7 +42,6 @@ fn promptVersionData(self: *CustomPackage, stdin: anytype) !Structs.Packages.Pac
     const version = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "> Version [0.1.0]: ",
         .{},
     );
@@ -52,7 +49,6 @@ fn promptVersionData(self: *CustomPackage, stdin: anytype) !Structs.Packages.Pac
     const zig_version = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "> Zig Version [0.14.0]: ",
         .{},
     );
@@ -75,10 +71,6 @@ fn promptVersionData(self: *CustomPackage, stdin: anytype) !Structs.Packages.Pac
 }
 
 pub fn requestPackage(self: *CustomPackage) !void {
-    var stdin_buf: [128]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().reader(&stdin_buf);
-    const stdin = &stdin_reader.interface;
-
     try self.ctx.printer.append("--- ADDING CUSTOM PACKAGE MODE ---\n\n", .{}, .{
         .color = .yellow,
         .weight = .bold,
@@ -87,7 +79,6 @@ pub fn requestPackage(self: *CustomPackage) !void {
     const package_name = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "> *Package Name: ",
         .{
             .required = true,
@@ -111,7 +102,7 @@ pub fn requestPackage(self: *CustomPackage) !void {
             .weight = .bold,
         });
 
-        const v = try self.promptVersionData(stdin);
+        const v = try self.promptVersionData();
         try self.addVersionToPackage(custom_package_path, v);
 
         try self.ctx.printer.append("\nSuccessfully added new version - {s}\n\n", .{v.version}, .{ .color = .green });
@@ -122,13 +113,12 @@ pub fn requestPackage(self: *CustomPackage) !void {
     const author = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
-        stdin,
         "> Author: ",
         .{},
     );
     defer self.ctx.allocator.free(author);
 
-    const v = self.promptVersionData(stdin) catch |err| {
+    const v = self.promptVersionData() catch |err| {
         switch (err) {
             error.InvalidUrl => return,
             else => return,
