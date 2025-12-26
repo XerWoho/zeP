@@ -8,6 +8,7 @@ const Logger = @import("logger");
 pub const InputStruct = struct {
     required: bool = false,
     validate: ?*const fn (a: []const u8) bool = null,
+    invalid_error_msg: ?[]const u8 = null,
     initial_value: ?[]const u8 = null,
 };
 
@@ -52,7 +53,11 @@ pub fn input(
         if (opts.validate) |v_fn| {
             if (!v_fn(line)) {
                 try stdout.print("\x1b[2K\r", .{}); // clear line
+                if (opts.invalid_error_msg) |e| {
+                    try stdout.print("({s})\n", .{e}); // clear line
+                }
                 try stdout.flush();
+
                 try printer.clearScreen();
                 try printer.print();
                 continue;

@@ -84,6 +84,12 @@ pub fn whoami(self: *Auth) !void {
     try self.ctx.printer.append("   > created at: {s}\n\n", .{user.value.CreatedAt}, .{});
 }
 
+var s = struct {
+    fn comparePassword(p: []const u8) bool {
+        return std.mem.eql(u8, password, p);
+    }
+}.comparePassword;
+
 pub fn register(self: *Auth) !void {
     blk: {
         var is_error = false;
@@ -106,7 +112,7 @@ pub fn register(self: *Auth) !void {
         self.ctx.allocator,
         &self.ctx.printer,
         stdin,
-        " > Enter username: ",
+        " > Enter username*: ",
         .{
             .required = true,
         },
@@ -115,7 +121,7 @@ pub fn register(self: *Auth) !void {
         self.ctx.allocator,
         &self.ctx.printer,
         stdin,
-        " > Enter email: ",
+        " > Enter email*: ",
         .{
             .required = true,
         },
@@ -124,9 +130,27 @@ pub fn register(self: *Auth) !void {
         self.ctx.allocator,
         &self.ctx.printer,
         stdin,
-        " > Enter password: ",
+        " > Enter password*: ",
         .{
             .required = true,
+        },
+    );
+
+    var s = struct {
+        fn comparePassword(p: []const u8) bool {
+            return std.mem.eql(u8, password, p);
+        }
+    }.comparePassword;
+
+    _ = try Prompt.input(
+        self.ctx.allocator,
+        &self.ctx.printer,
+        stdin,
+        " > Repeat password*: ",
+        .{
+            .required = true,
+            .validate = &s,
+            .invalid_error_msg = "passwords do not match.",
         },
     );
 
