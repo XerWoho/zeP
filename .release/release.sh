@@ -22,7 +22,7 @@ for target in "${windows_targets[@]}"; do
 done
 
 # Linux targets
-linux_targets=("x86_64-linux" "x86-linux" "aarch64-linux")
+linux_targets=("x86_64-linux" "x86-linux" "aarch64-linux" "arm-linux")
 
 for target in "${linux_targets[@]}"; do
     zig build -Doptimize=ReleaseFast -freference-trace -Dtarget="$target" -p "$TEMP_DIR/$target"
@@ -34,6 +34,24 @@ done
 macos_targets=("x86_64-macos" "aarch64-macos")
 
 for target in "${macos_targets[@]}"; do
+    zig build -Doptimize=ReleaseFast -freference-trace -Dtarget="$target" -p "$TEMP_DIR/$target"
+
+    tar -C "$TEMP_DIR/$target/bin" -cJf "$RELEASE_DIR/zep_${target}_$VERSION_NAME.tar.xz" zep
+done
+
+# freebsd targets
+freebsd_target=("x86_64-freebsd" "aarch64-freebsd" "arm-freebsd")
+
+for target in "${freebsd_target[@]}"; do
+    zig build -Doptimize=ReleaseFast -freference-trace -Dtarget="$target" -p "$TEMP_DIR/$target"
+
+    tar -C "$TEMP_DIR/$target/bin" -cJf "$RELEASE_DIR/zep_${target}_$VERSION_NAME.tar.xz" zep
+done
+
+# freebsd targets
+netbsd_target=("x86_64-netbsd" "x86-netbsd" "aarch64-netbsd" "arm-netbsd")
+
+for target in "${netbsd_target[@]}"; do
     zig build -Doptimize=ReleaseFast -freference-trace -Dtarget="$target" -p "$TEMP_DIR/$target"
 
     tar -C "$TEMP_DIR/$target/bin" -cJf "$RELEASE_DIR/zep_${target}_$VERSION_NAME.tar.xz" zep
