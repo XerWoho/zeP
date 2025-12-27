@@ -79,7 +79,7 @@ pub fn input(
     } else {
         switch (builtin.os.tag) {
             .windows => try setEchoW(true),
-            else => try setEcho(reader.file.handle, false),
+            else => try setEcho(reader.file.handle, true),
         }
     }
 
