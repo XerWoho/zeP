@@ -8,7 +8,7 @@
     "name": "zeP",
     "cmd": [],
     "description": "A new zig Package manager, and version manager for zig.",
-    "version": "1.0.2",
+    "version": "1.2.0",
     "license": "GPLv3",
     "packages": [
       "zon.zig",
