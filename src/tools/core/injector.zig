@@ -300,9 +300,9 @@ pub fn injectIntoBuildZig(
     const build_param = try self.findBuildParam(content);
 
     display_module_blk: {
-        try self.printer.append("Modules currently imported:\n", .{}, .{ .color = .blue, .weight = .bold });
+        self.printer.append("Modules currently imported:\n", .{}, .{ .color = .blue, .weight = .bold });
         if (included_modules.len == 0) {
-            try self.printer.append(
+            self.printer.append(
                 " No Modules are importing packages. (not recommended)\n",
                 .{},
                 .{
@@ -312,9 +312,9 @@ pub fn injectIntoBuildZig(
             );
         }
         for (included_modules) |mod| {
-            try self.printer.append("  + {s}\n", .{mod}, .{});
+            self.printer.append("  + {s}\n", .{mod}, .{});
         }
-        try self.printer.append("\n", .{}, .{});
+        self.printer.append("\n", .{}, .{});
 
         const answer = try Prompt.input(
             self.allocator,
@@ -324,10 +324,10 @@ pub fn injectIntoBuildZig(
         );
         const answer_yes = !(answer.len > 0 and (answer[0] == 'n' or answer[0] == 'N'));
         if (answer_yes) {
-            try self.printer.append("\nOk.\n", .{}, .{});
+            self.printer.append("\nOk.\n", .{}, .{});
             return;
         } else {
-            try self.printer.append("\n", .{}, .{});
+            self.printer.append("\n", .{}, .{});
         }
 
         break :display_module_blk;
@@ -416,32 +416,32 @@ pub fn injectIntoBuildZig(
         self.printer.pop(module_count * 2); // pop the prompt, aswell as the answer
         try self.printer.clearLines(module_count);
 
-        try self.printer.append("zeP import plan:\n\n", .{}, .{ .color = .blue, .weight = .bold });
+        self.printer.append("zeP import plan:\n\n", .{}, .{ .color = .blue, .weight = .bold });
 
-        try self.printer.append("Will import:\n", .{}, .{});
+        self.printer.append("Will import:\n", .{}, .{});
         var inc_diff = false;
         for (new_included_modules.items) |mod| {
             if (!isInArray(included_modules, mod)) {
                 inc_diff = true;
-                try self.printer.append("  + {s}\n", .{mod}, .{});
+                self.printer.append("  + {s}\n", .{mod}, .{});
             }
         }
         if (!inc_diff) {
-            try self.printer.append("  # none (new)\n", .{}, .{});
+            self.printer.append("  # none (new)\n", .{}, .{});
         }
 
-        try self.printer.append("\nWill remove:\n", .{}, .{});
+        self.printer.append("\nWill remove:\n", .{}, .{});
         var exc_diff = false;
         for (new_excluded_modules.items) |mod| {
             if (!isInArray(excluded_modules, mod)) {
                 exc_diff = true;
-                try self.printer.append("  - {s}\n", .{mod}, .{});
+                self.printer.append("  - {s}\n", .{mod}, .{});
             }
         }
         if (!exc_diff) {
-            try self.printer.append("  # none (new)\n", .{}, .{});
+            self.printer.append("  # none (new)\n", .{}, .{});
         }
-        try self.printer.append("\n", .{}, .{});
+        self.printer.append("\n", .{}, .{});
 
         if (inc_diff or exc_diff) {
             const ans = try Prompt.input(
@@ -452,11 +452,11 @@ pub fn injectIntoBuildZig(
             );
             const answer_yes = !(ans.len > 0 and (ans[0] == 'n' or ans[0] == 'N'));
             if (!answer_yes) {
-                try self.printer.append("Ok.\n", .{}, .{});
+                self.printer.append("Ok.\n", .{}, .{});
                 return;
             }
         } else {
-            try self.printer.append("No changes made.\n", .{}, .{});
+            self.printer.append("No changes made.\n", .{}, .{});
             return;
         }
 

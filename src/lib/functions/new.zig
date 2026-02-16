@@ -2,7 +2,7 @@ const std = @import("std");
 
 const Constants = @import("constants");
 const Fs = @import("io").Fs;
-const Init = @import("../packages/init.zig");
+const Init = @import("./init.zig");
 const Context = @import("context");
 
 /// Handles quick-starting a project
@@ -10,7 +10,7 @@ pub fn new(
     ctx: *Context,
     name: []const u8,
 ) !void {
-    try ctx.logger.info("Running New", @src());
+    ctx.logger.info("Running New", @src());
 
     var initer = try Init.init(
         ctx,
@@ -25,8 +25,8 @@ pub fn new(
         }) catch |err| {
             switch (err) {
                 else => {
-                    try ctx.logger.info("Zig is not instealled", @src());
-                    try ctx.printer.append(
+                    ctx.logger.info("Zig is not instealled", @src());
+                    ctx.printer.append(
                         "Zig is not installed!\nDefaulting to {s}!\n\n",
                         .{
                             Constants.Default.zig_version,

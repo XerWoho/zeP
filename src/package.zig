@@ -4,6 +4,7 @@ pub const Package = @This();
 
 const Constants = @import("constants");
 const Structs = @import("structs");
+const Errors = @import("errors");
 
 const Logger = @import("logger").logly.Logger;
 const Fs = @import("io").Fs;
@@ -25,15 +26,15 @@ package_id: []const u8,
 
 pub fn init(
     ctx: *Context,
-    package_name: []const u8,
-    package_version: ?[]const u8,
-    install_type: ?Structs.Extras.InstallType,
-) !Package {
+    name: []const u8,
+    version: ?[]const u8,
+    namespace: Structs.Extras.Namespaces,
+) Errors.Installable!Package {
     var resolver = Resolver.init(ctx);
-    var package = try resolver.resolvePackage(
-        package_name,
-        package_version,
-        install_type,
+    const package = try resolver.resolve(
+        name,
+        version,
+        namespace,
     );
 
     const package_id = try std.fmt.allocPrint(
@@ -41,34 +42,6 @@ pub fn init(
         "{s}@{s}+{s}+{s}",
         .{ package.name, package.version, @tagName(package.namespace), package.hash },
     );
-
-    var package_modified = false;
-    blk: {
-        const path_build_zig_zon = try std.fmt.allocPrint(
-            ctx.allocator,
-            "{s}/{s}/build.zig.zon",
-            .{ ctx.paths.pkg_root, package_id },
-        );
-        defer ctx.allocator.free(path_build_zig_zon);
-
-        if (!Fs.existsFile(path_build_zig_zon)) break :blk;
-
-        var doc = try Zon.parseFile(ctx.allocator, path_build_zig_zon);
-        defer doc.deinit();
-
-        if (!std.mem.eql(u8, "/", package.zig_version) and
-            !std.mem.eql(u8, "latest", package.version)) break :blk;
-
-        if (std.mem.eql(u8, "/", package.zig_version)) {
-            const zig_version = doc.getString("minimum_zig_version") orelse "/";
-            package.zig_version = try ctx.allocator.dupe(u8, zig_version);
-            package_modified = true;
-        }
-
-        package_modified = true;
-    }
-
-    if (package_modified) try updateMetadata(ctx, package);
 
     return Package{
         .ctx = ctx,
@@ -87,43 +60,70 @@ pub fn deinit(self: *Package) void {
     self.ctx.allocator.free(self.package_id);
 }
 
-fn updateMetadata(
-    ctx: *Context,
-    package: Structs.ZepFiles.Package,
-) !void {
+pub fn resolveZigVersion(self: *Package) Errors.Installable!void {
+    var package_modified = false;
+    blk: {
+        const path_build_zig_zon = try std.fmt.allocPrint(
+            self.ctx.allocator,
+            "{s}/{s}/build.zig.zon",
+            .{ self.ctx.paths.pkg_root, self.package_id },
+        );
+        defer self.ctx.allocator.free(path_build_zig_zon);
+
+        if (!Fs.existsFile(path_build_zig_zon)) break :blk;
+
+        var doc = Zon.parseFile(self.ctx.allocator, path_build_zig_zon) catch return Errors.Installable.ParseFailed;
+        defer doc.deinit();
+
+        if (!std.mem.eql(u8, "/", self.package.zig_version) and
+            !std.mem.eql(u8, "latest", self.package.version)) break :blk;
+
+        if (std.mem.eql(u8, "/", self.package.zig_version)) {
+            const zig_version = doc.getString("minimum_zig_version") orelse "/";
+            self.package.zig_version = try self.ctx.allocator.dupe(u8, zig_version);
+            package_modified = true;
+        }
+
+        package_modified = true;
+    }
+
+    if (package_modified) self.updateMetadata() catch return Errors.Installable.MetadataFailed;
+}
+
+fn updateMetadata(self: *Package) !void {
     const cached_filename = try std.fmt.allocPrint(
-        ctx.allocator,
+        self.ctx.allocator,
         "{s}/{s}+{s}+{s}.json",
-        .{ ctx.paths.meta_cached, @tagName(package.namespace), package.name, package.author },
+        .{ self.ctx.paths.meta_cached, @tagName(self.package.namespace), self.package.name, self.package.author },
     );
-    defer ctx.allocator.free(cached_filename);
+    defer self.ctx.allocator.free(cached_filename);
     if (!Fs.existsFile(cached_filename)) return;
 
     const f = try Fs.openFile(cached_filename);
     defer f.close();
-    const data = try f.readToEndAlloc(ctx.allocator, Constants.Default.kb * 16);
-    defer ctx.allocator.free(data);
+    const data = try f.readToEndAlloc(self.ctx.allocator, Constants.Default.kb * 16);
+    defer self.ctx.allocator.free(data);
 
     var parsed_package: std.json.Parsed(Structs.Packages.Package) = try std.json.parseFromSlice(
         Structs.Packages.Package,
-        ctx.allocator,
+        self.ctx.allocator,
         data,
         .{ .allocate = .alloc_always },
     );
     defer parsed_package.deinit();
 
     for (parsed_package.value.versions) |*v| {
-        if (!std.mem.eql(u8, v.version, package.version)) continue;
-        v.sha256sum = package.hash;
-        v.zig_version = package.zig_version;
+        if (!std.mem.eql(u8, v.version, self.package.version)) continue;
+        v.sha256sum = self.package.hash;
+        v.zig_version = self.package.zig_version;
     }
 
     const stringified = try std.json.Stringify.valueAlloc(
-        ctx.allocator,
+        self.ctx.allocator,
         parsed_package.value,
         .{},
     );
-    defer ctx.allocator.free(stringified);
+    defer self.ctx.allocator.free(stringified);
 
     const w = try Fs.createFile(cached_filename);
     defer w.close();
@@ -152,7 +152,7 @@ fn registeredPathCount(self: *Package) !usize {
 pub fn uninstallFromDisk(
     self: *Package,
     force: bool,
-) !void {
+) Errors.Installable!void {
     const path = try std.fmt.allocPrint(
         self.ctx.allocator,
         "{s}/{s}",
@@ -160,19 +160,15 @@ pub fn uninstallFromDisk(
     );
     defer self.ctx.allocator.free(path);
 
-    if (!Fs.existsDir(path)) return error.NotInstalled;
+    if (!Fs.existsDir(path)) return Errors.Installable.NotInstalled;
 
-    const amount = try self.registeredPathCount();
-    if (amount > 0 and !force) {
-        return error.InUse;
-    }
+    const amount = self.registeredPathCount() catch return Errors.Installable.ManifestFailed;
+    if (amount > 0 and !force) return Errors.Installable.PackageIsInUse;
 
-    if (Fs.existsDir(path)) {
-        try Fs.deleteTreeIfExists(path);
-    }
+    Fs.deleteTreeIfExists(path) catch return Errors.Installable.DeleteFailed;
 }
 
-pub fn addPathToManifest(
+fn addPathToManifest(
     self: *Package,
     linked_path: []const u8,
 ) !void {
@@ -224,7 +220,7 @@ pub fn addPathToManifest(
     );
 }
 
-pub fn removePathFromManifest(
+fn removePathFromManifest(
     self: *Package,
     linked_path: []const u8,
 ) !void {
@@ -275,6 +271,28 @@ pub fn removePathFromManifest(
 }
 
 pub fn lockRegister(self: *Package) !void {
+    const relative_symbolic_link_path = try std.fs.path.join(
+        self.ctx.allocator,
+        &.{
+            Constants.Default.package_files.zep_folder,
+            self.package.name,
+        },
+    );
+    defer self.ctx.allocator.free(relative_symbolic_link_path);
+
+    const cwd = try std.fs.cwd().realpathAlloc(self.ctx.allocator, ".");
+    defer self.ctx.allocator.free(cwd);
+
+    const absolute_symbolic_link_path = try std.fs.path.join(
+        self.ctx.allocator,
+        &.{
+            cwd,
+            relative_symbolic_link_path,
+        },
+    );
+    defer self.ctx.allocator.free(absolute_symbolic_link_path);
+    try self.addPathToManifest(absolute_symbolic_link_path);
+
     var lock = try self.ctx.manifest.readManifest(
         Structs.ZepFiles.Lock,
         Constants.Default.package_files.lock,
@@ -375,6 +393,28 @@ pub fn lockRegister(self: *Package) !void {
 }
 
 pub fn lockUnregister(self: *Package) !void {
+    const relative_symbolic_link_path = try std.fs.path.join(
+        self.ctx.allocator,
+        &.{
+            Constants.Default.package_files.zep_folder,
+            self.package.name,
+        },
+    );
+    defer self.ctx.allocator.free(relative_symbolic_link_path);
+
+    const cwd = try std.fs.cwd().realpathAlloc(self.ctx.allocator, ".");
+    defer self.ctx.allocator.free(cwd);
+
+    const absolute_symbolic_link_path = try std.fs.path.join(
+        self.ctx.allocator,
+        &.{
+            cwd,
+            relative_symbolic_link_path,
+        },
+    );
+    defer self.ctx.allocator.free(absolute_symbolic_link_path);
+    try self.removePathFromManifest(absolute_symbolic_link_path);
+
     var lock = try self.ctx.manifest.readManifest(
         Structs.ZepFiles.Lock,
         Constants.Default.package_files.lock,

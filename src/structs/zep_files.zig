@@ -38,7 +38,7 @@ pub const Package = struct {
     hash: []const u8,
     source: []const u8,
     zig_version: []const u8,
-    namespace: Extras.InstallType = .zep,
+    namespace: Extras.Namespaces = .zep,
 };
 
 pub const Lock = struct {

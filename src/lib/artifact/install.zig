@@ -7,6 +7,7 @@ const Link = @import("lib/link.zig");
 
 const Structs = @import("structs");
 const Constants = @import("constants");
+const Errors = @import("errors");
 
 const Fs = @import("io").Fs;
 const Printer = @import("cli").Printer;
@@ -27,7 +28,7 @@ pub fn deinit(_: *ArtifactInstaller) void {
     // currently no deinit required
 }
 
-fn fetch(
+fn download(
     self: *ArtifactInstaller,
     name: []const u8,
     tarball: []const u8,
@@ -35,7 +36,7 @@ fn fetch(
     target: []const u8,
     artifact_type: Structs.Extras.ArtifactType,
 ) !void {
-    try self.ctx.logger.infof("Fetching {s}", .{tarball}, @src());
+    self.ctx.logger.infof("Fetching {s}", .{tarball}, @src());
 
     var tarball_split_iter = std.mem.splitAny(u8, tarball, ".");
     var tarball_extension = tarball_split_iter.next();
@@ -68,19 +69,19 @@ fn fetch(
     // Download if not cached
     if (!Fs.existsFile(target_path)) {
         var timer = try std.time.Timer.start();
-        try self.download(tarball, target_path);
+        try self.fetch(tarball, target_path);
         const read = timer.read();
         const time = read / std.time.ns_per_s;
-        try self.ctx.printer.append("Took {d} seconds to download file.\n\n", .{time}, .{
+        self.ctx.printer.append("Took {d} seconds to download file.\n\n", .{time}, .{
             .color = .bright_black,
             .verbosity = 2,
         });
     } else {
-        try self.ctx.printer.append("Data found in cache!\n\n", .{}, .{
+        self.ctx.printer.append("Data found in cache!\n\n", .{}, .{
             .verbosity = 2,
         });
     }
-    try self.ctx.printer.append("Decompressing...\n", .{}, .{
+    self.ctx.printer.append("Decompressing...\n", .{}, .{
         .verbosity = 2,
     });
 
@@ -88,8 +89,8 @@ fn fetch(
     var compressed_file = try Fs.openOrCreateFile(target_path);
     defer compressed_file.close();
 
-    try self.ctx.logger.infof("Extracting compressed data from {s}...", .{tarball}, @src());
-    try self.ctx.printer.append("Extracting data...\n", .{}, .{
+    self.ctx.logger.infof("Extracting compressed data from {s}...", .{tarball}, @src());
+    self.ctx.printer.append("Extracting data...\n", .{}, .{
         .verbosity = 2,
     });
 
@@ -117,45 +118,43 @@ fn fetch(
 
     var compressed_file_buf: [Constants.Default.kb * 32]u8 = undefined;
     var reader = compressed_file.reader(&compressed_file_buf);
-    try self.ctx.logger.info("Decompressing...", @src());
+    self.ctx.logger.info("Decompressing...", @src());
     if (std.mem.endsWith(u8, tarball, ".zip")) {
-        try self.decompressZip(
+        self.decompressZip(
             &reader,
             decompressed_directory,
             temporary_directory,
             target,
-        );
+        ) catch return Errors.Artifact.DecompressFailed;
     } else {
-        try self.decompressXz(
+        self.decompressXz(
             &reader,
             decompressed_directory,
             temporary_directory,
             target,
             artifact_type,
-        );
+        ) catch return Errors.Artifact.DecompressFailed;
     }
 }
 
-fn download(self: *ArtifactInstaller, url: []const u8, out_path: []const u8) !void {
-    try self.ctx.logger.infof("Downloading URL {s}.", .{url}, @src());
+fn fetch(self: *ArtifactInstaller, url: []const u8, out_path: []const u8) Errors.Artifact!void {
+    self.ctx.logger.infof("Downloading URL {s}.", .{url}, @src());
     var client = std.http.Client{ .allocator = self.ctx.allocator };
     defer client.deinit();
 
-    const uri = try std.Uri.parse(url);
-    try self.ctx.printer.append("Fetching... [{s}]\n", .{url}, .{});
-    var req = try client.request(.GET, uri, .{});
+    const uri = std.Uri.parse(url) catch return Errors.Artifact.InvalidUrl;
+    self.ctx.printer.append("Fetching... [{s}]\n", .{url}, .{});
+    var req = client.request(.GET, uri, .{}) catch return Errors.Artifact.FetchFailed;
     defer req.deinit();
-    _ = try req.sendBodiless();
+    _ = req.sendBodiless() catch return Errors.Artifact.FetchFailed;
 
-    try self.ctx.logger.info("Writing body into data...", @src());
-    try self.ctx.printer.append("Getting Body...\n", .{}, .{ .verbosity = 2 });
+    self.ctx.logger.info("Writing body into data...", @src());
+    self.ctx.printer.append("Getting Body...\n", .{}, .{ .verbosity = 2 });
 
     var head_buf: [Constants.Default.kb]u8 = undefined;
-    const head = req.receiveHead(&head_buf) catch return error.FetchFailed;
+    const head = req.receiveHead(&head_buf) catch return Errors.Artifact.FetchFailed;
 
-    if (head.head.status == .not_found) {
-        return error.UrlNotFound;
-    }
+    if (head.head.status == .not_found) return Errors.Artifact.ArtifactNotFound;
 
     const content_length = head.head.content_length orelse 0;
     var transfer_buffer: [Constants.Default.kb * 16]u8 = undefined;
@@ -165,7 +164,7 @@ fn download(self: *ArtifactInstaller, url: []const u8, out_path: []const u8) !vo
         head.head.content_length,
     );
 
-    var out_file = try Fs.openOrCreateFile(out_path);
+    var out_file = Fs.openOrCreateFile(out_path) catch return Errors.Artifact.FileFailed;
     defer out_file.close();
 
     var buf: [Constants.Default.kb * 16]u8 = undefined;
@@ -177,27 +176,27 @@ fn download(self: *ArtifactInstaller, url: []const u8, out_path: []const u8) !vo
             self.ctx.printer.pop(1);
         }
 
-        const n = try reader.readSliceShort(&buf);
+        const n = reader.readSliceShort(&buf) catch return Errors.Artifact.FileFailed;
         if (n == 0) break;
-        try out_file.writeAll(buf[0..n]);
+        out_file.writeAll(buf[0..n]) catch return Errors.Artifact.FileFailed;
         downloaded += n;
 
         if (content_length != 0) {
             const pct = @min(100, @divTrunc(downloaded * 100, content_length));
-            try self.ctx.printer.append(
+            self.ctx.printer.append(
                 "\rDownloading: {d}% ({d} / {d} KB)",
                 .{ pct, downloaded / 1024, content_length / 1024 },
                 .{},
             );
         } else {
-            try self.ctx.printer.append(
+            self.ctx.printer.append(
                 "\rDownloading: {d} KB",
                 .{downloaded / 1024},
                 .{},
             );
         }
     }
-    try self.ctx.printer.append(
+    self.ctx.printer.append(
         "\n",
         .{},
         .{},
@@ -217,7 +216,7 @@ fn decompressZip(
     defer self.ctx.allocator.free(new_target);
 
     if (Fs.existsDir(new_target)) {
-        try self.ctx.printer.append("Already installed!\n", .{}, .{});
+        self.ctx.printer.append("Already installed!\n", .{}, .{});
         return;
     }
 
@@ -237,7 +236,7 @@ fn decompressZip(
                 self.ctx.printer.pop(1);
             }
             extracted_files_progress += 1;
-            try self.ctx.printer.append(
+            self.ctx.printer.append(
                 "\rExtracting: ({d} / {d} Files)",
                 .{ extracted_files_progress, iter.cd_record_count },
                 .{},
@@ -254,7 +253,7 @@ fn decompressZip(
 
         break :blk;
     }
-    try self.ctx.printer.append("\n", .{}, .{});
+    self.ctx.printer.append("\n", .{}, .{});
 
     const extract_target = try std.fs.path.join(
         self.ctx.allocator,
@@ -262,7 +261,7 @@ fn decompressZip(
     );
     defer self.ctx.allocator.free(extract_target);
 
-    try self.ctx.printer.append(
+    self.ctx.printer.append(
         "Extracted {s} => {s}!\n",
         .{ extract_target, new_target },
         .{
@@ -314,7 +313,7 @@ fn decompressXz(
         const bytes_read = try decompressed_reader.read(chunk[0..]);
         progress += bytes_read;
 
-        try self.ctx.printer.append(
+        self.ctx.printer.append(
             "\rDecompressing xz: ({d} KB)",
             .{progress / 1024},
             .{},
@@ -324,7 +323,7 @@ fn decompressXz(
         try buf.appendSlice(self.ctx.allocator, chunk[0..bytes_read]);
     }
     var r = std.Io.Reader.fixed(try buf.toOwnedSlice(self.ctx.allocator));
-    try self.ctx.printer.append(
+    self.ctx.printer.append(
         "\nDecompressed!\n",
         .{},
         .{},
@@ -334,7 +333,7 @@ fn decompressXz(
     defer self.ctx.allocator.free(new_target);
 
     if (Fs.existsDir(new_target)) {
-        try self.ctx.printer.append("Already installed!\n", .{}, .{});
+        self.ctx.printer.append("Already installed!\n", .{}, .{});
         return;
     }
 
@@ -342,7 +341,7 @@ fn decompressXz(
         .allocator = self.ctx.allocator,
     };
 
-    try self.ctx.printer.append("Piping Tar to File system!\n", .{}, .{
+    self.ctx.printer.append("Piping Tar to File system!\n", .{}, .{
         .verbosity = 2,
     });
     try std.tar.pipeToFileSystem(
@@ -359,7 +358,7 @@ fn decompressXz(
     defer self.ctx.allocator.free(extract_target);
     try std.fs.cwd().rename(extract_target, new_target);
 
-    try self.ctx.printer.append(
+    self.ctx.printer.append(
         "Extracted {s} => {s}!\n",
         .{ extract_target, new_target },
         .{
@@ -396,11 +395,25 @@ pub fn install(
     version: []const u8,
     target: []const u8,
     artifact_type: Structs.Extras.ArtifactType,
-) !void {
-    try self.ctx.logger.infof("Installing {s}", .{target}, @src());
+) Errors.Artifact!void {
+    self.ctx.logger.infof(
+        "Installing {s}",
+        .{target},
+        @src(),
+    );
 
-    try self.fetch(name, tarball, version, target, artifact_type);
-    try self.ctx.printer.append("Modifying Manifest...\n", .{}, .{ .verbosity = 2 });
+    self.download(name, tarball, version, target, artifact_type) catch |err| {
+        switch (err) {
+            Errors.Artifact.FetchFailed => return Errors.Artifact.FetchFailed,
+            Errors.Artifact.DecompressFailed => return Errors.Artifact.DecompressFailed,
+            else => return Errors.Artifact.DownloadFailed,
+        }
+    };
+    self.ctx.printer.append(
+        "Modifying Manifest...\n",
+        .{},
+        .{ .verbosity = 2 },
+    );
 
     const path = try std.fs.path.join(self.ctx.allocator, &.{
         if (artifact_type == .zig) self.ctx.paths.zig_root else self.ctx.paths.zep_root,
@@ -419,22 +432,32 @@ pub fn install(
             .name = name,
             .path = path,
         },
-    ) catch {
-        try self.ctx.printer.append("Updating Manifest failed!\n", .{}, .{ .color = .red });
-    };
+    ) catch return Errors.Artifact.ManifestFailed;
 
-    try self.ctx.printer.append("Manifest Up to Date!\n", .{}, .{
-        .color = .green,
-        .verbosity = 2,
-    });
+    self.ctx.printer.append(
+        "Manifest Up to Date!\n",
+        .{},
+        .{
+            .color = .green,
+            .verbosity = 2,
+        },
+    );
 
-    try self.ctx.printer.append("Switching to installed version...\n", .{}, .{
-        .verbosity = 2,
-    });
+    self.ctx.printer.append(
+        "Switching to installed version...\n",
+        .{},
+        .{
+            .verbosity = 2,
+        },
+    );
     try Link.updateLink(artifact_type, self.ctx);
-    try self.ctx.printer.append("Switched to installed version!\n", .{}, .{
-        .color = .green,
-    });
+    self.ctx.printer.append(
+        "Switched to installed version!\n",
+        .{},
+        .{
+            .color = .green,
+        },
+    );
 }
 
 fn zipExtractCount(dest: std.fs.Dir, fr: *std.fs.File.Reader, options: std.zip.ExtractOptions) !void {

@@ -128,10 +128,7 @@ pub fn fetchWrite(
     });
     _ = try writer.interface.flush();
 
-    if (fetched.status == .not_found)
-        return error.NotFound;
-
-    return;
+    if (fetched.status == .not_found) return error.NotFound;
 }
 
 pub fn fetchPackage(self: *Fetch, name: []const u8) !Structs.Fetch.Package {

@@ -5,6 +5,7 @@ pub const Artifact = @This();
 
 const Structs = @import("structs");
 const Constants = @import("constants");
+const Errors = @import("errors");
 
 const Fs = @import("io").Fs;
 const Prompt = @import("cli").Prompt;
@@ -40,7 +41,7 @@ artifact_name: []const u8,
 pub fn init(
     ctx: *Context,
     artifact_type: Structs.Extras.ArtifactType,
-) !Artifact {
+) Artifact {
     const installer = ArtifactInstaller.init(ctx);
     const uninstaller = ArtifactUninstaller.init(ctx);
     const lister = ArtifactLister.init(ctx);
@@ -69,45 +70,50 @@ pub fn deinit(self: *Artifact) void {
     self.cacher.deinit();
 }
 
-/// Fetch version metadata from Artifact JSON
-fn fetchVersion(self: *Artifact, target_version: []const u8) !std.json.Value {
-    try self.ctx.logger.infof("Fetching target version {s}", .{target_version}, @src());
+fn extractVersionNameFromPath(_: *Artifact, path: []const u8) []const u8 {
+    const delimiter: []const u8 = if (builtin.os.tag == .windows) "\\" else "/";
+    var segments = std.mem.splitAny(u8, path, delimiter);
+    var last: []const u8 = &[_]u8{}; // dummy init
+    var second_last: []const u8 = &[_]u8{};
 
-    var client = std.http.Client{ .allocator = self.ctx.allocator };
-    defer client.deinit();
+    while (segments.next()) |seg| {
+        second_last = last;
+        last = seg;
+    }
+    return second_last;
+}
+
+/// Fetch version metadata from Artifact JSON
+fn fetchVersion(self: *Artifact, target_version: []const u8) Errors.Artifact!std.json.Value {
+    self.ctx.logger.infof(
+        "Fetching target version {s}",
+        .{target_version},
+        @src(),
+    );
 
     const url = switch (self.artifact_type) {
         .zig => Constants.Default.zig_download_index,
         .zep => Constants.Default.zep_download_index,
     };
-    var body = std.Io.Writer.Allocating.init(self.ctx.allocator);
-    const fetched = try client.fetch(std.http.Client.FetchOptions{
-        .location = .{
-            .url = url,
-        },
-        .method = .GET,
-        .response_writer = &body.writer,
-    });
-    try self.ctx.logger.infof("Fetching {s}...", .{url}, @src());
+    var parsed = self.ctx.fetcher.fetchJson(url, std.json.Value) catch return Errors.Artifact.FetchFailed;
+    defer parsed.deinit();
 
-    if (fetched.status == .not_found) {
-        return error.UrlNotFound;
-    }
-    const data = body.written();
-    const parsed = try std.json.parseFromSlice(std.json.Value, self.ctx.allocator, data, .{});
     const obj = parsed.value.object;
-
     if (std.mem.eql(u8, target_version, "latest") or target_version.len == 0) {
-        return obj.get("master") orelse error.VersionNotFound;
+        return obj.get("master") orelse Errors.Artifact.InvalidVersion;
     }
 
-    return obj.get(target_version) orelse error.VersionNotFound;
+    return obj.get(target_version) orelse Errors.Artifact.InvalidVersion;
 }
 
 /// Get structured version info
-pub fn getVersion(self: *Artifact, target_version: []const u8, target: []const u8) !VersionData {
-    try self.ctx.logger.infof("Getting target version version={s} target={s}", .{ target_version, target }, @src());
-    try self.ctx.printer.append(
+pub fn getVersion(self: *Artifact, target_version: []const u8, target: []const u8) Errors.Artifact!VersionData {
+    self.ctx.logger.infof(
+        "Getting target version version={s} target={s}",
+        .{ target_version, target },
+        @src(),
+    );
+    self.ctx.printer.append(
         "Getting version {s}, with target {s}...\n",
         .{ target_version, target },
         .{
@@ -118,13 +124,9 @@ pub fn getVersion(self: *Artifact, target_version: []const u8, target: []const u
     const version_data = try self.fetchVersion(target_version);
 
     const obj = version_data.object;
-    const url_value = obj.get(target) orelse {
-        return error.VersionNotFound;
-    };
+    const url_value = obj.get(target) orelse return Errors.Artifact.InvalidVersion;
 
-    const tarball_value = url_value.object.get("tarball") orelse {
-        return error.TarballNotFound;
-    };
+    const tarball_value = url_value.object.get("tarball") orelse return Errors.Artifact.InvalidTarball;
     const tarball = tarball_value.string;
     var resolved_version: []const u8 = target_version;
     if (obj.get("version")) |v| {
@@ -156,20 +158,22 @@ pub fn getVersion(self: *Artifact, target_version: []const u8, target: []const u
     };
 }
 
-pub fn install(self: *Artifact, target_version: []const u8, target: []const u8) anyerror!void {
-    try self.ctx.logger.infof("Installing {s}, version={s}, target={s}", .{
-        if (self.artifact_type == .zig) "zig" else "zep",
-        target_version,
-        target,
-    }, @src());
+pub fn install(self: *Artifact, target_version: []const u8, target: []const u8) Errors.Artifact!void {
+    self.ctx.logger.infof(
+        "Installing {s}, version={s}, target={s}",
+        .{
+            if (self.artifact_type == .zig) "zig" else "zep",
+            target_version,
+            target,
+        },
+        @src(),
+    );
 
     const version = try self.getVersion(target_version, target);
-    if (version.path.len == 0) return error.VersionHasNoPath;
-    if (Fs.existsDir(version.path)) {
-        return error.AlreadyInstalled;
-    }
+    if (version.path.len == 0) return Errors.Artifact.InvalidVersion;
+    if (Fs.existsDir(version.path)) return Errors.Artifact.AlreadyInstalled;
 
-    try self.ctx.printer.append(
+    self.ctx.printer.append(
         "[{s}] Installing version: {s}\nWith target: {s}\n\n",
         .{
             if (self.artifact_type == .zep) "Zep" else "Zig",
@@ -184,20 +188,29 @@ pub fn install(self: *Artifact, target_version: []const u8, target: []const u8) 
         if (v.len == 3) outdated = !std.mem.eql(u8, "0.8", v);
 
         if (outdated) {
-            try self.ctx.printer.append("Warning: {s} is below 0.8, which is incompatible with the newer versions.\n", .{v}, .{});
-            try self.ctx.printer.append("After installing this version, you will not be able to switch to 0.8 or later versions.\n", .{}, .{});
+            self.ctx.printer.append(
+                "Warning: {s} is below 0.8, which is incompatible with the newer versions.\n",
+                .{v},
+                .{},
+            );
+            self.ctx.printer.append(
+                "After installing this version, you will not be able to switch to 0.8 or later versions.\n",
+                .{},
+                .{},
+            );
 
-            const answer = try Prompt.input(
+            const answer = Prompt.input(
                 self.ctx.allocator,
                 &self.ctx.printer,
                 "Continue? (y/N) ",
                 .{},
-            );
-            if (answer.len == 0 or
-                (!std.mem.startsWith(u8, answer, "y") and
-                    !std.mem.startsWith(u8, answer, "Y")))
-            {
-                try self.ctx.printer.append("\nOk.\n", .{}, .{});
+            ) catch return Errors.Artifact.OutOfMemory;
+            if (answer.len == 0 or (!std.mem.startsWith(u8, answer, "y") and !std.mem.startsWith(u8, answer, "Y"))) {
+                self.ctx.printer.append(
+                    "\nOk.\n",
+                    .{},
+                    .{},
+                );
                 return;
             }
         }
@@ -212,18 +225,18 @@ pub fn install(self: *Artifact, target_version: []const u8, target: []const u8) 
     );
 }
 
-pub fn uninstall(
-    self: *Artifact,
-    target_version: []const u8,
-    target: []const u8,
-) !void {
-    try self.ctx.logger.infof("Uninstalling {s}, version={s}, target={s}", .{
-        if (self.artifact_type == .zig) "zig" else "zep",
-        target_version,
-        target,
-    }, @src());
+pub fn uninstall(self: *Artifact, target_version: []const u8, target: []const u8) Errors.Artifact!void {
+    self.ctx.logger.infof(
+        "Uninstalling {s}, version={s}, target={s}",
+        .{
+            if (self.artifact_type == .zig) "zig" else "zep",
+            target_version,
+            target,
+        },
+        @src(),
+    );
 
-    try self.ctx.printer.append(
+    self.ctx.printer.append(
         "[{s}] Uninstalling version: {s}\nWith target: {s}\n\n",
         .{
             if (self.artifact_type == .zep) "Zep" else "Zig",
@@ -251,17 +264,26 @@ pub fn uninstall(
     );
     defer self.ctx.allocator.free(target_dir);
 
-    const manifest = try self.ctx.manifest.readManifest(
+    const manifest = self.ctx.manifest.readManifest(
         Structs.Manifests.Artifact,
         if (self.artifact_type == .zig) self.ctx.paths.zig_manifest else self.ctx.paths.zep_manifest,
-    );
+    ) catch return Errors.Artifact.ManifestFailed;
     defer manifest.deinit();
 
     if (std.mem.containsAtLeast(u8, manifest.value.name, 1, target_version)) {
-        try self.ctx.logger.info("Target version is selected | Attempting switch", @src());
-        const latest = try self.switcher.getLatestVersionExcept(self.artifact_type, target_version);
+        self.ctx.logger.info(
+            "Target version is selected | Attempting switch",
+            @src(),
+        );
+        const latest = self.switcher.getLatestVersionExcept(
+            self.artifact_type,
+            target_version,
+        ) catch return Errors.Artifact.InvalidVersion;
         try self.switchVersion(latest.version_name, latest.target_name);
-        try self.ctx.logger.info("Switch completed.", @src());
+        self.ctx.logger.info(
+            "Switch completed.",
+            @src(),
+        );
     }
 
     try self.uninstaller.uninstall(target_dir);
@@ -269,13 +291,15 @@ pub fn uninstall(
     return;
 }
 
-pub fn switchVersion(self: *Artifact, target_version: []const u8, target: []const u8) anyerror!void {
-    try self.ctx.logger.infof("Switching {s} version", .{if (self.artifact_type == .zig) "zig" else "zep"}, @src());
+pub fn switchVersion(self: *Artifact, target_version: []const u8, target: []const u8) Errors.Artifact!void {
+    self.ctx.logger.infof(
+        "Switching {s} version",
+        .{if (self.artifact_type == .zig) "zig" else "zep"},
+        @src(),
+    );
 
     const version = try self.getVersion(target_version, target);
-    if (!Fs.existsDir(version.path)) {
-        return error.VersionNotInstalled;
-    }
+    if (!Fs.existsDir(version.path)) return Errors.Artifact.NotInstalled;
 
     if (self.artifact_type == .zep) {
         var outdated = false;
@@ -283,26 +307,38 @@ pub fn switchVersion(self: *Artifact, target_version: []const u8, target: []cons
         if (v.len == 3) outdated = !std.mem.eql(u8, "0.8", v);
 
         if (outdated) {
-            try self.ctx.printer.append("Warning: {s} is below 0.8, which is incompatible with the newer versions.\n", .{target_version}, .{});
-            try self.ctx.printer.append("After switching to this version, you will not be able to switch to 0.8 or later versions.\n", .{}, .{});
+            self.ctx.printer.append(
+                "Warning: {s} is below 0.8, which is incompatible with the newer versions.\n",
+                .{target_version},
+                .{},
+            );
+            self.ctx.printer.append(
+                "After switching to this version, you will not be able to switch to 0.8 or later versions.\n",
+                .{},
+                .{},
+            );
 
-            const answer = try Prompt.input(
+            const answer = Prompt.input(
                 self.ctx.allocator,
                 &self.ctx.printer,
                 "Continue? (y/N) ",
                 .{},
-            );
+            ) catch return Errors.Artifact.OutOfMemory;
             if (answer.len == 0 or
                 (!std.mem.startsWith(u8, answer, "y") and
                     !std.mem.startsWith(u8, answer, "Y")))
             {
-                try self.ctx.printer.append("\nOk.\n", .{}, .{});
+                self.ctx.printer.append(
+                    "\nOk.\n",
+                    .{},
+                    .{},
+                );
                 return;
             }
         }
     }
 
-    try self.ctx.printer.append(
+    self.ctx.printer.append(
         "[{s}] Switching version: {s}\nWith target: {s}\n\n",
         .{
             self.artifact_name,
@@ -320,14 +356,37 @@ pub fn switchVersion(self: *Artifact, target_version: []const u8, target: []cons
     );
 }
 
+pub fn currentVersion(self: *Artifact) Errors.Artifact![]const u8 {
+    const versions_directory = try std.fs.path.join(self.ctx.allocator, &.{
+        if (self.artifact_type == .zig) self.ctx.paths.zig_root else self.ctx.paths.zep_root,
+        "d",
+    });
+    defer self.ctx.allocator.free(versions_directory);
+
+    if (!Fs.existsDir(versions_directory)) {
+        self.ctx.printer.append("No versions installed!\n\n", .{}, .{});
+        return Errors.Artifact.InvalidVersion;
+    }
+
+    const manifest = self.ctx.manifest.readManifest(
+        Structs.Manifests.Artifact,
+        if (self.artifact_type == .zig) self.ctx.paths.zig_manifest else self.ctx.paths.zep_manifest,
+    ) catch return Errors.Artifact.ManifestFailed;
+    defer manifest.deinit();
+    if (manifest.value.path.len == 0) return Errors.Artifact.ManifestFailed;
+
+    const v = self.extractVersionNameFromPath(manifest.value.path);
+    return v;
+}
+
 pub fn list(self: *Artifact) !void {
     try self.lister.listVersions(self.artifact_type);
 }
 
-pub fn listCache(self: *Artifact) !void {
+pub fn listCache(self: *Artifact) Errors.Cache!void {
     try self.cacher.list();
 }
-pub fn cleanCache(self: *Artifact, version: ?[]const u8) !void {
+pub fn cleanCache(self: *Artifact, version: ?[]const u8) Errors.Cache!void {
     if (version) |v| {
         try self.cacher.cleanOne(v);
         return;
@@ -335,6 +394,6 @@ pub fn cleanCache(self: *Artifact, version: ?[]const u8) !void {
 
     try self.cacher.cleanAll();
 }
-pub fn sizeCache(self: *Artifact) !void {
+pub fn sizeCache(self: *Artifact) Errors.Cache!void {
     try self.cacher.size();
 }

@@ -44,3 +44,49 @@ pub fn get() *logly.Logger {
     return logger_instance orelse
         @panic("Logger used before init");
 }
+
+pub const Wrapper = struct {
+    logger: *logly.Logger,
+
+    pub fn init(logger: *logly.Logger) Wrapper {
+        return .{
+            .logger = logger,
+        };
+    }
+
+    pub fn deinit(self: *Wrapper) void {
+        self.logger.deinit();
+    }
+
+    pub fn info(self: *Wrapper, message: []const u8, src: ?std.builtin.SourceLocation) void {
+        self.logger.info(message, src) catch {};
+    }
+
+    pub fn err(self: *Wrapper, message: []const u8, src: ?std.builtin.SourceLocation) void {
+        self.logger.err(message, src) catch {};
+    }
+
+    pub fn debug(self: *Wrapper, message: []const u8, src: ?std.builtin.SourceLocation) void {
+        self.logger.debug(message, src) catch {};
+    }
+
+    pub fn warn(self: *Wrapper, message: []const u8, src: ?std.builtin.SourceLocation) void {
+        self.logger.warn(message, src) catch {};
+    }
+
+    pub fn infof(self: *Wrapper, comptime fmt: []const u8, args: anytype, src: ?std.builtin.SourceLocation) void {
+        self.logger.infof(fmt, args, src) catch {};
+    }
+
+    pub fn errorf(self: *Wrapper, comptime fmt: []const u8, args: anytype, src: ?std.builtin.SourceLocation) void {
+        self.logger.errorf(fmt, args, src) catch {};
+    }
+
+    pub fn debugf(self: *Wrapper, comptime fmt: []const u8, args: anytype, src: ?std.builtin.SourceLocation) void {
+        self.logger.debugf(fmt, args, src) catch {};
+    }
+
+    pub fn warnf(self: *Wrapper, comptime fmt: []const u8, args: anytype, src: ?std.builtin.SourceLocation) void {
+        self.logger.warnf(fmt, args, src) catch {};
+    }
+};

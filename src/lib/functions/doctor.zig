@@ -9,13 +9,13 @@ pub fn doctor(
     ctx: *Context,
     fix_issues: bool,
 ) !void {
-    try ctx.logger.info("Running Doctor", @src());
+    ctx.logger.info("Running Doctor", @src());
 
     var is_there_issues = false;
 
     // First verify that we are in zep project
     if (!Fs.existsFile(Constants.Default.package_files.lock)) {
-        try ctx.printer.append("Lock file schema is missing.\n", .{}, .{ .color = .red });
+        ctx.printer.append("Lock file schema is missing.\n", .{}, .{ .color = .red });
     }
 
     var lock = try ctx.manifest.readManifest(
@@ -25,9 +25,9 @@ pub fn doctor(
     defer lock.deinit();
 
     if (lock.value.schema == Constants.Default.package_files.lock_schema_version) {
-        try ctx.printer.append("Lock file schema is fine.\n", .{}, .{ .color = .green });
+        ctx.printer.append("Lock file schema is fine.\n", .{}, .{ .color = .green });
     } else if (fix_issues) {
-        try ctx.printer.append("Lock file schema is NOT matching with zep version.\n", .{}, .{ .color = .red });
+        ctx.printer.append("Lock file schema is NOT matching with zep version.\n", .{}, .{ .color = .red });
         lock.value.schema = Constants.Default.package_files.lock_schema_version;
 
         try ctx.manifest.writeManifest(
@@ -35,10 +35,10 @@ pub fn doctor(
             Constants.Default.package_files.lock,
             lock.value,
         );
-        try ctx.printer.append("Fixed.\n", .{}, .{ .color = .green });
+        ctx.printer.append("Fixed.\n", .{}, .{ .color = .green });
     } else {
         is_there_issues = true;
-        try ctx.printer.append("Lock file schema is NOT matching with zep version.\n", .{}, .{ .color = .red });
+        ctx.printer.append("Lock file schema is NOT matching with zep version.\n", .{}, .{ .color = .red });
     }
 
     const lock_packages = lock.value.packages;
@@ -47,7 +47,7 @@ pub fn doctor(
     var mismatch_zig_version = false;
     for (lock_packages) |pkg| {
         if (!std.mem.containsAtLeast(u8, pkg.zig_version, 1, lock_zig_version)) {
-            try ctx.printer.append(
+            ctx.printer.append(
                 "{s} zig versions mismatch\n > Package Zig {s}\n > Project Zig {s}\n",
                 .{ pkg.name, pkg.zig_version, lock_zig_version },
                 .{ .color = .red },
@@ -57,7 +57,7 @@ pub fn doctor(
     }
 
     if (!mismatch_zig_version) {
-        try ctx.printer.append("No issues with zig versions [packages]!\n", .{}, .{ .color = .green });
+        ctx.printer.append("No issues with zig versions [packages]!\n", .{}, .{ .color = .green });
     }
 
     var missing_packages = false;
@@ -79,6 +79,6 @@ pub fn doctor(
     }
 
     if (is_there_issues and !fix_issues) {
-        try ctx.printer.append("Run\n $ zep doctor --fix\n\nTo fix the mentioned issues automatically.\n\n", .{}, .{});
+        ctx.printer.append("Run\n $ zep doctor --fix\n\nTo fix the mentioned issues automatically.\n\n", .{}, .{});
     }
 }

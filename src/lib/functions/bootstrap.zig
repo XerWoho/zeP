@@ -8,7 +8,7 @@ const Fs = @import("io").Fs;
 
 const Artifact = @import("../artifact/artifact.zig");
 const Installer = @import("../packages/install.zig");
-const Init = @import("../packages/init.zig");
+const Init = @import("./init.zig");
 
 const Context = @import("context");
 
@@ -18,9 +18,9 @@ pub fn bootstrap(
     zig_version: []const u8,
     pkgs: [][]const u8,
 ) !void {
-    try ctx.logger.info("Bootstrapping", @src());
+    ctx.logger.info("Bootstrapping", @src());
 
-    try ctx.printer.append(
+    ctx.printer.append(
         "-- GETTING ZIG --\n\n",
         .{},
         .{
@@ -29,26 +29,26 @@ pub fn bootstrap(
         },
     );
 
-    var zig = try Artifact.init(ctx, .zig);
+    var zig = Artifact.init(ctx, .zig);
     defer zig.deinit();
 
     const default_target = Constants.Default.resolveDefaultTarget();
-    try ctx.logger.infof("Installing zig version={s}...", .{zig_version}, @src());
+    ctx.logger.infof("Installing zig version={s}...", .{zig_version}, @src());
     try zig.install(zig_version, default_target);
 
-    try ctx.printer.append("\n", .{}, .{});
+    ctx.printer.append("\n", .{}, .{});
 
-    try ctx.logger.info("Initting...", @src());
+    ctx.logger.info("Initting...", @src());
     var initer = try Init.init(
         ctx,
         false,
     );
 
-    try ctx.logger.info("Committing Init...", @src());
+    ctx.logger.info("Committing Init...", @src());
     try initer._init();
-    try ctx.printer.append("\n", .{}, .{});
+    ctx.printer.append("\n", .{}, .{});
 
-    try ctx.printer.append(
+    ctx.printer.append(
         "-- GETTING PACKAGES --\n\n",
         .{},
         .{
@@ -57,27 +57,27 @@ pub fn bootstrap(
         },
     );
 
-    try ctx.logger.info("Installing packages...", @src());
+    ctx.logger.info("Installing packages...", @src());
 
     var installer = Installer.init(ctx);
     defer installer.deinit();
     for (pkgs) |pkg| {
         var p_split = std.mem.splitScalar(u8, pkg, '@');
-        const package_name = p_split.first();
-        const package_version = p_split.next();
+        const name = p_split.first();
+        const version = p_split.next();
 
-        installer.installOne(
-            package_name,
-            package_version,
+        installer.installPackage(
+            name,
+            version,
             .zep,
             true,
         ) catch |err| {
             switch (err) {
                 error.AlreadyInstalled => {
-                    try ctx.printer.append("{s} already installed.\n", .{package_name}, .{});
+                    ctx.printer.append("{s} already installed.\n", .{name}, .{});
                 },
                 else => {
-                    try ctx.printer.append("{s} failed to install.\n", .{package_name}, .{});
+                    ctx.printer.append("{s} failed to install.\n", .{name}, .{});
                 },
             }
         };

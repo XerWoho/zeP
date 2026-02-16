@@ -39,9 +39,7 @@ pub fn createZigProject(
     const zig_build_path = "build.zig";
     const zig_build_zon_path = "build.zig.zon";
 
-    if (Fs.existsFile(zig_main_path) and Fs.existsFile(zig_build_path) and Fs.existsFile(zig_build_zon_path)) {
-        return;
-    }
+    if (Fs.existsFile(zig_main_path) and Fs.existsFile(zig_build_path) and Fs.existsFile(zig_build_zon_path)) return;
 
     var zig_version: []const u8 = default_zig_version orelse Constants.Default.zig_version;
     blk: {
@@ -51,7 +49,7 @@ pub fn createZigProject(
             .allocator = allocator,
             .argv = &[_][]const u8{ "zig", "version" },
         }) catch {
-            try printer.append(
+            printer.append(
                 "Zig is not installed!\nDefaulting to {s}!\n\n",
                 .{zig_version},
                 .{
@@ -65,7 +63,7 @@ pub fn createZigProject(
         zig_version = child.stdout[0 .. child.stdout.len - 1];
     }
 
-    try printer.append("Initing Zig project...\n", .{}, .{
+    printer.append("Initing Zig project...\n", .{}, .{
         .verbosity = 2,
     });
 

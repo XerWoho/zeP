@@ -5,6 +5,7 @@ pub const Cache = @This();
 
 const Constants = @import("constants");
 const Structs = @import("structs");
+const Errors = @import("errors");
 
 const Printer = @import("cli").Printer;
 const Fs = @import("io").Fs;
@@ -15,7 +16,7 @@ const Context = @import("context");
 ctx: *Context,
 
 /// Initializes Cache
-pub fn init(ctx: *Context) !Cache {
+pub fn init(ctx: *Context) Cache {
     return Cache{
         .ctx = ctx,
     };
@@ -23,64 +24,80 @@ pub fn init(ctx: *Context) !Cache {
 
 pub fn deinit(_: *Cache) void {}
 
-pub fn list(self: *Cache) !void {
-    try self.ctx.logger.info("Listing Cache", @src());
+pub fn list(self: *Cache) Errors.Cache!void {
+    self.ctx.logger.info("Listing Cache", @src());
 
-    const cached_path = self.ctx.paths.pkg_cached;
+    self.ctx.printer.append("Packages:\n", .{}, .{});
+    try self.listSingle(self.ctx.paths.pkg_cached);
 
-    var opened_cached = try Fs.openOrCreateDir(cached_path);
+    self.ctx.printer.append("Metadata:\n", .{}, .{});
+    try self.listSingle(self.ctx.paths.meta_cached);
+}
+
+fn listSingle(
+    self: *Cache,
+    cached_path: []const u8,
+) Errors.Cache!void {
+    self.ctx.logger.info("Listing Cache", @src());
+
+    var opened_cached = Fs.openOrCreateDir(cached_path) catch return Errors.Cache.InvalidDir;
     defer opened_cached.close();
 
     var opened_cached_iter = opened_cached.iterate();
 
-    try self.ctx.printer.append("\nListing cached items:\n", .{}, .{});
     var is_items_listed = false;
-    while (try opened_cached_iter.next()) |entry| {
+    while (opened_cached_iter.next() catch return Errors.Cache.DirFailed) |entry| {
         is_items_listed = true;
         if (std.mem.endsWith(u8, entry.name, ".zep")) {
             const path = try std.fs.path.join(self.ctx.allocator, &.{ cached_path, entry.name });
             defer self.ctx.allocator.free(path);
 
-            try self.ctx.printer.append("{s} is outdated, removing.\n", .{entry.name}, .{});
-            try Fs.deleteFileIfExists(path);
+            self.ctx.printer.append("{s} is outdated, removing.\n", .{entry.name}, .{});
+            Fs.deleteFileIfExists(path) catch return Errors.Cache.InvalidFile;
             continue;
         }
-        try self.ctx.printer.append(" - {s}\n", .{entry.name}, .{});
+        self.ctx.printer.append(" - {s}\n", .{entry.name}, .{});
     }
     if (!is_items_listed) {
-        try self.ctx.printer.append("No items cached\n", .{}, .{ .color = .red });
+        self.ctx.printer.append("No items cached\n", .{}, .{ .color = .red });
     }
-    try self.ctx.printer.append("\n", .{}, .{});
+    self.ctx.printer.append("\n", .{}, .{});
 }
 
-fn cleanOne(self: *Cache, name: []const u8) !void {
-    try self.ctx.logger.infof("Cleaing Single {s}", .{name}, @src());
+fn cleanOne(self: *Cache, name: []const u8) Errors.Cache!void {
+    self.ctx.logger.infof("Cleaing Single {s}", .{name}, @src());
 
-    const cached_path = self.ctx.paths.pkg_cached;
+    try self.cleanOneSingle(self.ctx.paths.pkg_cached, name);
+}
 
-    var opened_cached = try Fs.openOrCreateDir(cached_path);
+fn cleanOneSingle(
+    self: *Cache,
+    cached_path: []const u8,
+    id: []const u8,
+) Errors.Cache!void {
+    var opened_cached = Fs.openOrCreateDir(cached_path) catch return Errors.Cache.InvalidDir;
     defer opened_cached.close();
 
     var opened_cached_iter = opened_cached.iterate();
 
-    try self.ctx.printer.append("\nCleaning cache with target [{s}]:\n", .{name}, .{});
-    var split = std.mem.splitAny(u8, name, "@");
+    self.ctx.printer.append("\nCleaning cache with target [{s}]:\n", .{id}, .{});
+    var split = std.mem.splitAny(u8, id, "@");
 
-    const package_name = split.first();
-    const package_version = split.next();
+    const name = split.first();
+    const version = split.next();
 
     var data_found: u16 = 0;
     var failed_deletion: u16 = 0;
-    while (try opened_cached_iter.next()) |entry| {
+    while (opened_cached_iter.next() catch return Errors.Cache.DirFailed) |entry| {
         if (std.mem.endsWith(u8, entry.name, ".zep")) {
             const path = try std.fs.path.join(self.ctx.allocator, &.{ cached_path, entry.name });
             defer self.ctx.allocator.free(path);
 
-            try self.ctx.printer.append("{s} is outdated, removing.\n", .{entry.name}, .{});
+            self.ctx.printer.append("{s} is outdated, removing.\n", .{entry.name}, .{});
             continue;
         }
 
-        if (package_version != null) {
+        if (version != null) {
             const entry_name = try std.mem.replaceOwned(
                 u8,
                 self.ctx.allocator,
@@ -89,49 +106,73 @@ fn cleanOne(self: *Cache, name: []const u8) !void {
                 "",
             );
             defer self.ctx.allocator.free(entry_name);
-            if (!std.mem.eql(u8, entry_name, name)) continue;
+            if (!std.mem.eql(u8, entry_name, id)) continue;
         } else {
             var entry_split = std.mem.splitAny(u8, entry.name, "@");
             const pkg_name = entry_split.first();
-            if (!std.mem.startsWith(u8, pkg_name, package_name)) continue;
+            if (!std.mem.startsWith(u8, pkg_name, name)) continue;
         }
 
-        try self.ctx.printer.append(" - {s} ", .{entry.name}, .{});
+        self.ctx.printer.append(" - {s} ", .{entry.name}, .{});
 
         const path = try std.fs.path.join(self.ctx.allocator, &.{ cached_path, entry.name });
         defer self.ctx.allocator.free(path);
 
         Fs.deleteFileIfExists(path) catch {
             failed_deletion += 1;
-            try self.ctx.printer.append(" <FAILED>\n", .{}, .{ .color = .red });
+            self.ctx.printer.append(" <FAILED>\n", .{}, .{ .color = .red });
             continue;
         };
         data_found += 1;
-        try self.ctx.printer.append(" <REMOVED>\n", .{}, .{ .color = .green });
+        self.ctx.printer.append(" <REMOVED>\n", .{}, .{ .color = .green });
     }
     if (data_found == 0) {
-        try self.ctx.printer.append("No cached pacakges found.\n", .{}, .{});
+        self.ctx.printer.append("No cached items found.\n", .{}, .{});
         return;
     }
-    try self.ctx.printer.append("\nRemoved: {d} cached packages ({d} failed)\n", .{ data_found, failed_deletion }, .{});
+    self.ctx.printer.append("\nRemoved: {d} cached items ({d} failed)\n", .{ data_found, failed_deletion }, .{});
 }
 
-pub fn cleanAll(self: *Cache, name: ?[]const u8) !void {
-    try self.ctx.logger.info("Cleaning Cache", @src());
+fn cleanAllSingle(
+    self: *Cache,
+    cached_path: []const u8,
+) Errors.Cache!void {
+    var opened_cached = Fs.openOrCreateDir(cached_path) catch return Errors.Cache.InvalidDir;
+    defer opened_cached.close();
+
+    var opened_cached_iter = opened_cached.iterate();
+
+    var data_found: u16 = 0;
+    var failed_deletion: u16 = 0;
+    while (opened_cached_iter.next() catch return Errors.Cache.DirFailed) |entry| {
+        self.ctx.printer.append(" - {s} ", .{entry.name}, .{});
+
+        const path = try std.fs.path.join(self.ctx.allocator, &.{ cached_path, entry.name });
+        defer self.ctx.allocator.free(path);
+
+        Fs.deleteFileIfExists(path) catch {
+            self.ctx.printer.append(" <FAILED>\n", .{}, .{ .color = .red });
+            failed_deletion += 1;
+            continue;
+        };
+
+        data_found += 1;
+        self.ctx.printer.append(" <REMOVED>\n", .{}, .{ .color = .green });
+    }
+    if (data_found == 0) {
+        self.ctx.printer.append("No cached items found.\n\n", .{}, .{});
+        return;
+    }
+    self.ctx.printer.append("\nRemoved: {d} cached items ({d} failed)\n\n", .{ data_found, failed_deletion }, .{});
+}
+
+pub fn cleanAll(self: *Cache, name: ?[]const u8) Errors.Cache!void {
+    self.ctx.logger.info("Cleaning Cache", @src());
 
     if (name) |n| {
         try self.cleanOne(n);
         return;
     }
-
-    const cached_path = self.ctx.paths.pkg_cached;
-
-    var opened_cached = try Fs.openOrCreateDir(cached_path);
-    defer opened_cached.close();
-
-    var opened_cached_iter = opened_cached.iterate();
-
-    try self.ctx.printer.append("Cleaning cache:\n", .{}, .{});
 
     const UNITS = [5][]const u8{ "B", "KB", "MB", "GB", "TB" };
     var unit_depth: u8 = 0;
@@ -143,64 +184,54 @@ pub fn cleanAll(self: *Cache, name: ?[]const u8) !void {
     }
 
     if (cache_size == 0) {
-        try self.ctx.printer.append("Cache is already empty.\n", .{}, .{});
+        self.ctx.printer.append("Cache is already empty.\n", .{}, .{});
         return;
     }
 
-    const prompt = try std.fmt.allocPrint(self.ctx.allocator, "This will remove all cached packages ({d} {s}). Continue? [y/N]", .{ cache_size, UNITS[unit_depth] });
+    const prompt = try std.fmt.allocPrint(self.ctx.allocator, "This will remove all cached items ({d} {s}). Continue? [y/N]", .{ cache_size, UNITS[unit_depth] });
     defer self.ctx.allocator.free(prompt);
 
-    const input = try Prompt.input(
+    const input = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         prompt,
         .{},
-    );
+    ) catch return Errors.Cache.OutOfMemory;
     defer self.ctx.allocator.free(input);
     if (input.len == 0) return;
     if (!std.mem.startsWith(u8, input, "y") and !std.mem.startsWith(u8, input, "Y")) return;
 
-    var data_found: u16 = 0;
-    var failed_deletion: u16 = 0;
-    while (try opened_cached_iter.next()) |entry| {
-        try self.ctx.printer.append(" - {s} ", .{entry.name}, .{});
-
-        const path = try std.fs.path.join(self.ctx.allocator, &.{ cached_path, entry.name });
-        defer self.ctx.allocator.free(path);
-
-        Fs.deleteFileIfExists(path) catch {
-            try self.ctx.printer.append(" <FAILED>\n", .{}, .{ .color = .red });
-            failed_deletion += 1;
-            continue;
-        };
-
-        data_found += 1;
-        try self.ctx.printer.append(" <REMOVED>\n", .{}, .{ .color = .green });
-    }
-    if (data_found == 0) {
-        try self.ctx.printer.append("No cached packages found.\n", .{}, .{});
-        return;
-    }
-    try self.ctx.printer.append("\nRemoved: {d} cached packages ({d} failed)\n", .{ data_found, failed_deletion }, .{});
+    self.ctx.printer.append("Package cleaning:\n", .{}, .{});
+    try self.cleanAllSingle(self.ctx.paths.pkg_cached);
+    self.ctx.printer.append("Metadata cleaning:\n", .{}, .{});
+    try self.cleanAllSingle(self.ctx.paths.meta_cached);
 }
 
 fn getSize(self: *Cache) !u64 {
-    const cached_path = self.ctx.paths.pkg_cached;
+    const b = try self.getSizeSingle(self.ctx.paths.pkg_cached);
+    const p = try self.getSizeSingle(self.ctx.paths.pkg_cached);
+    const m = try self.getSizeSingle(self.ctx.paths.meta_cached);
+    return b + p + m;
+}
 
-    var opened_cached = try Fs.openOrCreateDir(cached_path);
+fn getSizeSingle(
+    self: *Cache,
+    cached_path: []const u8,
+) Errors.Cache!u64 {
+    var opened_cached = Fs.openOrCreateDir(cached_path) catch return Errors.Cache.InvalidFile;
     defer opened_cached.close();
 
     var opened_cached_iter = opened_cached.iterate();
 
     var cache_size: u64 = 0;
-    while (try opened_cached_iter.next()) |entry| {
+    while (opened_cached_iter.next() catch return Errors.Cache.DirFailed) |entry| {
         const path = try std.fs.path.join(self.ctx.allocator, &.{ cached_path, entry.name });
         defer self.ctx.allocator.free(path);
 
-        var cached_file = try Fs.openFile(path);
+        var cached_file = Fs.openFile(path) catch return Errors.Cache.InvalidFile;
         defer cached_file.close();
 
-        const stat = try cached_file.stat();
+        const stat = cached_file.stat() catch return Errors.Cache.InvalidFile;
         cache_size += stat.size;
     }
 
@@ -208,9 +239,29 @@ fn getSize(self: *Cache) !u64 {
 }
 
 pub fn size(self: *Cache) !void {
-    try self.ctx.logger.info("Getting Cache Size", @src());
+    self.ctx.logger.info("Getting Cache Size", @src());
 
-    try self.ctx.printer.append("Getting cache size...\n", .{}, .{});
-    const cache_size = try self.getSize();
-    try self.ctx.printer.append("Size:\n{d} Bytes\n{d} KB\n{d} MB\n\n", .{ cache_size, cache_size / 1024, cache_size / 1024 / 1024 }, .{});
+    const UNITS = [5][]const u8{ "B", "KB", "MB", "GB", "TB" };
+    blk: {
+        var unit_depth: u8 = 0;
+        var cache_size = try self.getSizeSingle(self.ctx.paths.pkg_cached);
+        while (cache_size > 1024 * 2) {
+            unit_depth += 1;
+            cache_size = cache_size / 1024;
+            if (unit_depth == 4) break;
+        }
+        self.ctx.printer.append("Package cache size:\n{d} {s}\n\n", .{ cache_size, UNITS[unit_depth] }, .{});
+        break :blk;
+    }
+    blk: {
+        var unit_depth: u8 = 0;
+        var cache_size = try self.getSizeSingle(self.ctx.paths.meta_cached);
+        while (cache_size > 1024 * 2) {
+            unit_depth += 1;
+            cache_size = cache_size / 1024;
+            if (unit_depth == 4) break;
+        }
+        self.ctx.printer.append("Metadata cache size:\n{d} {s}\n\n", .{ cache_size, UNITS[unit_depth] }, .{});
+        break :blk;
+    }
 }

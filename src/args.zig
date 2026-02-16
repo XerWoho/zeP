@@ -102,6 +102,7 @@ pub fn parseUninstall(
 
 const InstallArgs = struct {
     inject: bool,
+    binary: bool,
     zep: bool,
     github: bool,
     codeberg: bool,
@@ -112,6 +113,7 @@ pub fn parseInstall(
     args: [][]const u8,
 ) InstallArgs {
     var inject: bool = false;
+    var binary: bool = false;
     var zep: bool = false;
     var github: bool = false;
     var codeberg: bool = false;
@@ -122,6 +124,11 @@ pub fn parseInstall(
             std.mem.startsWith(u8, arg, "-I"))
         {
             inject = true;
+        }
+        if (std.mem.startsWith(u8, arg, "--binary") or
+            std.mem.startsWith(u8, arg, "-B"))
+        {
+            binary = true;
         }
         if (std.mem.startsWith(u8, arg, "--zep") or
             std.mem.startsWith(u8, arg, "-Z"))
@@ -152,6 +159,7 @@ pub fn parseInstall(
 
     return InstallArgs{
         .inject = inject,
+        .binary = binary,
         .zep = zep,
         .github = github,
         .codeberg = codeberg,
@@ -194,13 +202,42 @@ pub fn parseBootstrap(
     };
 }
 
+const BuilderArgs = struct {
+    path: []const u8,
+    zig_version: []const u8,
+};
+pub fn parseBuilder(args: [][]const u8) BuilderArgs {
+    var path: []const u8 = ".";
+    var zig_version: []const u8 = Constants.Default.zig_version;
+    for (args) |arg| {
+        if (std.mem.startsWith(u8, arg, "--path") or
+            std.mem.startsWith(u8, arg, "-P"))
+        {
+            var split = std.mem.splitAny(u8, arg, "=");
+            _ = split.next();
+            const val = split.next() orelse continue;
+            path = val;
+        } else if (std.mem.startsWith(u8, arg, "--zig") or
+            std.mem.startsWith(u8, arg, "-Z"))
+        {
+            var split = std.mem.splitAny(u8, arg, "=");
+            _ = split.next();
+            const val = split.next() orelse continue;
+            zig_version = val;
+        }
+    }
+
+    return BuilderArgs{
+        .path = path,
+        .zig_version = zig_version,
+    };
+}
+
 const RunnerArgs = struct {
     target: []const u8,
     args: []const u8,
 };
-pub fn parseRunner(
-    args: [][]const u8,
-) RunnerArgs {
+pub fn parseRunner(args: [][]const u8) RunnerArgs {
     var target: []const u8 = "";
     var raw_args: []const u8 = "";
     for (args) |arg| {

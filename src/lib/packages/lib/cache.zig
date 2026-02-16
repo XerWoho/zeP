@@ -20,19 +20,20 @@ pub fn deinit(_: *Cacher) void {}
 
 fn cachedArchivePath(
     self: *Cacher,
-    package_id: []const u8,
+    cached_root: []const u8,
+    id: []const u8,
 ) ![]u8 {
     const zstd_id = try std.fmt.allocPrint(
         self.ctx.allocator,
         "{s}.tar.zstd",
         .{
-            package_id,
+            id,
         },
     );
     const cache_fp = try std.fs.path.join(
         self.ctx.allocator,
         &.{
-            self.ctx.paths.pkg_cached,
+            cached_root,
             zstd_id,
         },
     );
@@ -42,13 +43,14 @@ fn cachedArchivePath(
 
 fn installPath(
     self: *Cacher,
-    package_id: []const u8,
+    root: []const u8,
+    id: []const u8,
 ) ![]u8 {
     const extract_p = try std.fs.path.join(
         self.ctx.allocator,
         &.{
-            self.ctx.paths.pkg_root,
-            package_id,
+            root,
+            id,
         },
     );
 
@@ -57,13 +59,13 @@ fn installPath(
 
 fn tempExtractPath(
     self: *Cacher,
-    package_id: []const u8,
+    id: []const u8,
 ) ![]u8 {
     const tmp_p = try std.fs.path.join(
         self.ctx.allocator,
         &.{
             TEMP_DIR,
-            package_id,
+            id,
         },
     );
 
@@ -72,23 +74,27 @@ fn tempExtractPath(
 
 pub fn isCached(
     self: *Cacher,
-    package_id: []const u8,
+    cached_root: []const u8,
+    id: []const u8,
 ) !bool {
-    try self.ctx.logger.info("Checking Cache", @src());
+    self.ctx.logger.info("Checking Cache", @src());
 
     const path = try self.cachedArchivePath(
-        package_id,
+        cached_root,
+        id,
     );
     return Fs.existsFile(path);
 }
 
 pub fn restore(
     self: *Cacher,
-    package_id: []const u8,
+    cached_root: []const u8,
+    root: []const u8,
+    id: []const u8,
 ) !void {
-    try self.ctx.logger.info("Getting Cache", @src());
+    self.ctx.logger.info("Getting Cache", @src());
 
-    const temporary_output_path = try self.tempExtractPath(package_id);
+    const temporary_output_path = try self.tempExtractPath(id);
     var temporary_directory = try Fs.openOrCreateDir(temporary_output_path);
     defer {
         temporary_directory.close();
@@ -96,37 +102,48 @@ pub fn restore(
         self.ctx.allocator.free(temporary_output_path);
     }
 
-    const cache_path = try self.cachedArchivePath(package_id);
+    const cache_path = try self.cachedArchivePath(
+        cached_root,
+        id,
+    );
     defer self.ctx.allocator.free(cache_path);
 
-    const extract_path = try self.installPath(package_id);
+    const extract_path = try self.installPath(
+        root,
+        id,
+    );
     defer self.ctx.allocator.free(extract_path);
 
     try self.ctx.compressor.decompress(cache_path, extract_path);
 }
 
-pub fn store(self: *Cacher, package_id: []const u8) !void {
-    try self.ctx.logger.info("Setting Cache", @src());
+pub fn store(
+    self: *Cacher,
+    cached_root: []const u8,
+    root: []const u8,
+    id: []const u8,
+) !void {
+    self.ctx.logger.info("Setting Cache", @src());
 
-    try self.ctx.printer.append("Package not cached...\n", .{}, .{
+    self.ctx.printer.append("Package not cached...\n", .{}, .{
         .verbosity = 3,
     });
 
     const target_folder = try std.fs.path.join(
         self.ctx.allocator,
         &.{
-            self.ctx.paths.pkg_root,
-            package_id,
+            root,
+            id,
         },
     );
     defer self.ctx.allocator.free(target_folder);
 
-    try self.ctx.printer.append("Caching now...\n", .{}, .{
+    self.ctx.printer.append("Caching now...\n", .{}, .{
         .verbosity = 3,
     });
-    const compress_path = try self.cachedArchivePath(package_id);
+    const compress_path = try self.cachedArchivePath(cached_root, id);
     try self.ctx.compressor.compress(target_folder, compress_path);
-    try self.ctx.printer.append(" > PACKAGE CACHED!\n\n", .{}, .{
+    self.ctx.printer.append(" > PACKAGE CACHED!\n\n", .{}, .{
         .color = .green,
         .verbosity = 3,
     });
@@ -134,16 +151,17 @@ pub fn store(self: *Cacher, package_id: []const u8) !void {
 
 pub fn remove(
     self: *Cacher,
-    package_id: []const u8,
+    cached_root: []const u8,
+    id: []const u8,
 ) !void {
-    try self.ctx.logger.info("Deleting Cache", @src());
+    self.ctx.logger.info("Deleting Cache", @src());
 
     const path = try std.fmt.allocPrint(
         self.ctx.allocator,
         "{s}/{s}.tar.zstd",
         .{
-            self.ctx.paths.pkg_cached,
-            package_id,
+            cached_root,
+            id,
         },
     );
     defer self.ctx.allocator.free(path);

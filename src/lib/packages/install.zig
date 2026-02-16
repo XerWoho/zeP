@@ -6,12 +6,14 @@ const Locales = @import("locales");
 const Constants = @import("constants");
 const Structs = @import("structs");
 const Package = @import("package");
+const Errors = @import("errors");
 
 const Fs = @import("io").Fs;
 const Prompt = @import("cli").Prompt;
 const Injector = @import("core").Injector;
 const Hash = @import("core").Hash;
 
+const Builder = @import("../functions/builder.zig");
 const Downloader = @import("lib/download.zig");
 const Uninstaller = @import("uninstall.zig");
 
@@ -21,9 +23,7 @@ const Zon = @import("zon");
 ctx: *Context,
 downloader: Downloader,
 
-pub fn init(
-    ctx: *Context,
-) Installer {
+pub fn init(ctx: *Context) Installer {
     const downloader = Downloader.init(ctx);
 
     return Installer{
@@ -36,78 +36,34 @@ pub fn deinit(self: *Installer) void {
     self.downloader.deinit();
 }
 
-fn parseOwnerRepo(url: []const u8) !struct { owner: []const u8, repo: []const u8 } {
-    var s = url;
-
-    // Step 1: remove known prefixes
-    if (std.mem.startsWith(u8, s, "git+")) {
-        s = s[4..];
-    } else if (std.mem.startsWith(u8, s, "github:")) {
-        s = s[7..];
-    }
-
-    // Step 2: remove protocol for git+ssh or https
-    const proto_sep = std.mem.indexOf(u8, s, ":");
-    if (proto_sep) |i| {
-        if (i != 1) { // ignore 'C:' style Windows paths
-            s = s[(i + 1)..];
-            if (std.mem.startsWith(u8, s, "//")) {
-                s = s[2..];
-            }
-        }
-    }
-
-    // Step 3: trim everything after hash '#' (commit/tag)
-    const hash_idx = std.mem.indexOf(u8, s, "#");
-    if (hash_idx) |i| {
-        s = s[0..i];
-    }
-
-    // Step 4: remove trailing ".git" if present
-    if (std.mem.endsWith(u8, s, ".git")) {
-        s = s[0 .. s.len - 4];
-    }
-
-    // Step 5: split by '/' and get owner/repo
-    var it = std.mem.splitAny(u8, s, "/");
-    _ = it.next();
-
-    var owner: []const u8 = "";
-    var repo: []const u8 = "";
-    if (it.next()) |o| owner = o else return error.InvalidURL;
-    if (it.next()) |r| repo = r else return error.InvalidURL;
-
-    return .{ .owner = owner, .repo = repo };
-}
-
 fn isFetched(
     self: *Installer,
     package_id: []const u8,
-) !bool {
-    const target_path = try std.fs.path.join(
+) bool {
+    const target_path = std.fs.path.join(
         self.ctx.allocator,
         &.{
             self.ctx.paths.pkg_root,
             package_id,
         },
-    );
+    ) catch return false;
     defer self.ctx.allocator.free(target_path);
     return Fs.existsDir(target_path);
 }
 
 fn isLocked(
     self: *Installer,
-    package_name: []const u8,
-) !bool {
-    const lock = try self.ctx.manifest.readManifest(
+    name: []const u8,
+) bool {
+    const lock = self.ctx.manifest.readManifest(
         Structs.ZepFiles.Lock,
         Constants.Default.package_files.lock,
-    );
+    ) catch return false;
     defer lock.deinit();
 
     var match = false;
     for (lock.value.packages) |pkg| {
-        if (!std.mem.startsWith(u8, pkg.name, package_name)) continue;
+        if (!std.mem.startsWith(u8, pkg.name, name)) continue;
         match = true;
     }
     return match;
@@ -115,15 +71,15 @@ fn isLocked(
 
 fn isLinked(
     self: *Installer,
-    package_name: []const u8,
-) !bool {
-    const target_path = try std.fs.path.join(
+    name: []const u8,
+) bool {
+    const target_path = std.fs.path.join(
         self.ctx.allocator,
         &.{
             Constants.Default.package_files.zep_folder,
-            package_name,
+            name,
         },
-    );
+    ) catch return false;
     defer self.ctx.allocator.free(target_path);
 
     _ = std.fs.cwd().access(target_path, .{}) catch {
@@ -134,15 +90,15 @@ fn isLinked(
 
 fn isInstalled(
     self: *Installer,
-    package_id: []const u8,
+    id: []const u8,
 ) !bool {
-    try self.ctx.logger.info("Checking if package is installed", @src());
+    self.ctx.logger.info("Checking if package is installed", @src());
 
-    var split = std.mem.splitScalar(u8, package_id, '@');
-    const package_name = split.first();
-    const z = try self.isLinked(package_name);
-    const l = try self.isLocked(package_id);
-    const f = try self.isFetched(package_id);
+    var split = std.mem.splitScalar(u8, id, '@');
+    const name = split.first();
+    const z = self.isLinked(name);
+    const l = self.isLocked(id);
+    const f = self.isFetched(id);
 
     return z and l and f;
 }
@@ -152,16 +108,15 @@ fn isCorrupt(
     package_id: []const u8,
 ) !bool {
     var split = std.mem.splitScalar(u8, package_id, '@');
-    const package_name = split.first();
-    const z = try self.isLinked(package_name);
+    const name = split.first();
+    const z = self.isLinked(name);
     if (!z) return false;
 
-    const package_path = try std.fmt.allocPrint(
+    const package_path = try std.fs.path.join(
         self.ctx.allocator,
-        "{s}/{s}",
-        .{
+        &.{
             Constants.Default.package_files.zep_folder,
-            package_name,
+            name,
         },
     );
     defer self.ctx.allocator.free(package_path);
@@ -176,17 +131,16 @@ fn isCorrupt(
 
 fn fixCorrupt(
     self: *Installer,
-    package_id: []const u8,
+    id: []const u8,
 ) !void {
-    var split = std.mem.splitScalar(u8, package_id, '@');
-    const package_name = split.first();
+    var split = std.mem.splitScalar(u8, id, '@');
+    const name = split.first();
 
-    const package_path = try std.fmt.allocPrint(
+    const package_path = try std.fs.path.join(
         self.ctx.allocator,
-        "{s}/{s}",
-        .{
+        &.{
             Constants.Default.package_files.zep_folder,
-            package_name,
+            name,
         },
     );
     defer self.ctx.allocator.free(package_path);
@@ -198,8 +152,7 @@ fn linkPackage(
     package: *Package,
     force_inject: bool,
 ) !void {
-    try self.ctx.logger.info("Linking Package...", @src());
-    try package.lockRegister();
+    self.ctx.logger.info("Linking Package...", @src());
 
     var injector = Injector.init(
         self.ctx.allocator,
@@ -207,13 +160,12 @@ fn linkPackage(
         &self.ctx.printer,
     );
 
-    try injector.initInjector(force_inject);
+    injector.initInjector(force_inject) catch return Errors.Installable.DownloadFailed;
 
     // symbolic link
-    const target_path = try std.fmt.allocPrint(
+    const target_path = try std.fs.path.join(
         self.ctx.allocator,
-        "{s}/{s}",
-        .{
+        &.{
             self.ctx.paths.pkg_root,
             package.package_id,
         },
@@ -242,39 +194,40 @@ fn linkPackage(
     );
     defer self.ctx.allocator.free(absolute_symbolic_link_path);
     try std.fs.cwd().symLink(target_path, relative_symbolic_link_path, .{ .is_directory = true });
-    try package.addPathToManifest(absolute_symbolic_link_path);
+
+    package.lockRegister() catch return Errors.Installable.LockFailed;
 }
 
 fn resolvePackage(
     self: *Installer,
-    package_name: []const u8,
-    package_version: ?[]const u8,
-    install_type: Structs.Extras.InstallType,
+    name: []const u8,
+    version: ?[]const u8,
+    namespace: Structs.Extras.Namespaces,
 ) !Package {
-    const v = package_version orelse "";
+    const v = version orelse "";
     blk: {
         if (v.len == 0) break :blk;
-        const package_id = try std.fmt.allocPrint(self.ctx.allocator, "{s}@{s}", .{ package_name, v });
+        const package_id = try std.fmt.allocPrint(self.ctx.allocator, "{s}@{s}", .{ name, v });
         defer self.ctx.allocator.free(package_id);
-        if (try self.isInstalled(package_id)) return error.AlreadyInstalled;
+        if (try self.isInstalled(package_id)) return Errors.Installable.AlreadyInstalled;
         if (try self.isCorrupt(package_id)) {
             try self.fixCorrupt(package_id);
         }
         break :blk;
     }
 
-    try self.ctx.logger.infof("Getting Package...", .{}, @src());
+    self.ctx.logger.infof("Getting Package...", .{}, @src());
     const package = try Package.init(
         self.ctx,
-        package_name,
-        package_version,
-        install_type,
+        name,
+        version,
+        namespace,
     );
 
-    try self.ctx.logger.infof("Package received!", .{}, @src());
+    self.ctx.logger.infof("Package received!", .{}, @src());
 
     if (v.len == 0) {
-        if (try self.isInstalled(package.package.name)) return error.AlreadyInstalled;
+        if (try self.isInstalled(package.package.name)) return Errors.Installable.AlreadyInstalled;
         if (try self.isCorrupt(package.package.name)) {
             try self.fixCorrupt(package.package.name);
         }
@@ -283,22 +236,99 @@ fn resolvePackage(
     return package;
 }
 
-pub fn installOne(
+pub fn installBinary(
     self: *Installer,
-    package_name: []const u8,
-    package_version: ?[]const u8,
-    install_type: Structs.Extras.InstallType,
-    force_inject: bool,
-) anyerror!void {
-    var package = try self.resolvePackage(
-        package_name,
-        package_version,
-        install_type,
+    name: []const u8,
+    version: ?[]const u8,
+    namespace: Structs.Extras.Namespaces,
+) Errors.Installable!void {
+    var binary = try self.resolvePackage(
+        name,
+        version,
+        namespace,
     );
+    defer binary.deinit();
+
+    self.ctx.logger.info("Installing Binary...", @src());
+    self.ctx.printer.append(
+        "Installing Binary {s}\n",
+        .{binary.package.name},
+        .{
+            .verbosity = 3,
+        },
+    );
+
+    self.ctx.logger.info("Installing Binary via Downloader", @src());
+    try self.downloader.downloadBinary(
+        binary.package_id,
+        binary.package.source,
+    );
+    self.ctx.logger.info("Installed.", @src());
+
+    try binary.resolveZigVersion(); // resolve the zig version after fetching the source
+    const binary_path = try std.fs.path.join(self.ctx.allocator, &.{
+        self.ctx.paths.pkg_root,
+        binary.package_id,
+    });
+    defer self.ctx.allocator.free(binary_path);
+    const zig_version = if (std.mem.eql(u8, binary.package.zig_version, "/")) Constants.Default.zig_version else binary.package.zig_version;
+    self.ctx.printer.append(
+        "Building binary;\n > Path: {s}\n > Zig: {s}\n\n",
+        .{ binary_path, zig_version },
+        .{
+            .verbosity = 3,
+        },
+    );
+
+    Locales.PRINTER_MUTE = true;
+    errdefer Locales.PRINTER_MUTE = false;
+    const target_files = Builder.build(
+        self.ctx,
+        binary_path,
+        zig_version,
+        .{
+            .mute = true,
+        },
+    ) catch return Errors.Installable.InstallFailed;
+    defer self.ctx.allocator.free(target_files);
+    Locales.PRINTER_MUTE = false;
+
+    self.ctx.printer.append(
+        "Successfully installed - {s}\n",
+        .{binary.package.name},
+        .{ .color = .green },
+    );
+    self.ctx.printer.append(
+        "You might need to restart your terminal.\n\n",
+        .{},
+        .{ .color = .bright_black },
+    );
+}
+
+pub fn installPackage(
+    self: *Installer,
+    name: []const u8,
+    version: ?[]const u8,
+    namespace: Structs.Extras.Namespaces,
+    force_inject: bool,
+) Errors.Installable!void {
+    var package = self.resolvePackage(
+        name,
+        version,
+        namespace,
+    ) catch |err| {
+        switch (err) {
+            Errors.Installable.AlreadyInstalled => return Errors.Installable.AlreadyInstalled,
+            else => return Errors.Installable.ResolveFailed,
+        }
+    };
     defer package.deinit();
 
-    try self.ctx.logger.info("Installing Package...", @src());
-    try self.ctx.printer.append(
+    self.ctx.logger.info(
+        "Installing Package...",
+        @src(),
+    );
+    self.ctx.printer.append(
         "Installing Package {s}\n",
         .{package.package.name},
         .{
@@ -307,38 +337,53 @@ pub fn installOne(
     );
 
     blk: {
-        if (try self.isLocked(package.package.name)) break :blk;
+        if (self.isLocked(package.package.name)) break :blk;
         var uninstaller = Uninstaller.init(self.ctx);
         defer uninstaller.deinit();
-        uninstaller.uninstall(package.package.name) catch |err| {
+        Locales.PRINTER_MUTE = true;
+        uninstaller.uninstallPackage(package.package.name) catch |err| {
+            Locales.PRINTER_MUTE = false;
             switch (err) {
                 error.NotInstalled => break :blk,
                 else => return err,
             }
         };
+        Locales.PRINTER_MUTE = false;
         break :blk;
     }
 
-    const lock = try self.ctx.manifest.readManifest(
+    const lock = self.ctx.manifest.readManifest(
         Structs.ZepFiles.Lock,
         Constants.Default.package_files.lock,
-    );
+    ) catch return Errors.Installable.ManifestFailed;
     defer lock.deinit();
 
-    try self.ctx.logger.info("Installing Package via Downloader", @src());
-    try self.downloader.downloadPackage(
+    self.downloader.downloadPackage(
         package.package_id,
         package.package.source,
+    ) catch return Errors.Installable.DownloadFailed;
+    self.ctx.logger.info(
+        "Installed.",
+        @src(),
     );
-    try self.ctx.logger.info("Installed.", @src());
 
-    if (!std.mem.containsAtLeast(u8, package.package.zig_version, 1, lock.value.root.zig_version)) {
-        try self.ctx.printer.append("WARNING: ", .{}, .{
-            .color = .red,
-            .weight = .bold,
-            .verbosity = 2,
-        });
-        try self.ctx.printer.append(
+    try package.resolveZigVersion();
+    if (!std.mem.containsAtLeast(
+        u8,
+        package.package.zig_version,
+        1,
+        lock.value.root.zig_version,
+    )) {
+        self.ctx.printer.append(
+            "WARNING: ",
+            .{},
+            .{
+                .color = .red,
+                .weight = .bold,
+                .verbosity = 2,
+            },
+        );
+        self.ctx.printer.append(
             "ZIG VERSIONS ARE NOT MATCHING!\n",
             .{},
             .{
@@ -347,60 +392,61 @@ pub fn installOne(
                 .verbosity = 2,
             },
         );
-        try self.ctx.printer.append(
-            "{s} Zig Version: {s}\n",
-            .{ package.package.name, package.package.zig_version },
-            .{ .verbosity = 2 },
-        );
-        try self.ctx.printer.append(
-            "Your Zig Version: {s}\n\n",
-            .{lock.value.root.zig_version},
+        self.ctx.printer.append(
+            "{s} Zig Version: {s}\nYour Zig Version: {s}\n\n",
+            .{ package.package.name, package.package.zig_version, lock.value.root.zig_version },
             .{ .verbosity = 2 },
         );
     }
 
-    try self.linkPackage(&package, force_inject);
-    try self.ctx.printer.append(
+    self.linkPackage(&package, force_inject) catch |err| {
+        switch (err) {
+            Errors.Installable.InjectFailed => return Errors.Installable.InjectFailed,
+            Errors.Installable.LockFailed => return Errors.Installable.LockFailed,
+            else => return Errors.Installable.LinkingFailed,
+        }
+    };
+    self.ctx.printer.append(
         "Successfully installed - {s}\n\n",
         .{package.package.name},
         .{ .color = .green },
     );
 }
 
-pub fn installAll(self: *Installer) anyerror!void {
-    try self.ctx.logger.info("Installing All", @src());
+pub fn installAll(self: *Installer) Errors.Installable!void {
+    self.ctx.logger.info(
+        "Installing All",
+        @src(),
+    );
 
-    const prev_verbosity = Locales.VERBOSITY_MODE;
-    Locales.VERBOSITY_MODE = 0;
-
-    var lock = try self.ctx.manifest.readManifest(
+    var lock = self.ctx.manifest.readManifest(
         Structs.ZepFiles.Lock,
         Constants.Default.package_files.lock,
-    );
+    ) catch return Errors.Installable.LockFailed;
     defer lock.deinit();
 
     var failed: u8 = 0;
     for (lock.value.packages) |package| {
-        const package_install = package.install;
-        var package_install_split = std.mem.splitAny(u8, package_install, "@");
-        const package_name = package_install_split.first();
-        const package_version = package_install_split.next();
+        const install = package.install;
+        var split = std.mem.splitAny(u8, install, "@");
+        const name = split.first();
+        const version = split.next();
 
-        try self.ctx.printer.append(
+        self.ctx.printer.append(
             " > Installing - {s}",
-            .{package_install},
+            .{install},
             .{ .verbosity = 0 },
         );
 
-        self.installOne(
-            package_name,
-            package_version,
+        self.installPackage(
+            name,
+            version,
             package.namespace,
             false,
         ) catch |err| {
             switch (err) {
                 error.AlreadyInstalled => {
-                    try self.ctx.printer.append(
+                    self.ctx.printer.append(
                         " >> already installed!\n",
                         .{},
                         .{ .verbosity = 0, .color = .green },
@@ -409,9 +455,9 @@ pub fn installAll(self: *Installer) anyerror!void {
                 },
                 else => {
                     failed += 1;
-                    try self.ctx.printer.append(
+                    self.ctx.printer.append(
                         "  ! [ERROR] Failed to install - {s} [{any}]...\n",
-                        .{ package_name, err },
+                        .{ name, err },
                         .{ .verbosity = 0, .color = .red },
                     );
                 },
@@ -419,13 +465,14 @@ pub fn installAll(self: *Installer) anyerror!void {
             continue;
         };
 
-        try self.ctx.printer.append(
+        self.ctx.printer.append(
             " >> done!\n",
             .{},
             .{ .verbosity = 0, .color = .green },
         );
     }
-    try self.ctx.printer.append(
+
+    self.ctx.printer.append(
         "\nInstalled: {d} packages ({d} failed)\n",
         .{
             lock.value.packages.len - failed,
@@ -433,5 +480,4 @@ pub fn installAll(self: *Installer) anyerror!void {
         },
         .{ .verbosity = 0 },
     );
-    Locales.VERBOSITY_MODE = prev_verbosity;
 }

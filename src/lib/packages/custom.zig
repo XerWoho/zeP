@@ -59,7 +59,7 @@ fn promptVersionData(self: *CustomPackage) !Structs.Packages.Version {
     ) catch |err| {
         switch (err) {
             else => {
-                try self.ctx.printer.append("\nINVALID URL!\nABORTING!\n", .{}, .{ .color = .red });
+                self.ctx.printer.append("\nINVALID URL!\nABORTING!\n", .{}, .{ .color = .red });
             },
         }
         return error.InvalidUrl;
@@ -74,12 +74,12 @@ fn promptVersionData(self: *CustomPackage) !Structs.Packages.Version {
 }
 
 pub fn requestPackage(self: *CustomPackage) !void {
-    try self.ctx.printer.append("Custom:\n\n", .{}, .{
+    self.ctx.printer.append("Custom:\n\n", .{}, .{
         .color = .yellow,
         .weight = .bold,
     });
 
-    const package_name = try Prompt.input(
+    const name = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         "> *Package Name: ",
@@ -87,19 +87,19 @@ pub fn requestPackage(self: *CustomPackage) !void {
             .required = true,
         },
     );
-    defer self.ctx.allocator.free(package_name);
+    defer self.ctx.allocator.free(name);
 
     const custom_package_path = try std.fmt.allocPrint(
         self.ctx.allocator,
         "{s}/{s}.json",
         .{
             self.ctx.paths.custom,
-            package_name,
+            name,
         },
     );
     defer self.ctx.allocator.free(custom_package_path);
     if (Fs.existsFile(custom_package_path)) {
-        try self.ctx.printer.append("Add version [package exists]:\n\n", .{}, .{
+        self.ctx.printer.append("Add version [package exists]:\n\n", .{}, .{
             .color = .yellow,
             .weight = .bold,
         });
@@ -107,7 +107,7 @@ pub fn requestPackage(self: *CustomPackage) !void {
         const v = try self.promptVersionData();
         try self.addVersionToPackage(custom_package_path, v);
 
-        try self.ctx.printer.append("\nSuccessfully added new version - {s}\n\n", .{v.version}, .{ .color = .green });
+        self.ctx.printer.append("\nSuccessfully added new version - {s}\n\n", .{v.version}, .{ .color = .green });
         return;
     }
 
@@ -126,20 +126,18 @@ pub fn requestPackage(self: *CustomPackage) !void {
     try versions.append(self.ctx.allocator, v);
 
     const package = Structs.Packages.Package{
-        .name = package_name,
+        .name = name,
         .author = author,
         .docs = "",
         .versions = versions.items,
     };
 
     try self.addPackage(custom_package_path, package);
-    try self.ctx.printer.append("\nSuccessfully added custom package - {s}\n\n", .{package_name}, .{ .color = .green });
+    self.ctx.printer.append("\nSuccessfully added custom package - {s}\n\n", .{name}, .{ .color = .green });
 }
 
 fn addPackage(self: *CustomPackage, custom_package_path: []const u8, package_json: Structs.Packages.Package) !void {
-    if (Fs.existsFile(custom_package_path)) {
-        try Fs.deleteFileIfExists(custom_package_path);
-    }
+    try Fs.deleteFileIfExists(custom_package_path);
 
     const package_file = try Fs.openOrCreateFile(custom_package_path);
     const stringify = try std.json.Stringify.valueAlloc(self.ctx.allocator, package_json, .{ .whitespace = .indent_2 });
@@ -159,7 +157,7 @@ fn addVersionToPackage(self: *CustomPackage, custom_package_path: []const u8, ve
     const versions = parsed.value.versions;
     for (versions) |v| {
         if (std.mem.eql(u8, v.version, version.version)) {
-            try self.ctx.printer.append("Specified version already in use!\nOverwriting...\n", .{}, .{ .color = .red });
+            self.ctx.printer.append("Specified version already in use!\nOverwriting...\n", .{}, .{ .color = .red });
             continue;
         }
         try versions_array.append(self.ctx.allocator, v);
@@ -175,7 +173,7 @@ fn addVersionToPackage(self: *CustomPackage, custom_package_path: []const u8, ve
 }
 
 pub fn removePackage(self: *CustomPackage, package_name: []const u8) !void {
-    try self.ctx.printer.append("Removing package...\n", .{}, .{});
+    self.ctx.printer.append("Removing package...\n", .{}, .{});
 
     const custom_package_path = try std.fmt.allocPrint(
         self.ctx.allocator,
@@ -185,11 +183,11 @@ pub fn removePackage(self: *CustomPackage, package_name: []const u8) !void {
     defer self.ctx.allocator.free(custom_package_path);
 
     if (Fs.existsFile(custom_package_path)) {
-        try self.ctx.printer.append("Package found...\n", .{}, .{});
+        self.ctx.printer.append("Package found...\n", .{}, .{});
         try Fs.deleteFileIfExists(custom_package_path);
-        try self.ctx.printer.append("Deleted.\n\n", .{}, .{});
+        self.ctx.printer.append("Deleted.\n\n", .{}, .{});
     } else {
-        try self.ctx.printer.append("Package not found...\n\n", .{}, .{});
+        self.ctx.printer.append("Package not found...\n\n", .{}, .{});
     }
 }
 

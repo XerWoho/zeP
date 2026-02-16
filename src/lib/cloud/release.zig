@@ -5,6 +5,7 @@ pub const Release = @This();
 
 const Constants = @import("constants");
 const Structs = @import("structs");
+const Errors = @import("errors");
 
 const Prompt = @import("cli").Prompt;
 const Fs = @import("io").Fs;
@@ -32,80 +33,82 @@ pub fn init(ctx: *Context) Release {
     };
 }
 
-pub fn delete(self: *Release) !void {
-    try self.ctx.logger.info("Deleting Release", @src());
+pub fn delete(self: *Release) Errors.Cloud!void {
+    self.ctx.logger.info("Deleting Release", @src());
 
-    var manifest = try self.ctx.manifest.readManifest(Structs.Manifests.Auth, self.ctx.paths.auth_manifest);
+    var manifest = self.ctx.manifest.readManifest(
+        Structs.Manifests.Auth,
+        self.ctx.paths.auth_manifest,
+    ) catch return Errors.Cloud.ManifestFailed;
     defer manifest.deinit();
-    if (manifest.value.token.len == 0) return error.NotAuthed;
+    if (manifest.value.token.len == 0) return Errors.Cloud.NotAuthed;
 
-    var packages = try self.ctx.fetcher.fetchPackages();
+    var packages = self.ctx.fetcher.fetchPackages() catch return Errors.Cloud.FetchFailed;
     defer packages.deinit(self.ctx.allocator);
 
-    try self.ctx.printer.append("Available packages:\n", .{}, .{});
+    self.ctx.printer.append("Available packages:\n", .{}, .{});
     if (packages.items.len == 0) {
-        try self.ctx.printer.append("-- No packages --\n\n", .{}, .{ .color = .bright_red });
+        self.ctx.printer.append("-- No packages --\n\n", .{}, .{ .color = .bright_red });
         return;
     }
 
     for (packages.items, 0..) |r, i| {
-        try self.ctx.printer.append(" [{d}] - {s}\n", .{ i, r.Name }, .{});
+        self.ctx.printer.append(" [{d}] - {s}\n", .{ i, r.Name }, .{});
     }
-    try self.ctx.printer.append("\n", .{}, .{});
+    self.ctx.printer.append("\n", .{}, .{});
 
-    const package_index_str = try Prompt.input(
+    const package_index_str = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         "TARGET >> ",
         .{ .required = true },
-    );
+    ) catch return Errors.Cloud.OutOfMemory;
 
     const package_index = std.fmt.parseInt(
         usize,
         package_index_str,
         10,
-    ) catch return error.InvalidSelection;
+    ) catch return Errors.Cloud.InvalidSelection;
 
     if (package_index >= packages.items.len)
-        return error.InvalidSelection;
+        return Errors.Cloud.InvalidSelection;
 
     const package_target = packages.items[package_index];
-    try self.ctx.printer.append("Selected: {s}\n\n", .{package_target.Name}, .{ .color = .bright_black });
+    self.ctx.printer.append("Selected: {s}\n\n", .{package_target.Name}, .{ .color = .bright_black });
 
-    var releases = try self.ctx.fetcher.fetchReleases(package_target.Name);
+    var releases = self.ctx.fetcher.fetchReleases(package_target.Name) catch return Errors.Cloud.FetchFailed;
     defer releases.deinit(self.ctx.allocator);
 
-    try self.ctx.printer.append("Available releases:\n", .{}, .{});
+    self.ctx.printer.append("Available releases:\n", .{}, .{});
     if (releases.items.len == 0) {
-        try self.ctx.printer.append("-- No releases --\n\n", .{}, .{ .color = .bright_red });
+        self.ctx.printer.append("-- No releases --\n\n", .{}, .{ .color = .bright_red });
         return;
     }
     for (releases.items, 0..) |v, i| {
-        try self.ctx.printer.append(
+        self.ctx.printer.append(
             "  [{d}] - {s} {s}\n",
             .{ i, package_target.Name, v.Release },
             .{ .color = .bright_blue },
         );
     }
-    try self.ctx.printer.append("\n", .{}, .{});
-    const release_index_str = try Prompt.input(
+    self.ctx.printer.append("\n", .{}, .{});
+    const release_index_str = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         "TARGET >> ",
         .{ .required = true },
-    );
+    ) catch return Errors.Cloud.OutOfMemory;
 
     const release_index = std.fmt.parseInt(
         usize,
         release_index_str,
         10,
-    ) catch return error.InvalidSelection;
+    ) catch return Errors.Cloud.InvalidSelection;
 
-    if (release_index >= releases.items.len)
-        return error.InvalidSelection;
+    if (release_index >= releases.items.len) return Errors.Cloud.InvalidSelection;
 
     const release_target = releases.items[release_index];
-    try self.ctx.printer.append("Selected: {s}\n\n", .{release_target.Release}, .{ .color = .bright_black });
+    self.ctx.printer.append("Selected: {s}\n\n", .{release_target.Release}, .{ .color = .bright_black });
 
     const url = try std.fmt.allocPrint(
         self.ctx.allocator,
@@ -123,77 +126,77 @@ pub fn delete(self: *Release) !void {
                 },
             },
         },
-    ) catch return error.FetchFailed;
+    ) catch return Errors.Cloud.FetchFailed;
 
     defer delete_release_response.deinit();
     const delete_release_object = delete_release_response.value.object;
     const is_delete_release_successful = delete_release_object.get("success") orelse return;
     if (!is_delete_release_successful.bool) {
-        try self.ctx.printer.append("Failed.\n", .{}, .{ .color = .bright_red });
+        self.ctx.printer.append("Failed.\n", .{}, .{ .color = .bright_red });
         return;
     }
 
-    try self.ctx.printer.append("Deleted.\n", .{}, .{});
+    self.ctx.printer.append("Deleted.\n", .{}, .{});
 }
 
-pub fn list(self: *Release) !void {
-    try self.ctx.logger.info("Listing Release", @src());
+pub fn list(self: *Release) Errors.Cloud!void {
+    self.ctx.logger.info("Listing Release", @src());
 
-    var packages = try self.ctx.fetcher.fetchPackages();
+    var packages = self.ctx.fetcher.fetchPackages() catch return Errors.Cloud.FetchFailed;
     defer packages.deinit(self.ctx.allocator);
 
-    try self.ctx.printer.append("Available packages:\n", .{}, .{});
+    self.ctx.printer.append("Available packages:\n", .{}, .{});
     if (packages.items.len == 0) {
-        try self.ctx.logger.info("No Package", @src());
-        try self.ctx.printer.append("-- No packages --\n\n", .{}, .{ .color = .bright_red });
+        self.ctx.logger.info("No Package", @src());
+        self.ctx.printer.append("-- No packages --\n\n", .{}, .{ .color = .bright_red });
         return;
     }
 
     for (packages.items, 0..) |r, i| {
-        try self.ctx.printer.append(" [{d}] - {s}\n", .{ i, r.Name }, .{});
+        self.ctx.printer.append(" [{d}] - {s}\n", .{ i, r.Name }, .{});
     }
-    try self.ctx.printer.append("\n", .{}, .{});
+    self.ctx.printer.append("\n", .{}, .{});
 
-    const package_index_str = try Prompt.input(
+    const package_index_str = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         "TARGET >> ",
         .{ .required = true },
-    );
+    ) catch return Errors.Cloud.OutOfMemory;
 
     const package_index = std.fmt.parseInt(
         usize,
         package_index_str,
         10,
-    ) catch return error.InvalidSelection;
+    ) catch return Errors.Cloud.InvalidSelection;
 
-    try self.ctx.logger.infof("Package Selected {d}", .{package_index}, @src());
+    self.ctx.logger.infof("Package Selected {d}", .{package_index}, @src());
 
     if (package_index >= packages.items.len) {
-        try self.ctx.logger.info("Invalid Package Selected", @src());
-        return error.InvalidSelection;
+        self.ctx.logger.info("Invalid Package Selected", @src());
+        return Errors.Cloud.InvalidSelection;
     }
 
     const package_target = packages.items[package_index];
-    try self.ctx.printer.append("Selected: {s}\n\n", .{package_target.Name}, .{ .color = .bright_black });
+    self.ctx.printer.append("Selected: {s}\n\n", .{package_target.Name}, .{ .color = .bright_black });
 
-    var releases = try self.ctx.fetcher.fetchReleases(package_target.Name);
+    var releases = self.ctx.fetcher.fetchReleases(package_target.Name) catch return Errors.Cloud.FetchFailed;
     defer releases.deinit(self.ctx.allocator);
 
-    try self.ctx.printer.append("Available releases:\n", .{}, .{});
+    self.ctx.printer.append("Available releases:\n", .{}, .{});
     if (releases.items.len == 0) {
-        try self.ctx.logger.info("No Releases for Package", @src());
-        try self.ctx.printer.append("-- No releases --\n\n", .{}, .{ .color = .bright_red });
+        self.ctx.logger.info("No Releases for Package", @src());
+        self.ctx.printer.append("-- No releases --\n\n", .{}, .{ .color = .bright_red });
     }
 
     for (releases.items, 0..) |v, i| {
-        try self.ctx.printer.append(
+        self.ctx.printer.append(
             "  [{d}] - {s} {s}\n",
             .{ i, package_target.Name, v.Release },
             .{ .color = .bright_blue },
         );
     }
-    try self.ctx.printer.append("\n", .{}, .{});
+    self.ctx.printer.append("\n", .{}, .{});
 }
 
 const TEMP_DIR = ".zep/tmp";
@@ -202,7 +205,7 @@ fn compressPackage(self: *Release) ![]const u8 {
     const output = TEMP_DIR ++ "/" ++ TEMP_FILE;
     try self.ctx.compressor.compress(".", output);
 
-    try self.ctx.printer.append(
+    self.ctx.printer.append(
         "Compressed!\n\n",
         .{},
         .{ .color = .green },
@@ -267,26 +270,26 @@ fn releaseAvailable(package_name: []const u8, release: []const u8) bool {
     return f.status != .ok;
 }
 
-pub fn create(self: *Release) !void {
-    try self.ctx.logger.info("Creating Release", @src());
+pub fn create(self: *Release) Errors.Cloud!void {
+    self.ctx.logger.info("Creating Release", @src());
 
-    try self.ctx.printer.append("Release:\n\n", .{}, .{
+    self.ctx.printer.append("Release:\n\n", .{}, .{
         .color = .yellow,
         .weight = .bold,
     });
 
-    var manifest = try self.ctx.manifest.readManifest(
+    var manifest = self.ctx.manifest.readManifest(
         Structs.Manifests.Auth,
         self.ctx.paths.auth_manifest,
-    );
+    ) catch return Errors.Cloud.ManifestFailed;
     defer manifest.deinit();
-    if (manifest.value.token.len == 0) return error.NotAuthed;
+    if (manifest.value.token.len == 0) return Errors.Cloud.NotAuthed;
 
-    var packages = try self.ctx.fetcher.fetchPackages();
+    var packages = self.ctx.fetcher.fetchPackages() catch return Errors.Cloud.FetchFailed;
     defer packages.deinit(self.ctx.allocator);
 
     if (packages.items.len == 0) {
-        try self.ctx.printer.append(
+        self.ctx.printer.append(
             "No package available!\nCreate package first!\n\n",
             .{},
             .{ .color = .red },
@@ -294,52 +297,52 @@ pub fn create(self: *Release) !void {
         return;
     }
 
-    try self.ctx.printer.append(
+    self.ctx.printer.append(
         "Select Package target:\n",
         .{},
         .{ .color = .blue, .weight = .bold },
     );
 
     for (0.., packages.items) |i, r| {
-        try self.ctx.printer.append(
+        self.ctx.printer.append(
             " - [{d}] {s}\n",
             .{ i, r.Name },
             .{},
         );
     }
-    try self.ctx.printer.append("\n", .{}, .{});
+    self.ctx.printer.append("\n", .{}, .{});
 
-    const index_str = try Prompt.input(
+    const index_str = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         "TARGET >> ",
         .{ .required = true },
-    );
+    ) catch return Errors.Cloud.OutOfMemory;
 
     const index = std.fmt.parseInt(
         usize,
         index_str,
         10,
-    ) catch return error.InvalidSelection;
+    ) catch return Errors.Cloud.InvalidSelection;
 
     if (index >= packages.items.len)
-        return error.InvalidSelection;
+        return Errors.Cloud.InvalidSelection;
 
     const target = packages.items[index];
-    try self.ctx.printer.append("Selected: {s}\n\n", .{target.Name}, .{ .color = .bright_black });
+    self.ctx.printer.append("Selected: {s}\n\n", .{target.Name}, .{ .color = .bright_black });
 
-    const p_release = try Prompt.input(
+    const p_release = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         " > [Version] Release*: ",
         .{
             .required = true,
         },
-    );
+    ) catch return Errors.Cloud.OutOfMemory;
 
     const available = releaseAvailable(target.Name, p_release);
     if (!available) {
-        try self.ctx.printer.append(
+        self.ctx.printer.append(
             "{s} is not available for project {s}.\n\n",
             .{ p_release, target.Name },
             .{
@@ -347,35 +350,35 @@ pub fn create(self: *Release) !void {
                 .weight = .bold,
             },
         );
-        return error.InvalidRelease;
+        return Errors.Cloud.InvalidSelection;
     }
 
-    const zig_version = try Prompt.input(
+    const zig_version = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         " > Zig Version*: ",
         .{ .required = true },
-    );
+    ) catch return Errors.Cloud.OutOfMemory;
 
-    const root_file = try Prompt.input(
+    const root_file = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         " > Root File*: ",
         .{ .required = true },
-    );
-    try self.ctx.printer.append("\n", .{}, .{});
+    ) catch return Errors.Cloud.OutOfMemory;
+    self.ctx.printer.append("\n", .{}, .{});
 
-    const archive = try self.compressPackage();
+    const archive = self.compressPackage() catch return Errors.Cloud.CompressingFailed;
     defer {
         Fs.deleteTreeIfExists(TEMP_DIR) catch {};
     }
-    const file = try Fs.openFile(archive);
+    const file = Fs.openFile(archive) catch return Errors.Cloud.FileFailed;
     defer file.close();
 
-    const stat = try file.stat();
+    const stat = file.stat() catch return Errors.Cloud.FileFailed;
     const data = try self.ctx.allocator.alloc(u8, @intCast(stat.size));
     defer self.ctx.allocator.free(data);
-    _ = try file.readAll(data);
+    _ = file.readAll(data) catch return Errors.Cloud.FileFailed;
 
     var hasher = std.crypto.hash.sha2.Sha256.init(.{});
     hasher.update(data);
@@ -386,7 +389,7 @@ pub fn create(self: *Release) !void {
     const hash_hex =
         try std.fmt.allocPrint(self.ctx.allocator, "{x}", .{digest});
 
-    try self.ctx.logger.info("Building Form File for Release", @src());
+    self.ctx.logger.info("Building Form File for Release", @src());
     const body = try std.mem.concat(
         self.ctx.allocator,
         u8,
@@ -410,20 +413,20 @@ pub fn create(self: *Release) !void {
     var client = std.http.Client{ .allocator = self.ctx.allocator };
     defer client.deinit();
 
-    const uri = try std.Uri.parse(Constants.Default.zep_url ++ "/api/v1/release");
-    var req = try client.request(.POST, uri, .{});
+    const uri = std.Uri.parse(Constants.Default.zep_url ++ "/api/v1/release") catch return Errors.Cloud.InvalidUrl;
+    var req = client.request(.POST, uri, .{}) catch return Errors.Cloud.FetchFailed;
     defer req.deinit();
 
     req.headers.content_type = .{ .override = "multipart/form-data; boundary=" ++ boundary };
     req.headers.authorization = .{ .override = try manifest.value.bearer() };
     req.transfer_encoding = .{ .content_length = body.len };
 
-    _ = req.sendBodyComplete(body) catch return error.FetchFailed;
+    _ = req.sendBodyComplete(body) catch return Errors.Cloud.FetchFailed;
 
     var head_buf: [Constants.Default.kb]u8 = undefined;
-    var head = req.receiveHead(&head_buf) catch return error.FetchFailed;
+    var head = req.receiveHead(&head_buf) catch return Errors.Cloud.FetchFailed;
     if (head.head.status != .ok) {
-        try self.ctx.printer.append(
+        self.ctx.printer.append(
             "Releasing has failed.\n",
             .{},
             .{ .color = .bright_red },
@@ -435,18 +438,18 @@ pub fn create(self: *Release) !void {
     var response_reader = head.reader(&read_buf);
     const response_buffer_len = response_reader.bufferedLen();
     const response_buffer = try self.ctx.allocator.alloc(u8, response_buffer_len);
-    _ = try response_reader.readSliceAll(response_buffer);
+    _ = response_reader.readSliceAll(response_buffer) catch return Errors.Cloud.OutOfMemory;
 
-    try self.ctx.printer.append(
+    self.ctx.printer.append(
         "{s} {s} has been successfully released!\n",
         .{
             target.Name,
             p_release,
         },
-        .{ .color = .bright_green },
+        .{ .color = .green },
     );
 
-    try self.ctx.printer.append(
+    self.ctx.printer.append(
         "Install package via\n $ zep install {s}@{s} --unverified\n\n",
         .{
             target.Name,
@@ -455,5 +458,5 @@ pub fn create(self: *Release) !void {
         .{},
     );
 
-    try Fs.deleteTreeIfExists(".zep/.pkg/");
+    Fs.deleteTreeIfExists(".zep/.pkg/") catch return Errors.Cloud.FileFailed;
 }

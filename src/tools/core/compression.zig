@@ -141,7 +141,6 @@ pub fn compress(
 
     _ = try compress_file.writeAll(len_str);
     _ = try compress_file.writeAll(compressed[0..written]);
-    return;
 }
 
 pub fn decompress(self: *Compressor, zstd_path: []const u8, extract_path: []const u8) !void {
@@ -149,9 +148,7 @@ pub fn decompress(self: *Compressor, zstd_path: []const u8, extract_path: []cons
         _ = try Fs.openOrCreateDir(extract_path);
     }
 
-    if (!Fs.existsFile(zstd_path)) {
-        return;
-    }
+    if (!Fs.existsFile(zstd_path)) return;
 
     var file = try Fs.openFile(zstd_path);
     defer file.close();
@@ -211,7 +208,7 @@ pub fn decompressZ(self: *Compressor, zip_path: []const u8, extract_path: []cons
         Fs.deleteTreeIfExists(TEMP_DIR) catch {};
     }
 
-    var zip_file = try Fs.openFile(zip_path);
+    var zip_file = try Fs.openOrCreateFile(zip_path);
     defer zip_file.close();
     var reader_buf: [Constants.Default.kb * 16]u8 = undefined;
     var reader = zip_file.reader(&reader_buf);

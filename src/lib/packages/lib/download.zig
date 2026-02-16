@@ -5,6 +5,7 @@ pub const Downloader = @This();
 
 const Constants = @import("constants");
 const Locales = @import("locales");
+const Errors = @import("errors");
 
 const Fs = @import("io").Fs;
 
@@ -38,8 +39,8 @@ fn extractArchive(
     archive_path: []const u8,
     out_path: []const u8,
 ) !void {
-    try self.ctx.logger.infof("Extracting Archive {s} => {s}", .{ archive_path, out_path }, @src());
-    try self.ctx.printer.append("Extracting...\n", .{}, .{
+    self.ctx.logger.infof("Extracting Archive {s} => {s}", .{ archive_path, out_path }, @src());
+    self.ctx.printer.append("Extracting...\n", .{}, .{
         .verbosity = 3,
     });
 
@@ -54,9 +55,9 @@ fn downloadArchive(
     self: *Downloader,
     url: []const u8,
 ) ![]const u8 {
-    try self.ctx.logger.infof("Fetching Package {s}", .{url}, @src());
+    self.ctx.logger.infof("Fetching Package {s}", .{url}, @src());
 
-    try self.ctx.printer.append("Fetching package... [{s}]\n", .{url}, .{
+    self.ctx.printer.append("Fetching package... [{s}]\n", .{url}, .{
         .verbosity = 2,
     });
 
@@ -65,7 +66,7 @@ fn downloadArchive(
     errdefer {
         Fs.deleteTreeIfExists(install_path) catch {};
     }
-    try self.ctx.logger.infof("Install Path {s}", .{install_path}, @src());
+    self.ctx.logger.infof("Install Path {s}", .{install_path}, @src());
     try self.ctx.fetcher.fetchWrite(url, install_path);
 
     return install_path;
@@ -73,13 +74,14 @@ fn downloadArchive(
 
 fn isDownloaded(
     self: *Downloader,
-    package_id: []const u8,
+    root: []const u8,
+    id: []const u8,
 ) !bool {
     const path = try std.fs.path.join(
         self.ctx.allocator,
         &.{
-            self.ctx.paths.pkg_root,
-            package_id,
+            root,
+            id,
         },
     );
     defer self.ctx.allocator.free(path);
@@ -91,8 +93,9 @@ pub fn downloadPackage(
     self: *Downloader,
     package_id: []const u8,
     url: []const u8,
-) !void {
-    try self.ctx.logger.infof("Downloading Package {s}", .{package_id}, @src());
+) Errors.Installable!void {
+    _ = Fs.openOrCreateDir(self.ctx.paths.pkg_root) catch return Errors.Installable.DownloadFailed;
+    self.ctx.logger.infof("Downloading Package {s}", .{package_id}, @src());
 
     const out_path = try std.fs.path.join(
         self.ctx.allocator,
@@ -103,18 +106,28 @@ pub fn downloadPackage(
     );
     defer self.ctx.allocator.free(out_path);
 
-    const exists = try self.isDownloaded(package_id);
-    const is_cached = try self.cacher.isCached(package_id);
+    const exists = self.isDownloaded(
+        self.ctx.paths.pkg_root,
+        package_id,
+    ) catch return Errors.Installable.OutOfMemory;
+    const is_cached = self.cacher.isCached(
+        self.ctx.paths.pkg_root,
+        package_id,
+    ) catch return Errors.Installable.CacheFailed;
 
     if (exists) {
-        try self.ctx.printer.append(" > PACKAGE ALREADY EXISTS!\n\n", .{}, .{
+        self.ctx.printer.append(" > PACKAGE ALREADY EXISTS!\n\n", .{}, .{
             .verbosity = 2,
-            .color = .bright_green,
+            .color = .green,
         });
         if (is_cached) return;
 
-        self.cacher.store(package_id) catch {
-            try self.ctx.printer.append(
+        self.cacher.store(
+            self.ctx.paths.pkg_cached,
+            self.ctx.paths.pkg_root,
+            package_id,
+        ) catch {
+            self.ctx.printer.append(
                 " ! CACHING FAILED\n\n",
                 .{},
                 .{
@@ -126,11 +139,11 @@ pub fn downloadPackage(
         return;
     }
 
-    try self.ctx.printer.append("Checking Cache...\n", .{}, .{
+    self.ctx.printer.append("Checking Cache...\n", .{}, .{
         .verbosity = 2,
     });
     if (is_cached) {
-        try self.ctx.printer.append(
+        self.ctx.printer.append(
             " > CACHE HIT!\n\n",
             .{},
             .{
@@ -138,8 +151,12 @@ pub fn downloadPackage(
                 .verbosity = 2,
             },
         );
-        self.cacher.restore(package_id) catch {
-            try self.ctx.printer.append(
+        self.cacher.restore(
+            self.ctx.paths.pkg_cached,
+            self.ctx.paths.pkg_root,
+            package_id,
+        ) catch {
+            self.ctx.printer.append(
                 " ! CACHE FAILED\n\n",
                 .{},
                 .{
@@ -149,7 +166,7 @@ pub fn downloadPackage(
             );
         };
     } else {
-        try self.ctx.printer.append(
+        self.ctx.printer.append(
             " > CACHE MISS!\n\n",
             .{},
             .{
@@ -158,17 +175,133 @@ pub fn downloadPackage(
             },
         );
 
-        const install_path = try self.downloadArchive(url);
+        const install_path = self.downloadArchive(url) catch return Errors.Installable.ArchivingFailed;
         const is_zip = std.mem.endsWith(u8, install_path, ".zip");
-        try self.extractArchive(
+        self.extractArchive(
             if (is_zip) ArchiveType.zip else ArchiveType.tar_zstd,
             install_path,
             out_path,
-        );
-        Fs.deleteTreeIfExists(TEMP_DIR) catch {};
+        ) catch return Errors.Installable.ExtractingFailed;
+        Fs.deleteTreeIfExists(TEMP_DIR) catch return Errors.Installable.DownloadFailed;
 
-        self.cacher.store(package_id) catch {
-            try self.ctx.printer.append(
+        self.cacher.store(
+            self.ctx.paths.pkg_cached,
+            self.ctx.paths.pkg_root,
+            package_id,
+        ) catch {
+            self.ctx.printer.append(
+                " ! CACHING FAILED\n\n",
+                .{},
+                .{
+                    .color = .red,
+                    .verbosity = 2,
+                },
+            );
+        };
+    }
+}
+
+pub fn downloadBinary(
+    self: *Downloader,
+    binary_id: []const u8,
+    url: []const u8,
+) Errors.Installable!void {
+    _ = Fs.openOrCreateDir(self.ctx.paths.pkg_root) catch return Errors.Installable.DownloadFailed;
+    self.ctx.logger.infof("Downloading Package {s}", .{binary_id}, @src());
+
+    const out_path = try std.fs.path.join(
+        self.ctx.allocator,
+        &.{
+            self.ctx.paths.pkg_root,
+            binary_id,
+        },
+    );
+    defer self.ctx.allocator.free(out_path);
+
+    const exists = self.isDownloaded(
+        self.ctx.paths.pkg_root,
+        binary_id,
+    ) catch return Errors.Installable.OutOfMemory;
+    const is_cached = self.cacher.isCached(
+        self.ctx.paths.pkg_cached,
+        binary_id,
+    ) catch return Errors.Installable.CacheFailed;
+
+    if (exists) {
+        self.ctx.printer.append(" > BINARY ALREADY EXISTS!\n\n", .{}, .{
+            .verbosity = 2,
+            .color = .green,
+        });
+        if (is_cached) return;
+
+        self.cacher.store(
+            self.ctx.paths.pkg_cached,
+            self.ctx.paths.pkg_root,
+            binary_id,
+        ) catch {
+            self.ctx.printer.append(
+                " ! CACHING FAILED\n\n",
+                .{},
+                .{
+                    .color = .red,
+                    .verbosity = 2,
+                },
+            );
+        };
+        return;
+    }
+
+    self.ctx.printer.append("Checking Cache...\n", .{}, .{
+        .verbosity = 2,
+    });
+    if (is_cached) {
+        self.ctx.printer.append(
+            " > CACHE HIT!\n\n",
+            .{},
+            .{
+                .color = .green,
+                .verbosity = 2,
+            },
+        );
+        self.cacher.restore(
+            self.ctx.paths.pkg_cached,
+            self.ctx.paths.pkg_root,
+            binary_id,
+        ) catch {
+            self.ctx.printer.append(
+                " ! CACHE FAILED\n\n",
+                .{},
+                .{
+                    .color = .red,
+                    .verbosity = 2,
+                },
+            );
+        };
+    } else {
+        self.ctx.printer.append(
+            " > CACHE MISS!\n\n",
+            .{},
+            .{
+                .color = .bright_red,
+                .verbosity = 2,
+            },
+        );
+
+        const install_path = self.downloadArchive(url) catch return Errors.Installable.ArchivingFailed;
+        const is_zip = std.mem.endsWith(u8, install_path, ".zip");
+        self.extractArchive(
+            if (is_zip) ArchiveType.zip else ArchiveType.tar_zstd,
+            install_path,
+            out_path,
+        ) catch return Errors.Installable.ExtractingFailed;
+        Fs.deleteTreeIfExists(TEMP_DIR) catch return Errors.Installable.DownloadFailed;
+
+        self.cacher.store(
+            self.ctx.paths.pkg_cached,
+            self.ctx.paths.pkg_root,
+            binary_id,
+        ) catch {
+            self.ctx.printer.append(
                 " ! CACHING FAILED\n\n",
                 .{},
                 .{

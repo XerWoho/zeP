@@ -5,6 +5,7 @@ pub const Runner = @This();
 
 const Constants = @import("constants");
 const Structs = @import("structs");
+const Errors = @import("errors");
 
 const Fs = @import("io").Fs;
 const Builder = @import("builder.zig");
@@ -21,20 +22,31 @@ pub fn init(ctx: *Context) Runner {
 }
 
 /// Initializes a Child Processor, and executes specified file
-pub fn run(self: *Runner, target_exe: []const u8, args: [][]const u8) !void {
-    try self.ctx.logger.infof("Runner with target_exe={s}, args;", .{target_exe}, @src());
+pub fn run(
+    self: *Runner,
+    target: []const u8,
+    args: [][]const u8,
+    zig_version: []const u8,
+    path: []const u8,
+) Errors.Build!void {
+    self.ctx.logger.infof("Runner with target={s}, args;", .{target}, @src());
     for (0.., args) |i, arg| {
-        try self.ctx.logger.infof("({d}) {s}", .{ i, arg }, @src());
+        self.ctx.logger.infof("({d}) {s}", .{ i, arg }, @src());
     }
 
-    try self.ctx.printer.append("Building executeable...\n\n", .{}, .{ .color = .green });
-    var target_files = try Builder.build(self.ctx);
-    defer target_files.deinit(self.ctx.allocator);
+    self.ctx.printer.append("Building executeable...\n\n", .{}, .{ .color = .green });
+    const target_files = try Builder.build(
+        self.ctx,
+        path,
+        zig_version,
+        .{},
+    );
+    defer self.ctx.allocator.free(target_files);
 
-    var target_file = target_files.items[0];
-    if (target_files.items.len > 0 and target_exe.len > 0) {
-        for (target_files.items) |tf| {
-            if (std.mem.eql(u8, tf, target_exe)) {
+    var target_file = target_files[0];
+    if (target_files.len > 0 and target.len > 0) {
+        for (target_files) |tf| {
+            if (std.mem.eql(u8, tf, target)) {
                 target_file = tf;
                 break;
             }
@@ -64,9 +76,12 @@ pub fn run(self: *Runner, target_exe: []const u8, args: [][]const u8) !void {
 
     const cmd = try std.mem.join(self.ctx.allocator, " ", exec_args.items);
     defer self.ctx.allocator.free(cmd);
-    try self.ctx.logger.info("Running Runner...", @src());
-    try self.ctx.printer.append("Running...\n $ {s}\n\n ------- \n\n", .{cmd}, .{ .color = .green });
+    self.ctx.logger.info("Running Runner...", @src());
+    self.ctx.printer.append("Running...\n $ {s}\n\n ------- \n\n", .{cmd}, .{ .color = .green });
+
     var process = std.process.Child.init(exec_args.items, self.ctx.allocator);
-    _ = process.spawnAndWait() catch {};
-    try self.ctx.logger.info("Runner Done.", @src());
+    const result = process.spawnAndWait() catch return Errors.Build.ProcessFailed;
+    if (result.Exited > 0) return Errors.Build.ProcessFailed;
+
+    self.ctx.logger.info("Runner Done.", @src());
 }

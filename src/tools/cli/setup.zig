@@ -58,7 +58,7 @@ pub fn setup(
         _ = Fs.openOrCreateDir(p) catch |err| {
             switch (err) {
                 error.AccessDenied => {
-                    try printer.append("Creating {s} Failed! (Admin Privelege required)\n", .{p}, .{});
+                    printer.append("Creating {s} Failed! (Admin Privelege required)\n", .{p}, .{});
                     return;
                 },
                 else => return,

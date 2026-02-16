@@ -5,6 +5,7 @@ pub const Command = @This();
 
 const Structs = @import("structs");
 const Constants = @import("constants");
+const Errors = @import("errors");
 
 const Printer = @import("cli").Printer;
 const Prompt = @import("cli").Prompt;
@@ -15,24 +16,19 @@ const Context = @import("context");
 
 ctx: *Context,
 
-pub fn init(ctx: *Context) !Command {
-    if (!Fs.existsFile(Constants.Default.package_files.lock)) {
-        try ctx.printer.append("No zep.lock file!\n", .{}, .{ .color = .red });
-        return error.ManifestNotFound;
-    }
-
+pub fn init(ctx: *Context) Command {
     return Command{
         .ctx = ctx,
     };
 }
 
-pub fn add(self: *Command) !void {
-    try self.ctx.logger.info("Adding Command", @src());
+pub fn add(self: *Command) Errors.Cmd!void {
+    self.ctx.logger.info("Adding Command", @src());
 
-    var lock = try self.ctx.manifest.readManifest(
+    var lock = self.ctx.manifest.readManifest(
         Structs.ZepFiles.Lock,
         Constants.Default.package_files.lock,
-    );
+    ) catch return Errors.Cmd.ManifestFailed;
     defer lock.deinit();
 
     var cmds = try std.ArrayList(Structs.ZepFiles.Command).initCapacity(self.ctx.allocator, 10);
@@ -40,43 +36,43 @@ pub fn add(self: *Command) !void {
         self.ctx.allocator,
     );
 
-    try self.ctx.printer.append("Command:\n\n", .{}, .{
+    self.ctx.printer.append("Command:\n\n", .{}, .{
         .color = .yellow,
         .weight = .bold,
     });
 
-    const command_name = try Prompt.input(
+    const command_name = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         "> *Command Name: ",
         .{
             .required = true,
         },
-    );
+    ) catch return Errors.Cmd.OutOfMemory;
     defer self.ctx.allocator.free(command_name);
     for (lock.value.root.cmd) |c| {
         if (std.mem.eql(u8, c.name, command_name)) {
-            try self.ctx.printer.append("\nCommand already exists! Overwrite? (y/N)", .{}, .{
+            self.ctx.printer.append("\nCommand already exists! Overwrite? (y/N)", .{}, .{
                 .color = .red,
                 .weight = .bold,
             });
 
-            const answer = try Prompt.input(
+            const answer = Prompt.input(
                 self.ctx.allocator,
                 &self.ctx.printer,
                 "",
                 .{},
-            );
+            ) catch return Errors.Cmd.OutOfMemory;
             if (answer.len == 0 or
                 (!std.mem.startsWith(u8, answer, "y") and
                     !std.mem.startsWith(u8, answer, "Y")))
             {
-                try self.ctx.printer.append("\nOk.\n", .{}, .{});
+                self.ctx.printer.append("\nOk.\n", .{}, .{});
                 return;
             }
 
-            try self.ctx.logger.info("Overwriting old command...", @src());
-            try self.ctx.printer.append("Overwriting...\n\n", .{}, .{
+            self.ctx.logger.info("Overwriting old command...", @src());
+            self.ctx.printer.append("Overwriting...\n\n", .{}, .{
                 .color = .white,
                 .weight = .bold,
             });
@@ -86,52 +82,50 @@ pub fn add(self: *Command) !void {
         try cmds.append(self.ctx.allocator, c);
     }
 
-    const command = try Prompt.input(
+    const command = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         "> *Command: ",
         .{
             .required = true,
         },
-    );
+    ) catch return Errors.Cmd.OutOfMemory;
     defer self.ctx.allocator.free(command);
 
     const new_command = Structs.ZepFiles.Command{ .cmd = command, .name = command_name };
     try cmds.append(self.ctx.allocator, new_command);
 
     lock.value.root.cmd = cmds.items;
-    try self.ctx.manifest.writeManifest(
+    self.ctx.manifest.writeManifest(
         Structs.ZepFiles.Lock,
         Constants.Default.package_files.lock,
         lock.value,
-    );
+    ) catch return Errors.Cmd.ManifestFailed;
 
-    try self.ctx.printer.append("Successfully added command!\n\n", .{}, .{ .color = .green });
-    return;
+    self.ctx.printer.append("Successfully added command!\n\n", .{}, .{ .color = .green });
 }
 
-pub fn list(self: *Command) !void {
-    try self.ctx.logger.info("Listing Commands", @src());
+pub fn list(self: *Command) Errors.Cmd!void {
+    self.ctx.logger.info("Listing Commands", @src());
 
-    var lock = try self.ctx.manifest.readManifest(
+    var lock = self.ctx.manifest.readManifest(
         Structs.ZepFiles.Lock,
         Constants.Default.package_files.lock,
-    );
+    ) catch return Errors.Cmd.ManifestFailed;
     defer lock.deinit();
 
     for (lock.value.root.cmd) |c| {
-        try self.ctx.printer.append("- Command Name: {s}\n  $ {s}\n\n", .{ c.name, c.cmd }, .{});
+        self.ctx.printer.append("- Command Name: {s}\n  $ {s}\n\n", .{ c.name, c.cmd }, .{});
     }
-    return;
 }
 
-pub fn remove(self: *Command, key: []const u8) !void {
-    try self.ctx.logger.infof("Removing Command {s}", .{key}, @src());
+pub fn remove(self: *Command, key: []const u8) Errors.Cmd!void {
+    self.ctx.logger.infof("Removing Command {s}", .{key}, @src());
 
-    var lock = try self.ctx.manifest.readManifest(
+    var lock = self.ctx.manifest.readManifest(
         Structs.ZepFiles.Lock,
         Constants.Default.package_files.lock,
-    );
+    ) catch return Errors.Cmd.ManifestFailed;
     defer lock.deinit();
 
     var cmds = try std.ArrayList(Structs.ZepFiles.Command).initCapacity(self.ctx.allocator, 5);
@@ -143,43 +137,42 @@ pub fn remove(self: *Command, key: []const u8) !void {
         try cmds.append(self.ctx.allocator, c);
     }
     lock.value.root.cmd = cmds.items;
-    try self.ctx.manifest.writeManifest(
+    self.ctx.manifest.writeManifest(
         Structs.ZepFiles.Lock,
         Constants.Default.package_files.lock,
         lock.value,
-    );
+    ) catch return Errors.Cmd.ManifestFailed;
 
-    try self.ctx.printer.append("Successfully removed command!\n\n", .{}, .{ .color = .green });
-    return;
+    self.ctx.printer.append("Successfully removed command!\n\n", .{}, .{ .color = .green });
 }
 
-pub fn run(self: *Command, key: []const u8) !void {
-    try self.ctx.logger.infof("Running Command {s}", .{key}, @src());
+pub fn run(self: *Command, key: []const u8) Errors.Cmd!void {
+    self.ctx.logger.infof("Running Command {s}", .{key}, @src());
 
-    const lock = try self.ctx.manifest.readManifest(
+    const lock = self.ctx.manifest.readManifest(
         Structs.ZepFiles.Lock,
         Constants.Default.package_files.lock,
-    );
+    ) catch return Errors.Cmd.ManifestFailed;
     defer lock.deinit();
 
     for (lock.value.root.cmd) |c| {
         if (std.mem.eql(u8, c.name, key)) {
-            try self.ctx.printer.append("Command was found!\n", .{}, .{ .color = .green });
+            self.ctx.printer.append("Command was found!\n", .{}, .{ .color = .green });
             var args = try std.ArrayList([]const u8).initCapacity(self.ctx.allocator, 5);
             defer args.deinit(self.ctx.allocator);
             var split = std.mem.splitAny(u8, c.cmd, " ");
             while (split.next()) |arg| {
                 try args.append(self.ctx.allocator, arg);
             }
-            try self.ctx.printer.append("Executing:\n $ {s}\n\n", .{c.cmd}, .{ .color = .green });
+            self.ctx.printer.append("Executing:\n $ {s}\n\n", .{c.cmd}, .{ .color = .green });
             var exec_cmd = std.process.Child.init(args.items, self.ctx.allocator);
-            _ = exec_cmd.spawnAndWait() catch {};
+            const result = exec_cmd.spawnAndWait() catch return Errors.Cmd.ProcessFailed;
+            if (result.Exited > 0) return Errors.Cmd.ProcessFailed;
 
-            try self.ctx.printer.append("Finished executing!\n", .{}, .{ .color = .green });
+            self.ctx.printer.append("Finished executing!\n", .{}, .{ .color = .green });
             return;
         }
         continue;
     }
-    try self.ctx.printer.append("Command not found!\n", .{}, .{ .color = .red });
-    return;
+    self.ctx.printer.append("Command not found!\n", .{}, .{ .color = .red });
 }

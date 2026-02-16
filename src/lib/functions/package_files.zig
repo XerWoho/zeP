@@ -15,19 +15,14 @@ const Context = @import("context");
 
 ctx: *Context,
 
-pub fn init(ctx: *Context) !PackageFiles {
-    if (!Fs.existsFile(Constants.Default.package_files.lock)) {
-        try ctx.printer.append("No zep.lock file!\n", .{}, .{ .color = .red });
-        return error.ManifestNotFound;
-    }
-
+pub fn init(ctx: *Context) PackageFiles {
     return PackageFiles{
         .ctx = ctx,
     };
 }
 
 pub fn modify(self: *PackageFiles) !void {
-    try self.ctx.logger.info("Modifying Package Files", @src());
+    self.ctx.logger.info("Modifying Package Files", @src());
 
     var lock = try self.ctx.manifest.readManifest(
         Structs.ZepFiles.Lock,
@@ -35,11 +30,11 @@ pub fn modify(self: *PackageFiles) !void {
     );
     defer lock.deinit();
 
-    try self.ctx.printer.append("Lock [Edit]:\n\n", .{}, .{
+    self.ctx.printer.append("Lock [Edit]:\n\n", .{}, .{
         .color = .yellow,
         .weight = .bold,
     });
-    try self.ctx.printer.append("(leave empty to keep same)\n\n", .{}, .{ .color = .yellow });
+    self.ctx.printer.append("(leave empty to keep same)\n\n", .{}, .{ .color = .yellow });
     const author = try Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
@@ -118,6 +113,5 @@ pub fn modify(self: *PackageFiles) !void {
         lock.value,
     );
 
-    try self.ctx.printer.append("\nSuccessfully modified zep.lock!\n\n", .{}, .{ .color = .green });
-    return;
+    self.ctx.printer.append("\nSuccessfully modified zep.lock!\n\n", .{}, .{ .color = .green });
 }

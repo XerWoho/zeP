@@ -5,6 +5,7 @@ pub const Auth = @This();
 
 const Constants = @import("constants");
 const Structs = @import("structs");
+const Errors = @import("errors");
 
 const Prompt = @import("cli").Prompt;
 const Printer = @import("cli").Printer;
@@ -50,23 +51,23 @@ fn verifyUsername(a: []const u8) bool {
 /// Handles Auth
 ctx: *Context,
 
-pub fn init(ctx: *Context) !Auth {
+pub fn init(ctx: *Context) Auth {
     return Auth{
         .ctx = ctx,
     };
 }
 
-fn getUserData(self: *Auth) !Structs.Fetch.User {
-    try self.ctx.logger.info("Fetching User Data", @src());
+fn getUserData(self: *Auth) Errors.Auth!Structs.Fetch.User {
+    self.ctx.logger.info("Fetching User Data", @src());
 
-    var manifest = try self.ctx.manifest.readManifest(
+    var manifest = self.ctx.manifest.readManifest(
         Structs.Manifests.Auth,
         self.ctx.paths.auth_manifest,
-    );
+    ) catch return Errors.Auth.ManifestFailed;
     defer manifest.deinit();
     if (manifest.value.token.len == 0) {
-        try self.ctx.logger.info("Not Authenticated", @src());
-        return error.NotAuthed;
+        self.ctx.logger.info("Not Authenticated", @src());
+        return Errors.Auth.NotAuthed;
     }
 
     const get = self.ctx.fetcher.fetch(
@@ -80,23 +81,19 @@ fn getUserData(self: *Auth) !Structs.Fetch.User {
                 },
             },
         },
-    ) catch {
-        return error.FetchFailed;
-    };
+    ) catch return Errors.Auth.FetchFailed;
     defer get.deinit();
     const object = get.value.object;
-    const success = object.get("success") orelse return error.FetchFailed;
-    if (!success.bool) {
-        return error.FetchFailed;
-    }
+    const success = object.get("success") orelse return Errors.Auth.FetchFailed;
+    if (!success.bool) return Errors.Auth.FetchFailed;
 
-    const object_user = object.get("user") orelse return error.FetchFailed;
+    const object_user = object.get("user") orelse return Errors.Auth.FetchFailed;
     const user = object_user.object;
 
-    const user_id = user.get("id") orelse return error.FetchFailed;
-    const user_username = user.get("username") orelse return error.FetchFailed;
-    const user_email = user.get("email") orelse return error.FetchFailed;
-    const user_created_at = user.get("created_at") orelse return error.FetchFailed;
+    const user_id = user.get("id") orelse return Errors.Auth.FetchFailed;
+    const user_username = user.get("username") orelse return Errors.Auth.FetchFailed;
+    const user_email = user.get("email") orelse return Errors.Auth.FetchFailed;
+    const user_created_at = user.get("created_at") orelse return Errors.Auth.FetchFailed;
     const parsed = Structs.Fetch.User{
         .Id = user_id.string,
         .Username = user_username.string,
@@ -107,34 +104,30 @@ fn getUserData(self: *Auth) !Structs.Fetch.User {
     return parsed;
 }
 
-pub fn whoami(self: *Auth) !void {
-    try self.ctx.logger.info("Authenticating (Whoami)", @src());
+pub fn whoami(self: *Auth) Errors.Auth!void {
+    self.ctx.logger.info("Authenticating (Whoami)", @src());
 
     const user = try self.getUserData();
-    try self.ctx.printer.append(" - {s}\n", .{user.Username}, .{ .color = .bright_blue });
-    try self.ctx.printer.append("   > id: {s}\n", .{user.Id}, .{});
-    try self.ctx.printer.append("   > email: {s}\n", .{user.Email}, .{});
-    try self.ctx.printer.append("   > created at: {s}\n\n", .{user.CreatedAt}, .{});
+    self.ctx.printer.append(" - {s}\n", .{user.Username}, .{ .color = .bright_blue });
+    self.ctx.printer.append("   > id: {s}\n", .{user.Id}, .{});
+    self.ctx.printer.append("   > email: {s}\n", .{user.Email}, .{});
+    self.ctx.printer.append("   > created at: {s}\n\n", .{user.CreatedAt}, .{});
 }
 
-pub fn register(self: *Auth) !void {
-    try self.ctx.logger.info("Authenticating (Registering in)", @src());
+pub fn register(self: *Auth) Errors.Auth!void {
+    self.ctx.logger.info("Authenticating (Registering in)", @src());
 
     blk: {
-        var is_error = false;
-        _ = self.getUserData() catch {
-            is_error = true;
-        };
-        if (is_error) break :blk;
-        return error.AlreadyAuthed;
+        _ = self.getUserData() catch break :blk;
+        return Errors.Auth.AlreadyAuthed;
     }
 
-    try self.ctx.printer.append("Register:\n\n", .{}, .{
+    self.ctx.printer.append("Register:\n\n", .{}, .{
         .color = .yellow,
         .weight = .bold,
     });
 
-    const username = try Prompt.input(
+    const username = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         " > Enter username*: ",
@@ -143,9 +136,9 @@ pub fn register(self: *Auth) !void {
             .validate = &verifyUsername,
             .invalid_error_msg = "(invalid / occupied) username",
         },
-    );
+    ) catch return Errors.Auth.OutOfMemory;
 
-    const email = try Prompt.input(
+    const email = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         " > Enter email*: ",
@@ -154,7 +147,7 @@ pub fn register(self: *Auth) !void {
             .validate = &verifyEmail,
             .invalid_error_msg = "invalid email",
         },
-    );
+    ) catch return Errors.Auth.OutOfMemory;
 
     blk: {
         const url = try std.fmt.allocPrint(
@@ -168,21 +161,21 @@ pub fn register(self: *Auth) !void {
             .{ .method = .GET },
         ) catch |err| {
             switch (err) {
-                error.NotFound => break :blk,
-                else => return err,
+                error.NotFound => break :blk, // if not found, then email is not in use (good)
+                else => return Errors.Auth.FetchFailed,
             }
         };
 
         const object = get.value.object;
-        const success = object.get("success") orelse return error.FetchFailed;
+        const success = object.get("success") orelse return Errors.Auth.FetchFailed;
         if (success.bool) {
-            try self.ctx.logger.info("Email already in use", @src());
-            try self.ctx.printer.append("\nEmail already in use! Login via\n $ zep auth login\n\n", .{}, .{});
-            return;
+            self.ctx.logger.info("Email already in use", @src());
+            self.ctx.printer.append("\nEmail already in use! Login via\n $ zep auth login\n\n", .{}, .{});
+            return Errors.Auth.EmailInUse;
         }
     }
 
-    const password = try Prompt.input(
+    const password = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         " > Enter password*: ",
@@ -190,9 +183,9 @@ pub fn register(self: *Auth) !void {
             .required = true,
             .password = true,
         },
-    );
+    ) catch return Errors.Auth.OutOfMemory;
 
-    _ = try Prompt.input(
+    const repeat_password = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         " > Repeat password*: ",
@@ -202,7 +195,8 @@ pub fn register(self: *Auth) !void {
             .invalid_error_msg = "passwords do not match.",
             .password = true,
         },
-    );
+    ) catch return Errors.Auth.OutOfMemory;
+    if (std.mem.eql(u8, repeat_password, password)) return Errors.Auth.PasswordMismatch;
 
     const RegisterPayload = struct {
         username: []const u8,
@@ -214,11 +208,11 @@ pub fn register(self: *Auth) !void {
         .email = email,
         .password = password,
     };
-    const register_stringified_payload = try std.json.Stringify.valueAlloc(
+    const register_stringified_payload = std.json.Stringify.valueAlloc(
         self.ctx.allocator,
         register_payload,
         .{},
-    );
+    ) catch return Errors.Auth.ParseFailed;
     defer self.ctx.allocator.free(register_stringified_payload);
 
     const register_response = self.ctx.fetcher.fetch(
@@ -232,14 +226,14 @@ pub fn register(self: *Auth) !void {
             },
             .payload = register_stringified_payload,
         },
-    ) catch return error.FetchFailed;
+    ) catch return Errors.Auth.FetchFailed;
 
     defer register_response.deinit();
     const register_object = register_response.value.object;
-    const is_register_successful = register_object.get("success") orelse return;
+    const is_register_successful = register_object.get("success") orelse return Errors.Auth.FetchFailed;
     if (!is_register_successful.bool) {
-        try self.ctx.logger.info("Registering failed", @src());
-        try self.ctx.printer.append(
+        self.ctx.logger.info("Registering failed", @src());
+        self.ctx.printer.append(
             "Register failed.\n",
             .{},
             .{
@@ -250,14 +244,14 @@ pub fn register(self: *Auth) !void {
         return;
     }
 
-    const code = try Prompt.input(
+    const code = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         "Enter code (from mail): ",
         .{
             .required = true,
         },
-    );
+    ) catch return Errors.Auth.OutOfMemory;
     const VerifyPayload = struct {
         code: []const u8,
         email: []const u8,
@@ -266,11 +260,11 @@ pub fn register(self: *Auth) !void {
         .code = code,
         .email = email,
     };
-    const verify_stringified_payload = try std.json.Stringify.valueAlloc(
+    const verify_stringified_payload = std.json.Stringify.valueAlloc(
         self.ctx.allocator,
         verify_payload,
         .{},
-    );
+    ) catch return Errors.Auth.ParseFailed;
     defer self.ctx.allocator.free(verify_stringified_payload);
 
     const verify_response = self.ctx.fetcher.fetch(
@@ -284,13 +278,13 @@ pub fn register(self: *Auth) !void {
             },
             .payload = verify_stringified_payload,
         },
-    ) catch return error.FetchFailed;
+    ) catch return Errors.Auth.FetchFailed;
     defer verify_response.deinit();
     const verify_object = verify_response.value.object;
-    const is_verify_successful = verify_object.get("success") orelse return;
+    const is_verify_successful = verify_object.get("success") orelse return Errors.Auth.FetchFailed;
     if (!is_verify_successful.bool) {
-        try self.ctx.logger.info("Invalid code entered.", @src());
-        try self.ctx.printer.append(
+        self.ctx.logger.info("Invalid code entered.", @src());
+        self.ctx.printer.append(
             "Invalid code.\n",
             .{},
             .{
@@ -300,35 +294,38 @@ pub fn register(self: *Auth) !void {
         );
         return;
     }
-    try self.ctx.printer.append("Verified.\n", .{}, .{});
+    self.ctx.printer.append("Verified.\n", .{}, .{});
 
-    const jwt_token = verify_object.get("jwt") orelse return;
-    var manifest = try self.ctx.manifest.readManifest(Structs.Manifests.Auth, self.ctx.paths.auth_manifest);
+    const jwt_token = verify_object.get("jwt") orelse return Errors.Auth.FetchFailed;
+    var manifest = self.ctx.manifest.readManifest(
+        Structs.Manifests.Auth,
+        self.ctx.paths.auth_manifest,
+    ) catch return Errors.Auth.ManifestFailed;
     defer manifest.deinit();
     manifest.value.token = jwt_token.string;
-    try self.ctx.manifest.writeManifest(Structs.Manifests.Auth, self.ctx.paths.auth_manifest, manifest.value);
-    try self.ctx.logger.info("User authenticated...", @src());
-    try self.ctx.printer.append("Logged in.\n", .{}, .{});
+    self.ctx.manifest.writeManifest(
+        Structs.Manifests.Auth,
+        self.ctx.paths.auth_manifest,
+        manifest.value,
+    ) catch return Errors.Auth.ManifestFailed;
+    self.ctx.logger.info("User authenticated...", @src());
+    self.ctx.printer.append("Logged in.\n", .{}, .{});
 }
 
-pub fn login(self: *Auth) !void {
-    try self.ctx.logger.info("Authenticating (Logging in)", @src());
+pub fn login(self: *Auth) Errors.Auth!void {
+    self.ctx.logger.info("Authenticating (Logging in)", @src());
 
     blk: {
-        var is_error = false;
-        _ = self.getUserData() catch {
-            is_error = true;
-        };
-        if (is_error) break :blk;
-        return error.AlreadyAuthed;
+        _ = self.getUserData() catch break :blk;
+        return Errors.Auth.AlreadyAuthed;
     }
 
-    try self.ctx.printer.append("Login:\n", .{}, .{
+    self.ctx.printer.append("Login:\n", .{}, .{
         .color = .yellow,
         .weight = .bold,
     });
 
-    const email = try Prompt.input(
+    const email = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         " > Enter email: ",
@@ -337,8 +334,8 @@ pub fn login(self: *Auth) !void {
             .validate = &verifyEmail,
             .invalid_error_msg = "invalid email",
         },
-    );
-    const password = try Prompt.input(
+    ) catch return Errors.Auth.OutOfMemory;
+    const password = Prompt.input(
         self.ctx.allocator,
         &self.ctx.printer,
         " > Enter password: ",
@@ -346,7 +343,7 @@ pub fn login(self: *Auth) !void {
             .required = true,
             .password = true,
         },
-    );
+    ) catch return Errors.Auth.OutOfMemory;
 
     const AuthPayload = struct {
         email: []const u8,
@@ -356,11 +353,11 @@ pub fn login(self: *Auth) !void {
         .email = email,
         .password = password,
     };
-    const login_stringified_payload = try std.json.Stringify.valueAlloc(
+    const login_stringified_payload = std.json.Stringify.valueAlloc(
         self.ctx.allocator,
         login_payload,
         .{},
-    );
+    ) catch return Errors.Auth.ParseFailed;
     defer self.ctx.allocator.free(login_stringified_payload);
 
     const login_response = self.ctx.fetcher.fetch(
@@ -374,39 +371,53 @@ pub fn login(self: *Auth) !void {
             },
             .payload = login_stringified_payload,
         },
-    ) catch return error.FetchFailed;
+    ) catch return Errors.Auth.FetchFailed;
     defer login_response.deinit();
     const login_object = login_response.value.object;
-    const is_login_successful = login_object.get("success") orelse return;
+    const is_login_successful = login_object.get("success") orelse return Errors.Auth.FetchFailed;
     if (!is_login_successful.bool) {
-        try self.ctx.logger.info("Invalid password entered.", @src());
-        return error.InvalidPassword;
+        self.ctx.logger.info("Invalid password entered.", @src());
+        return Errors.Auth.InvalidPassword;
     }
 
-    const token = login_object.get("jwt") orelse return error.FetchFailed;
-    var manifest = try self.ctx.manifest.readManifest(Structs.Manifests.Auth, self.ctx.paths.auth_manifest);
+    const token = login_object.get("jwt") orelse return Errors.Auth.FetchFailed;
+    var manifest = self.ctx.manifest.readManifest(
+        Structs.Manifests.Auth,
+        self.ctx.paths.auth_manifest,
+    ) catch return Errors.Auth.ManifestFailed;
     defer manifest.deinit();
     manifest.value.token = token.string;
-    try self.ctx.manifest.writeManifest(Structs.Manifests.Auth, self.ctx.paths.auth_manifest, manifest.value);
+    self.ctx.manifest.writeManifest(
+        Structs.Manifests.Auth,
+        self.ctx.paths.auth_manifest,
+        manifest.value,
+    ) catch return Errors.Auth.ManifestFailed;
 
-    try self.ctx.printer.append("Logged in.\n", .{}, .{});
-    try self.ctx.logger.info("User authenticated...", @src());
+    self.ctx.printer.append("Logged in.\n", .{}, .{});
+    self.ctx.logger.info("User authenticated...", @src());
 }
 
-pub fn logout(self: *Auth) !void {
-    try self.ctx.logger.info("Logging out", @src());
+pub fn logout(self: *Auth) Errors.Auth!void {
+    self.ctx.logger.info("Logging out", @src());
 
     var is_error = false;
     _ = self.getUserData() catch {
         is_error = true;
     };
-    if (is_error) return error.NotAuthed;
+    if (!is_error) return Errors.Auth.NotAuthed;
 
-    var manifest = try self.ctx.manifest.readManifest(Structs.Manifests.Auth, self.ctx.paths.auth_manifest);
+    var manifest = self.ctx.manifest.readManifest(
+        Structs.Manifests.Auth,
+        self.ctx.paths.auth_manifest,
+    ) catch return Errors.Auth.ManifestFailed;
     defer manifest.deinit();
-    const bearer = try manifest.value.bearer();
+    const bearer = manifest.value.bearer() catch return Errors.Auth.FetchFailed;
     manifest.value.token = "";
-    try self.ctx.manifest.writeManifest(Structs.Manifests.Auth, self.ctx.paths.auth_manifest, manifest.value);
+    self.ctx.manifest.writeManifest(
+        Structs.Manifests.Auth,
+        self.ctx.paths.auth_manifest,
+        manifest.value,
+    ) catch return Errors.Auth.ManifestFailed;
 
     const logout_response = self.ctx.fetcher.fetch(
         Constants.Default.zep_url ++ "/api/v1/logout",
@@ -419,15 +430,15 @@ pub fn logout(self: *Auth) !void {
                 },
             },
         },
-    ) catch return error.FetchFailed;
+    ) catch return Errors.Auth.FetchFailed;
     defer logout_response.deinit();
     const logout_object = logout_response.value.object;
-    const logout_success = logout_object.get("success") orelse return error.FetchFailed;
+    const logout_success = logout_object.get("success") orelse return Errors.Auth.FetchFailed;
     if (!logout_success.bool) {
-        try self.ctx.logger.info("Logout failed.", @src());
-        return error.FetchFailed;
+        self.ctx.logger.info("Logout failed.", @src());
+        return Errors.Auth.FetchFailed;
     }
 
-    try self.ctx.printer.append("Logged out.\n", .{}, .{});
-    try self.ctx.logger.info("User Logged out...", @src());
+    self.ctx.printer.append("Logged out.\n", .{}, .{});
+    self.ctx.logger.info("User Logged out...", @src());
 }

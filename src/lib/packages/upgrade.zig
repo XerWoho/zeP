@@ -6,6 +6,8 @@ const Locales = @import("locales");
 const Constants = @import("constants");
 const Structs = @import("structs");
 
+const Errors = @import("errors");
+
 const Installer = @import("install.zig");
 const Context = @import("context");
 
@@ -19,46 +21,46 @@ pub fn init(ctx: *Context) Upgrader {
 
 pub fn deinit(_: *Upgrader) void {}
 
-pub fn upgrade(self: *Upgrader) !void {
-    try self.ctx.logger.info("Upgrading packages...", @src());
+pub fn upgrade(self: *Upgrader) Errors.Installable!void {
+    self.ctx.logger.info("Upgrading packages...", @src());
 
     const prev_verbosity = Locales.VERBOSITY_MODE;
     Locales.VERBOSITY_MODE = 0;
 
-    const lock = try self.ctx.manifest.readManifest(
+    const lock = self.ctx.manifest.readManifest(
         Structs.ZepFiles.Lock,
         Constants.Default.package_files.lock,
-    );
+    ) catch return Errors.Installable.ManifestFailed;
     defer lock.deinit();
 
     var installer = Installer.init(self.ctx);
     for (lock.value.packages) |package| {
-        const package_name = switch (package.namespace) {
+        const name = switch (package.namespace) {
             .github => try std.fmt.allocPrint(self.ctx.allocator, "{s}/{s}", .{
                 package.author,
                 package.name,
             }),
             else => try self.ctx.allocator.dupe(u8, package.name),
         };
-        defer self.ctx.allocator.free(package_name);
+        defer self.ctx.allocator.free(name);
 
-        try self.ctx.printer.append(
+        self.ctx.printer.append(
             " > Upgrading - {s}",
-            .{package_name},
+            .{name},
             .{ .verbosity = 0 },
         );
 
         // if no version was specified it gets the
         // latest version
-        installer.installOne(
-            package_name,
+        installer.installPackage(
+            name,
             null,
             package.namespace,
             false,
         ) catch |err| {
             switch (err) {
                 error.AlreadyInstalled => {
-                    try self.ctx.printer.append(
+                    self.ctx.printer.append(
                         " >> already latest!\n",
                         .{},
                         .{ .verbosity = 0, .color = .green },
@@ -66,9 +68,9 @@ pub fn upgrade(self: *Upgrader) !void {
                     continue;
                 },
                 else => {
-                    try self.ctx.printer.append(
+                    self.ctx.printer.append(
                         "  ! [ERROR] Failed to upgrade - {s} [{any}]...\n",
-                        .{ package_name, err },
+                        .{ name, err },
                         .{ .verbosity = 0, .color = .red },
                     );
                     continue;
@@ -76,7 +78,7 @@ pub fn upgrade(self: *Upgrader) !void {
             }
         };
 
-        try self.ctx.printer.append(
+        self.ctx.printer.append(
             " >> upgraded!\n",
             .{},
             .{ .verbosity = 0, .color = .green },

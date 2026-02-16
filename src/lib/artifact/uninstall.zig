@@ -10,6 +10,7 @@ const Printer = @import("cli").Printer;
 const ArtifactSwitcher = @import("switch.zig");
 
 const Context = @import("context");
+const Errors = @import("errors");
 
 /// Handles uninstalling Artifact versions
 ctx: *Context,
@@ -30,12 +31,12 @@ pub fn deinit(_: *ArtifactUninstaller) void {
 /// and printing the uninstallation
 /// progress, it is only deleting
 /// the path tree specified.
-pub fn uninstall(self: *ArtifactUninstaller, path: []const u8) !void {
-    try self.ctx.logger.infof("Uninstalling {s}", .{path}, @src());
+pub fn uninstall(self: *ArtifactUninstaller, path: []const u8) Errors.Artifact!void {
+    self.ctx.logger.infof("Uninstalling {s}", .{path}, @src());
 
-    try self.ctx.printer.append("Deleting Artifact version at path: {s}\n", .{path}, .{});
+    self.ctx.printer.append("Deleting Artifact version at path: {s}\n", .{path}, .{});
 
     // Recursively delete folder
-    try Fs.deleteTreeIfExists(path);
-    try self.ctx.printer.append("Artifact version deleted successfully.\n\n", .{}, .{ .color = .green });
+    Fs.deleteTreeIfExists(path) catch return Errors.Artifact.DeleteFailed;
+    self.ctx.printer.append("Artifact version deleted successfully.\n\n", .{}, .{ .color = .green });
 }

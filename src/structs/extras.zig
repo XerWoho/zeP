@@ -3,7 +3,7 @@ pub const ArtifactType = enum {
     zig,
 };
 
-pub const InstallType = enum {
+pub const Namespaces = enum {
     zep,
     github,
     gitlab,

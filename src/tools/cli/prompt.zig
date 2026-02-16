@@ -24,7 +24,7 @@ fn handleInvalid(
     if (!invalid_attempt.*) {
         invalid_attempt.* = true;
         if (opts.invalid_error_msg) |msg| {
-            try printer.append("[{s}] ", .{msg}, .{});
+            printer.append("[{s}] ", .{msg}, .{});
             return;
         }
     }
@@ -74,7 +74,7 @@ pub fn input(
     defer setEcho(true) catch {};
     setEcho(!opts.password) catch {};
 
-    try printer.append("{s}", .{prompt}, .{});
+    printer.append("{s}", .{prompt}, .{});
 
     var writer_buf: [128]u8 = undefined;
     var writer = std.fs.File.writer(std.fs.File.stdout(), &writer_buf);
@@ -84,7 +84,7 @@ pub fn input(
 
     while (true) {
         if (opts.initial_value) |v| {
-            try printer.append("{s} => ", .{v}, .{});
+            printer.append("{s} => ", .{v}, .{});
         }
 
         const raw = try r.takeDelimiterInclusive('\n');
@@ -107,7 +107,7 @@ pub fn input(
             if (opts.initial_value) |v| {
                 try w.flush();
                 printer.pop(1);
-                try printer.append("{s}\n", .{v}, .{});
+                printer.append("{s}\n", .{v}, .{});
                 return try allocator.dupe(u8, v);
             }
         }
@@ -137,9 +137,9 @@ pub fn input(
         }
 
         if (!opts.password) {
-            try printer.append("{s}\n", .{result}, .{});
+            printer.append("{s}\n", .{result}, .{});
         } else {
-            try printer.append("\n", .{}, .{});
+            printer.append("\n", .{}, .{});
         }
         return result;
     }

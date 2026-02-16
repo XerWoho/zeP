@@ -4,6 +4,7 @@ pub const Resolver = @This();
 
 const Constants = @import("constants");
 const Structs = @import("structs");
+const Errors = @import("errors");
 
 const Hash = @import("core").Hash;
 const Json = @import("core").Json;
@@ -60,7 +61,7 @@ fn selectVersion(
     versions: []Structs.Packages.Version,
     requested: ?[]const u8,
 ) !Structs.Packages.Version {
-    if (versions.len == 0) return error.NoPackageVersion;
+    if (versions.len == 0) return Errors.Installable.InvalidPackage;
 
     const target = requested orelse "latest";
     if (std.mem.eql(u8, target, "latest")) return versions[0];
@@ -69,7 +70,7 @@ fn selectVersion(
         if (std.mem.eql(u8, v.version, target)) return v;
     }
 
-    return error.PackageNotFound;
+    return Errors.Installable.VersionNotFound;
 }
 
 fn makeVersion(
@@ -93,8 +94,8 @@ fn makeVersion(
 
 fn resolveFromLock(
     self: *Resolver,
-    package_name: []const u8,
-    package_version: []const u8,
+    name: []const u8,
+    version: []const u8,
 ) !?Structs.ZepFiles.Package {
     const lock = try self.ctx.manifest.readManifest(
         Structs.ZepFiles.Lock,
@@ -103,9 +104,9 @@ fn resolveFromLock(
     defer lock.deinit();
 
     for (lock.value.packages) |p| {
-        if (!std.mem.eql(u8, p.name, package_name)) continue;
-        if (!std.mem.eql(u8, p.version, package_version)) continue;
-        try self.ctx.logger.info("Package found in .lock...", @src());
+        if (!std.mem.eql(u8, p.name, name)) continue;
+        if (!std.mem.eql(u8, p.version, version)) continue;
+        self.ctx.logger.info("Package found in .lock...", @src());
 
         return Structs.ZepFiles.Package{
             .name = try self.ctx.allocator.dupe(u8, p.name),
@@ -124,22 +125,22 @@ fn resolveFromLock(
 
 fn resolveFromFetch(
     self: *Resolver,
-    package_name: []const u8,
-    package_version: ?[]const u8,
-    install_type: Structs.Extras.InstallType,
+    name: []const u8,
+    version: ?[]const u8,
+    namespace: Structs.Extras.Namespaces,
 ) !Structs.ZepFiles.Package {
-    try self.ctx.logger.info("Fetching package version...", @src());
-    try self.ctx.printer.append("Finding the package...\n", .{}, .{
+    self.ctx.logger.info("Fetching package version...", @src());
+    self.ctx.printer.append("Finding the package...\n", .{}, .{
         .verbosity = 3,
     });
-    var package = try self.fetchPackage(
-        package_name,
-        install_type,
-    );
+    var package = self.fetchPackage(
+        name,
+        namespace,
+    ) catch return Errors.Installable.FetchFailed;
     defer package.deinit(self.ctx.allocator);
-    try self.ctx.logger.infof("Package fetched!", .{}, @src());
+    self.ctx.logger.infof("Package fetched!", .{}, @src());
 
-    try self.ctx.printer.append(
+    self.ctx.printer.append(
         " > PACKAGE FOUND\n\n",
         .{},
         .{
@@ -151,68 +152,72 @@ fn resolveFromFetch(
     const versions = package.versions;
     var v = try selectVersion(
         versions,
-        package_version,
+        version,
     );
 
     if (v.sha256sum.len == 0) {
-        const hash = try Hash.hashDataByUrl(
+        const hash = Hash.hashDataByUrl(
             self.ctx.allocator,
             v.url,
-        );
+        ) catch return Errors.Installable.HashFailed;
         v.sha256sum = hash;
     }
 
     return Structs.ZepFiles.Package{
         .name = try self.ctx.allocator.dupe(u8, package.name),
         .author = try self.ctx.allocator.dupe(u8, package.author),
-        .install = try std.fmt.allocPrint(self.ctx.allocator, "{s}@{s}", .{ package_name, v.version }),
+        .install = try std.fmt.allocPrint(self.ctx.allocator, "{s}@{s}", .{ name, v.version }),
         .version = try self.ctx.allocator.dupe(u8, v.version),
-        .namespace = install_type,
+        .namespace = namespace,
         .source = try self.ctx.allocator.dupe(u8, v.url),
         .zig_version = try self.ctx.allocator.dupe(u8, v.zig_version),
         .hash = try self.ctx.allocator.dupe(u8, v.sha256sum),
     };
 }
 
-pub fn resolvePackage(
+pub fn resolve(
     self: *Resolver,
-    package_name: []const u8,
-    package_version: ?[]const u8,
-    install_type: ?Structs.Extras.InstallType,
-) !Structs.ZepFiles.Package {
-    if (package_version) |v| {
-        const attempt = try self.resolveFromLock(
-            package_name,
+    name: []const u8,
+    version: ?[]const u8,
+    namespace: Structs.Extras.Namespaces,
+) Errors.Installable!Structs.ZepFiles.Package {
+    if (version) |v| {
+        const attempt = self.resolveFromLock(
+            name,
             v,
-        );
+        ) catch return Errors.Installable.ResolveFailed;
         if (attempt) |a| return a;
     }
 
-    const i_type = install_type orelse return error.MissingType;
-    const package = try self.resolveFromFetch(
-        package_name,
-        package_version,
+    const i_type = namespace;
+    const package = self.resolveFromFetch(
+        name,
+        version,
         i_type,
-    );
+    ) catch return Errors.Installable.FetchFailed;
 
-    try self.ctx.logger.infof("Package version = {s}!", .{package.version}, @src());
+    self.ctx.logger.infof(
+        "Package version = {s}!",
+        .{package.version},
+        @src(),
+    );
     return package;
 }
 
 fn fetchFromZep(
     self: *Resolver,
-    package_name: []const u8,
-) !Structs.Packages.Package {
+    name: []const u8,
+) Errors.Installable!Structs.Packages.Package {
     const cached_filename = try std.fmt.allocPrint(
         self.ctx.allocator,
         "{s}/zep+{s}.json",
-        .{ self.ctx.paths.meta_cached, package_name },
+        .{ self.ctx.paths.meta_cached, name },
     );
     defer self.ctx.allocator.free(cached_filename);
-    const loaded_from_cache = try self.loadCached(cached_filename);
+    const loaded_from_cache = self.loadCached(cached_filename) catch return Errors.Installable.CacheFailed;
     if (loaded_from_cache) |p| return p;
 
-    var releases = try self.ctx.fetcher.fetchReleases(package_name);
+    var releases = self.ctx.fetcher.fetchReleases(name) catch return Errors.Installable.FetchFailed;
     defer releases.deinit(self.ctx.allocator);
 
     var versions = try self.ctx.allocator.alloc(
@@ -229,7 +234,7 @@ fn fetchFromZep(
         });
     }
 
-    const fetched = try self.ctx.fetcher.fetchPackage(package_name);
+    const fetched = self.ctx.fetcher.fetchPackage(name) catch return Errors.Installable.FetchFailed;
     const package = Structs.Packages.Package{
         .author = try self.ctx.allocator.dupe(u8, fetched.UserID),
         .name = try self.ctx.allocator.dupe(u8, fetched.Name),
@@ -237,43 +242,47 @@ fn fetchFromZep(
         .versions = versions,
     };
 
-    try self.storeCached(
+    self.storeCached(
         cached_filename,
         package,
-    );
+    ) catch return Errors.Installable.CacheFailed;
     return package;
 }
 
 fn fetchFromZepUrl(
     self: *Resolver,
-    package_name: []const u8,
-) !Structs.Packages.Package {
+    name: []const u8,
+) Errors.Installable!Structs.Packages.Package {
     const cached_filename = try std.fmt.allocPrint(
         self.ctx.allocator,
         "{s}/zepu+{s}.json",
-        .{ self.ctx.paths.meta_cached, package_name },
+        .{ self.ctx.paths.meta_cached, name },
     );
     defer self.ctx.allocator.free(cached_filename);
-    const loaded_from_cache = try self.loadCached(cached_filename);
+    const loaded_from_cache = self.loadCached(cached_filename) catch return Errors.Installable.CacheFailed;
     if (loaded_from_cache) |p| return p;
 
     const url = try std.fmt.allocPrint(
         self.ctx.allocator,
         Constants.Default.zep_url ++ "/packages/{s}.json",
-        .{package_name},
+        .{name},
     );
     defer self.ctx.allocator.free(url);
-    var package = try self.ctx.fetcher.fetchJson(url, Structs.Packages.Package);
+    var package = self.ctx.fetcher.fetchJson(url, Structs.Packages.Package) catch return Errors.Installable.FetchFailed;
     defer package.deinit();
 
-    try self.storeCached(cached_filename, package.value);
-    return try package.value.dupPackage(self.ctx.allocator);
+    const p = try package.value.dupPackage(self.ctx.allocator);
+    self.storeCached(
+        cached_filename,
+        p,
+    ) catch return Errors.Installable.CacheFailed;
+    return p;
 }
 
-fn fetchDefaultBranch(self: *Resolver, url: []const u8) ![]const u8 {
+fn fetchDefaultBranch(self: *Resolver, url: []const u8) Errors.Installable![]const u8 {
     const DefaultBranch = struct { default_branch: []const u8 };
 
-    const default_branch = try self.ctx.fetcher.fetchJson(url, DefaultBranch);
+    const default_branch = self.ctx.fetcher.fetchJson(url, DefaultBranch) catch return Errors.Installable.FetchFailed;
     defer default_branch.deinit();
     return try self.ctx.allocator.dupe(u8, default_branch.value.default_branch);
 }
@@ -283,8 +292,8 @@ fn fetchFromGithub(
     package_install: []const u8,
 ) !Structs.Packages.Package {
     var p_split = std.mem.splitAny(u8, package_install, "/");
-    const owner = p_split.next() orelse return error.PackageNotFound;
-    const repo = p_split.next() orelse return error.PackageNotFound;
+    const owner = p_split.next() orelse return Errors.Installable.PackageNotFound;
+    const repo = p_split.next() orelse return Errors.Installable.PackageNotFound;
 
     const cached_filename = try std.fmt.allocPrint(
         self.ctx.allocator,
@@ -292,7 +301,7 @@ fn fetchFromGithub(
         .{ self.ctx.paths.meta_cached, repo },
     );
     defer self.ctx.allocator.free(cached_filename);
-    const loaded_from_cache = try self.loadCached(cached_filename);
+    const loaded_from_cache = self.loadCached(cached_filename) catch return Errors.Installable.CacheFailed;
     if (loaded_from_cache) |p| return p;
 
     const GithubPackage = struct {
@@ -307,7 +316,7 @@ fn fetchFromGithub(
         repo,
     });
     defer self.ctx.allocator.free(url);
-    var github_package_releases = try self.ctx.fetcher.fetchJson(url, []GithubPackage);
+    var github_package_releases = self.ctx.fetcher.fetchJson(url, []GithubPackage) catch return Errors.Installable.FetchFailed;
     defer github_package_releases.deinit();
 
     const releases = github_package_releases.value;
@@ -355,8 +364,10 @@ fn fetchFromGithub(
         .versions = versions,
     };
 
-    try self.storeCached(cached_filename, package);
-
+    self.storeCached(
+        cached_filename,
+        package,
+    ) catch return Errors.Installable.CacheFailed;
     return package;
 }
 
@@ -365,8 +376,8 @@ fn fetchFromGitlab(
     package_install: []const u8,
 ) !Structs.Packages.Package {
     var p_split = std.mem.splitAny(u8, package_install, "/");
-    const owner = p_split.next() orelse return error.PackageNotFound;
-    var repo = p_split.next() orelse return error.PackageNotFound;
+    const owner = p_split.next() orelse return Errors.Installable.PackageNotFound;
+    var repo = p_split.next() orelse return Errors.Installable.PackageNotFound;
     while (p_split.next()) |p| {
         repo = p;
     }
@@ -382,7 +393,7 @@ fn fetchFromGitlab(
         .{ self.ctx.paths.meta_cached, repo },
     );
     defer self.ctx.allocator.free(cached_filename);
-    const loaded_from_cache = try self.loadCached(cached_filename);
+    const loaded_from_cache = self.loadCached(cached_filename) catch return Errors.Installable.CacheFailed;
     if (loaded_from_cache) |p| return p;
 
     const GitlabPackage = struct {
@@ -399,7 +410,7 @@ fn fetchFromGitlab(
         install,
     });
     defer self.ctx.allocator.free(url);
-    const gitlab_package_releases = try self.ctx.fetcher.fetchJson(url, []GitlabPackage);
+    const gitlab_package_releases = self.ctx.fetcher.fetchJson(url, []GitlabPackage) catch return Errors.Installable.FetchFailed;
     defer gitlab_package_releases.deinit();
 
     const releases = gitlab_package_releases.value;
@@ -445,8 +456,7 @@ fn fetchFromGitlab(
         .versions = versions,
     };
 
-    try self.storeCached(cached_filename, package);
-
+    self.storeCached(cached_filename, package) catch return Errors.Installable.CacheFailed;
     return package;
 }
 
@@ -455,8 +465,8 @@ fn fetchFromCodeberg(
     package_install: []const u8,
 ) !Structs.Packages.Package {
     var p_split = std.mem.splitAny(u8, package_install, "/");
-    const owner = p_split.next() orelse return error.PackageNotFound;
-    const repo = p_split.next() orelse return error.PackageNotFound;
+    const owner = p_split.next() orelse return Errors.Installable.PackageNotFound;
+    const repo = p_split.next() orelse return Errors.Installable.PackageNotFound;
 
     const cached_filename = try std.fmt.allocPrint(
         self.ctx.allocator,
@@ -464,7 +474,7 @@ fn fetchFromCodeberg(
         .{ self.ctx.paths.meta_cached, repo },
     );
     defer self.ctx.allocator.free(cached_filename);
-    const loaded_from_cache = try self.loadCached(cached_filename);
+    const loaded_from_cache = self.loadCached(cached_filename) catch return Errors.Installable.CacheFailed;
     if (loaded_from_cache) |p| return p;
 
     const CodebergPackage = struct {
@@ -479,7 +489,8 @@ fn fetchFromCodeberg(
         repo,
     });
     defer self.ctx.allocator.free(url);
-    const codeberg_package_releases = try self.ctx.fetcher.fetchJson(url, []CodebergPackage);
+    const codeberg_package_releases = self.ctx.fetcher.fetchJson(url, []CodebergPackage) catch return Errors.Installable.FetchFailed;
+
     defer codeberg_package_releases.deinit();
 
     const releases = codeberg_package_releases.value;
@@ -527,22 +538,26 @@ fn fetchFromCodeberg(
         .versions = versions,
     };
 
-    try self.storeCached(cached_filename, package);
+    self.storeCached(
+        cached_filename,
+        package,
+    ) catch return Errors.Installable.CacheFailed;
+
     return package;
 }
 
 fn loadFromLocal(
     self: *Resolver,
-    package_name: []const u8,
+    name: []const u8,
 ) !Structs.Packages.Package {
     const path = try std.fmt.allocPrint(
         self.ctx.allocator,
         "{s}/{s}.json",
-        .{ self.ctx.paths.custom, package_name },
+        .{ self.ctx.paths.custom, name },
     );
     defer self.ctx.allocator.free(path);
 
-    if (!Fs.existsFile(path)) return error.PackageNotFound;
+    if (!Fs.existsFile(path)) return Errors.Installable.PackageNotFound;
 
     var package: std.json.Parsed(Structs.Packages.Package) = try Json.parseJsonFromFile(
         self.ctx.allocator,
@@ -559,32 +574,32 @@ fn loadFromLocal(
 pub fn fetchPackage(
     self: *Resolver,
     package_install: []const u8,
-    install_type: Structs.Extras.InstallType,
-) !Structs.Packages.Package {
-    switch (install_type) {
+    namespace: Structs.Extras.Namespaces,
+) Errors.Installable!Structs.Packages.Package {
+    switch (namespace) {
         .zep => {
             const pkg = self.fetchFromZep(package_install) catch {
-                const fallback = try self.fetchFromZepUrl(package_install);
+                const fallback = self.fetchFromZepUrl(package_install) catch return Errors.Installable.FetchFailed;
                 return fallback;
             };
             return pkg;
         },
         .local => {
-            const pkg = try self.loadFromLocal(package_install);
+            const pkg = self.loadFromLocal(package_install) catch return Errors.Installable.FetchFailed;
             return pkg;
         },
         .github => {
-            const pkg = try self.fetchFromGithub(package_install);
+            const pkg = self.fetchFromGithub(package_install) catch return Errors.Installable.FetchFailed;
             return pkg;
         },
         .gitlab => {
-            const pkg = try self.fetchFromGitlab(package_install);
+            const pkg = self.fetchFromGitlab(package_install) catch return Errors.Installable.FetchFailed;
             return pkg;
         },
         .codeberg => {
-            const pkg = try self.fetchFromCodeberg(package_install);
+            const pkg = self.fetchFromCodeberg(package_install) catch return Errors.Installable.FetchFailed;
             return pkg;
         },
     }
-    return error.PackageNotFound;
+    return Errors.Installable.PackageNotFound;
 }
