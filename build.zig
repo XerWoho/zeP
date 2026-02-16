@@ -43,6 +43,7 @@ pub fn build(builder: *std.Build) void {
 
     const locales_mod = builder.createModule(.{ .root_source_file = builder.path("src/locales.zig") });
     const constants_mod = builder.createModule(.{ .root_source_file = builder.path("src/constants/_index.zig") });
+    const errors_mod = builder.createModule(.{ .root_source_file = builder.path("src/errors.zig") });
 
     const loggers_mod = builder.createModule(.{ .root_source_file = builder.path("src/logger.zig") });
     __zepinj__.imp(builder, loggers_mod);
@@ -65,6 +66,7 @@ pub fn build(builder: *std.Build) void {
     cores_mod.addImport("locales", locales_mod);
     cores_mod.addImport("structs", structs_mod);
     cores_mod.addImport("logger", loggers_mod);
+    cores_mod.addImport("errors", errors_mod);
 
     cores_mod.addIncludePath(.{
         .cwd_relative = "vendor/zstd/lib",
@@ -89,6 +91,7 @@ pub fn build(builder: *std.Build) void {
     resolver_mod.addImport("cli", clis_mod);
     resolver_mod.addImport("core", cores_mod);
     resolver_mod.addImport("context", context_mod);
+    resolver_mod.addImport("errors", errors_mod);
 
     const package_mod = builder.createModule(.{ .root_source_file = builder.path("src/package.zig") });
     __zepinj__.imp(builder, package_mod);
@@ -100,6 +103,7 @@ pub fn build(builder: *std.Build) void {
     package_mod.addImport("core", cores_mod);
     package_mod.addImport("context", context_mod);
     package_mod.addImport("resolver", resolver_mod);
+    package_mod.addImport("errors", errors_mod);
 
     const zstd = builder.addLibrary(.{
         .name = "zstd",
@@ -134,6 +138,7 @@ pub fn build(builder: *std.Build) void {
     zep_executeable_module.addImport("args", args_mod);
     zep_executeable_module.addImport("package", package_mod);
     zep_executeable_module.addImport("resolver", resolver_mod);
+    zep_executeable_module.addImport("errors", errors_mod);
 
     const testing_modules = [5]Modules{
         .{ .name = "constants", .module = constants_mod },
