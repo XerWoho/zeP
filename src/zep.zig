@@ -38,9 +38,7 @@ pub fn start(alloc: std.mem.Allocator) !Context {
     const logger = Logger.get();
 
     try logger.info("Initializing zep...", @src());
-    var printer = Printer.init(alloc) catch {
-        return error.OutOfMemory;
-    };
+    var printer = try Printer.init(alloc);
 
     var manifest = Manifest.init(
         alloc,
@@ -61,10 +59,11 @@ pub fn start(alloc: std.mem.Allocator) !Context {
     const default = Args.parseDefault(parsed_args.options);
     Locales.VERBOSITY_MODE = @intCast(default.verbosity);
 
+    const logger_wrapper = Logger.Wrapper.init(logger);
     var ctx = Context{
         .allocator = alloc,
         .fetcher = fetcher,
-        .logger = logger,
+        .logger = logger_wrapper,
         .manifest = manifest,
         .paths = paths,
         .printer = printer,
@@ -101,7 +100,7 @@ pub fn start(alloc: std.mem.Allocator) !Context {
 
     const zep_version_exists = Fs.existsFile(paths.zep_manifest);
     if (!zep_version_exists) {
-        try printer.append("zep appears to be running outside fitting directory. Run '$ zep zep install'?\n", .{}, .{});
+        printer.append("zep appears to be running outside fitting directory. Run '$ zep zep install'?\n", .{}, .{});
         const answer = try Prompt.input(
             alloc,
             &printer,
@@ -114,7 +113,7 @@ pub fn start(alloc: std.mem.Allocator) !Context {
         {
             try logger.info("Installing latest zep version...", @src());
 
-            var zep = try Artifact.init(
+            var zep = Artifact.init(
                 &ctx,
                 .zep,
             );
@@ -134,7 +133,7 @@ pub fn start(alloc: std.mem.Allocator) !Context {
         if (lock.value.schema != Constants.Default.package_files.lock_schema_version) {
             try logger.info("Correcting Lock file...", @src());
 
-            try printer.append("Lock file schema is NOT matching with zep version.\nAttempting to fix!\n", .{}, .{ .color = .red });
+            printer.append("Lock file schema is NOT matching with zep version.\nAttempting to fix!\n", .{}, .{ .color = .red });
 
             try Fs.deleteFileIfExists(Constants.Default.package_files.lock);
             const prev_verbosity = Locales.VERBOSITY_MODE;
@@ -144,7 +143,7 @@ pub fn start(alloc: std.mem.Allocator) !Context {
             try installer.installAll();
 
             Locales.VERBOSITY_MODE = prev_verbosity;
-            try printer.append("Fixed.\n\n", .{}, .{ .color = .green });
+            printer.append("Fixed.\n\n", .{}, .{ .color = .green });
         }
     }
 

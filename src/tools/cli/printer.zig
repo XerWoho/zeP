@@ -101,12 +101,13 @@ pub fn deinit(self: *Printer) void {
     self.data.deinit(self.allocator);
 }
 
-pub fn append(self: *Printer, comptime fmt: []const u8, args: anytype, options: AppendOptions) !void {
+pub fn append(self: *Printer, comptime fmt: []const u8, args: anytype, options: AppendOptions) void {
+    if (Locales.PRINTER_MUTE) return;
     if (options.verbosity > Locales.VERBOSITY_MODE) return;
-    try self.clearScreen();
+    self.clearScreen() catch return;
 
-    const data = try std.fmt.allocPrint(self.allocator, fmt, args);
-    try self.data.append(
+    const data = std.fmt.allocPrint(self.allocator, fmt, args) catch return;
+    self.data.append(
         self.allocator,
         PrinterData{
             .data = data,
@@ -114,9 +115,8 @@ pub fn append(self: *Printer, comptime fmt: []const u8, args: anytype, options: 
             .color = options.color,
             .weight = options.weight,
         },
-    );
-    try self.print();
-    return;
+    ) catch return;
+    self.print() catch return;
 }
 
 pub fn pop(self: *Printer, pop_amount: u8) void {
@@ -125,7 +125,6 @@ pub fn pop(self: *Printer, pop_amount: u8) void {
         const n = self.data.pop();
         if (n == null) break;
     }
-    return;
 }
 
 pub fn clearLines(_: *Printer, n: usize) !void {
@@ -177,5 +176,4 @@ pub fn print(self: *Printer) !void {
         });
     }
     try w.flush();
-    return;
 }
