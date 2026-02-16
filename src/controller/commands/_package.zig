@@ -3,126 +3,33 @@ const std = @import("std");
 const Package = @import("../../lib/cloud/package.zig");
 
 const Context = @import("context");
-fn packageCreate(ctx: *Context, package: *Package) !void {
-    package.create() catch |err| {
-        switch (err) {
-            error.NotAuthed => {
-                try ctx.logger.err("Not Authenticated", @src());
-                try ctx.printer.append(
-                    "Not authenticated.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-            error.FetchFailed => {
-                try ctx.logger.err("Fetching Create Package Failed", @src());
-                try ctx.printer.append(
-                    "Fetching package create failed.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-            else => {
-                try ctx.logger.err("Creating Package Failed", @src());
-                try ctx.printer.append(
-                    "Creating package failed.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-        }
-    };
-    return;
+const Errors = @import("errors");
+const CErrors = @import("../errors.zig");
+
+fn packageCreate(ctx: *Context, package: *Package) void {
+    package.create() catch |err| CErrors.handleCloudError(ctx, err, "Package Creating");
 }
 
-fn packageList(ctx: *Context, package: *Package) !void {
-    package.list() catch |err| {
-        switch (err) {
-            error.NotAuthed => {
-                try ctx.logger.err("Not Authenticated", @src());
-                try ctx.printer.append(
-                    "Not authenticated.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-            error.FetchFailed => {
-                try ctx.logger.err("Fetching Packages Failed", @src());
-                try ctx.printer.append(
-                    "Fetching packages failed.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-
-            else => {
-                try ctx.logger.err("Listing Packages Failed", @src());
-                try ctx.printer.append(
-                    "Listing package failed.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-        }
-    };
-    return;
+fn packageList(ctx: *Context, package: *Package) void {
+    package.list() catch |err| CErrors.handleCloudError(ctx, err, "Package Listing");
 }
 
-fn packageDelete(ctx: *Context, package: *Package) !void {
-    package.delete() catch |err| {
-        switch (err) {
-            error.NotAuthed => {
-                try ctx.logger.err("Not Authenticated", @src());
-                try ctx.printer.append(
-                    "Not authenticated.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-            error.FetchFailed => {
-                try ctx.logger.err("Fetching Delete Failed", @src());
-                try ctx.printer.append(
-                    "Fetching package delete failed.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-            error.NotFound => {
-                try ctx.logger.err("Package Not Found", @src());
-                try ctx.printer.append(
-                    "Package not found.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-            else => {
-                try ctx.logger.err("Deleting Package Failed", @src());
-                try ctx.printer.append(
-                    "Deleting package failed.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-        }
-    };
-    return;
+fn packageDelete(ctx: *Context, package: *Package) void {
+    package.delete() catch |err| CErrors.handleCloudError(ctx, err, "Package Deleting");
 }
 
 pub fn _packageController(ctx: *Context) !void {
-    if (ctx.cmds.len < 3) return error.PackageInvalidSubcommand;
+    if (ctx.cmds.len < 3) return Errors.Controller.MissingSubcommand.Package;
 
     var package = Package.init(ctx);
-
     const arg = ctx.cmds[2];
     if (std.mem.eql(u8, arg, "create")) {
-        try packageCreate(ctx, &package);
-    } else if (std.mem.eql(u8, arg, "list") or
-        std.mem.eql(u8, arg, "ls"))
-    {
-        try packageList(ctx, &package);
+        packageCreate(ctx, &package);
+    } else if (std.mem.eql(u8, arg, "list") or std.mem.eql(u8, arg, "ls")) {
+        packageList(ctx, &package);
     } else if (std.mem.eql(u8, arg, "delete")) {
-        try packageDelete(ctx, &package);
+        packageDelete(ctx, &package);
     } else {
-        return error.PackagerInvalidSubcommand;
+        return Errors.Controller.MissingSubcommand.Package;
     }
 }

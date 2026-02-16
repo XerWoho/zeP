@@ -2,28 +2,21 @@ const std = @import("std");
 
 const Builder = @import("../../lib/functions/builder.zig");
 const Context = @import("context");
+const Args = @import("args");
 
-fn builder(ctx: *Context) !void {
-    _ = Builder.build(ctx) catch |err| {
-        try ctx.logger.errorf("Building Failed error={any}", .{err}, @src());
+const Errors = @import("errors");
+const CErrors = @import("../errors.zig");
 
-        switch (err) {
-            error.FileNotFound => {
-                try ctx.printer.append("Zig is not installed!\nExiting!\n\n", .{}, .{ .color = .red });
-                try ctx.printer.append("SUGGESTION:\n", .{}, .{ .color = .blue });
-                try ctx.printer.append(" - Install zig\n $ zep zig install <version>\n\n", .{}, .{});
-                return error.ZigNotInstalled;
-            },
-            else => {
-                try ctx.printer.append("Zig building failed!\nExiting.\n\n", .{}, .{ .color = .red });
-                return err;
-            },
-        }
-    };
-
-    return;
+fn builder(ctx: *Context) void {
+    const builder_args = Args.parseBuilder(ctx.options);
+    _ = Builder.build(
+        ctx,
+        builder_args.path,
+        builder_args.zig_version,
+        .{},
+    ) catch |err| CErrors.handleBuildError(ctx, err);
 }
 
 pub fn _builderController(ctx: *Context) !void {
-    try builder(ctx);
+    builder(ctx);
 }

@@ -4,63 +4,48 @@ const PreBuilt = @import("../../lib/functions/pre_built.zig");
 const Lister = @import("../../lib/packages/list.zig");
 
 const Context = @import("context");
+const Errors = @import("errors");
+const CErrors = @import("../errors.zig");
 
-fn prebuiltBuild(ctx: *Context, prebuilt: *PreBuilt) !void {
-    if (ctx.cmds.len < 4) return error.MissingArguments;
-
+fn prebuiltBuild(ctx: *Context, prebuilt: *PreBuilt) void {
     const name = ctx.cmds[3];
     const target = if (ctx.cmds.len < 5) "." else ctx.cmds[4];
-    prebuilt.build(name, target) catch {
-        try ctx.printer.append("Building prebuilt has failed...\n\n", .{}, .{ .color = .red });
-    };
-    return;
+    prebuilt.build(name, target) catch |err| CErrors.handlePreBuiltError(ctx, err, "Build");
 }
 
-fn prebuiltUse(ctx: *Context, prebuilt: *PreBuilt) !void {
-    if (ctx.cmds.len < 4) return error.MissingArguments;
-
+fn prebuiltUse(ctx: *Context, prebuilt: *PreBuilt) void {
     const name = ctx.cmds[3];
     const target = if (ctx.cmds.len < 5) "." else ctx.cmds[4];
-    prebuilt.use(name, target) catch {
-        try ctx.printer.append("Use prebuilt has failed...\n\n", .{}, .{ .color = .red });
-    };
-    return;
+    prebuilt.use(name, target) catch |err| CErrors.handlePreBuiltError(ctx, err, "Use");
 }
 
-fn prebuiltList(ctx: *Context, prebuilt: *PreBuilt) !void {
-    prebuilt.list() catch {
-        try ctx.printer.append("Listing prebuilts failed...\n\n", .{}, .{ .color = .red });
-    };
-    return;
+fn prebuiltList(ctx: *Context, prebuilt: *PreBuilt) void {
+    prebuilt.list() catch |err| CErrors.handlePreBuiltError(ctx, err, "List");
 }
 
-fn prebuiltDelete(ctx: *Context, prebuilt: *PreBuilt) !void {
-    if (ctx.cmds.len < 4) return error.MissingArguments;
-
+fn prebuiltDelete(ctx: *Context, prebuilt: *PreBuilt) void {
     const name = ctx.cmds[3];
-    prebuilt.delete(name) catch {
-        try ctx.printer.append("Deleting prebuilt has failed...\n\n", .{}, .{ .color = .red });
-    };
-    return;
+    prebuilt.delete(name) catch |err| CErrors.handlePreBuiltError(ctx, err, "Delete");
 }
 
-pub fn _prebuiltController(ctx: *Context) !void {
-    if (ctx.cmds.len < 3) return error.PreBuiltInvalidSubcommand;
+pub fn _prebuiltController(ctx: *Context) Errors.Controller.Main!void {
+    if (ctx.cmds.len < 3) return Errors.Controller.MissingSubcommand.PreBuilt;
 
-    var prebuilt = try PreBuilt.init(ctx);
+    var prebuilt = PreBuilt.init(ctx) catch return Errors.Controller.Main.Failed;
 
     const arg = ctx.cmds[2];
     if (std.mem.eql(u8, arg, "build")) {
-        try prebuiltBuild(ctx, &prebuilt);
+        if (ctx.cmds.len < 4) return Errors.Controller.MissingSubcommand.PreBuilt;
+        prebuiltBuild(ctx, &prebuilt);
     } else if (std.mem.eql(u8, arg, "delete")) {
-        try prebuiltDelete(ctx, &prebuilt);
+        if (ctx.cmds.len < 4) return Errors.Controller.MissingSubcommand.PreBuilt;
+        prebuiltDelete(ctx, &prebuilt);
     } else if (std.mem.eql(u8, arg, "use")) {
-        try prebuiltUse(ctx, &prebuilt);
-    } else if (std.mem.eql(u8, arg, "list") or
-        std.mem.eql(u8, arg, "ls"))
-    {
-        try prebuiltList(ctx, &prebuilt);
+        if (ctx.cmds.len < 4) return Errors.Controller.MissingSubcommand.PreBuilt;
+        prebuiltUse(ctx, &prebuilt);
+    } else if (std.mem.eql(u8, arg, "list") or std.mem.eql(u8, arg, "ls")) {
+        prebuiltList(ctx, &prebuilt);
     } else {
-        return error.PreBuiltInvalidSubcommand;
+        return Errors.Controller.MissingSubcommand.PreBuilt;
     }
 }

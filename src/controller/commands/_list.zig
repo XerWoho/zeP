@@ -3,25 +3,17 @@ const std = @import("std");
 const Lister = @import("../../lib/packages/list.zig");
 const Context = @import("context");
 
-fn list(ctx: *Context) !void {
-    if (ctx.cmds.len < 3) return error.ListMissingArguments;
+const Errors = @import("errors");
+const CErrors = @import("../errors.zig");
 
+fn list(ctx: *Context) void {
     const package = ctx.cmds[2];
     var split = std.mem.splitScalar(u8, package, '@');
-    const package_name = split.first();
-    Lister.list(ctx, package_name) catch |err| {
-        switch (err) {
-            error.PackageNotFound => {
-                try ctx.printer.append("Package not found...\n\n", .{}, .{ .color = .red });
-                return;
-            },
-            else => {
-                try ctx.printer.append("Listing {s} has failed...\n\n", .{package_name}, .{ .color = .red });
-            },
-        }
-    };
+    const name = split.first();
+    Lister.list(ctx, name) catch |err| CErrors.handleInstallableError(ctx, err, "Listing");
 }
 
 pub fn _listController(ctx: *Context) !void {
-    try list(ctx);
+    if (ctx.cmds.len < 3) return Errors.Controller.MissingArguments.List;
+    list(ctx);
 }

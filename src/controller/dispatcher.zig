@@ -1,6 +1,7 @@
 const std = @import("std");
 const Context = @import("context");
 const Constants = @import("constants");
+const Errors = @import("errors");
 const Commands = @import("commands.zig").Commands;
 
 const CustomController = @import("commands/_custom.zig");
@@ -38,7 +39,7 @@ pub fn dispatcher(ctx: *Context, c: []const u8) !void {
     switch (command) {
         .version => {},
         else => {
-            try ctx.printer.append(
+            ctx.printer.append(
                 "zeP {s}+{s}\n\n",
                 .{ Constants.Default.version, Constants.Default.commit },
                 .{
@@ -65,7 +66,10 @@ pub fn dispatcher(ctx: *Context, c: []const u8) !void {
         .remove => UninstallController._uninstallController(ctx), // Alias for uninstall
 
         .auth => AuthController._authController(ctx),
+
         .prebuilt => PrebuiltController._prebuiltController(ctx),
+        .prebuild => PrebuiltController._prebuiltController(ctx),
+
         .release => ReleaseController._releaseController(ctx),
         .package => PackageController._packageController(ctx),
         .purge => PurgeController._purgeController(ctx),
@@ -92,45 +96,42 @@ pub fn dispatcher(ctx: *Context, c: []const u8) !void {
         .bootstrap => BootstrapController._bootstrapController(ctx),
     };
     f catch |err| {
-        try ctx.logger.errorf("Error. {any}", .{err}, @src());
+        ctx.logger.errorf("Error. {any}", .{err}, @src());
         switch (err) {
-            error.ZigInvalidSubcommand => {
+            Errors.Controller.MissingSubcommand.Zig => {
                 Help.zig();
             },
-            error.ZepInvalidSubcommand => {
+            Errors.Controller.MissingSubcommand.Zep => {
                 Help.self();
             },
-            error.UninstallMissingArguments => {
-                Help.package();
+            Errors.Controller.MissingArguments.Uninstall => {
+                Help.uninstall();
             },
-            error.AuthInvalidSubcommand => {
+            Errors.Controller.MissingSubcommand.Auth => {
                 Help.auth();
             },
-            error.PreBuiltInvalidSubcommand => {
+            Errors.Controller.MissingSubcommand.PreBuilt => {
                 Help.prebuilt();
             },
-            error.ReleaseInvalidSubcommand => {
+            Errors.Controller.MissingSubcommand.Release => {
                 Help.release();
             },
-            error.PackageInvalidSubcommand => {
+            Errors.Controller.MissingSubcommand.Package => {
                 Help.package();
             },
-            error.CacheInvalidSubcommand => {
+            Errors.Controller.MissingSubcommand.Cache => {
                 Help.cache();
             },
-            error.CustomInvalidSubcommand => {
+            Errors.Controller.MissingSubcommand.Custom => {
                 Help.custom();
             },
-            error.CustomMissingArguments => {
-                Help.custom();
-            },
-            error.InfoMissingArguments => {
+            Errors.Controller.MissingArguments.Info => {
                 Help.help(ctx);
             },
-            error.ListMissingArguments => {
+            Errors.Controller.MissingArguments.List => {
                 Help.help(ctx);
             },
-            error.CmdInvalidSubcommand => {
+            Errors.Controller.MissingSubcommand.Cmd => {
                 Help.cmd();
             },
             else => {
@@ -140,5 +141,5 @@ pub fn dispatcher(ctx: *Context, c: []const u8) !void {
         }
     };
 
-    try ctx.logger.info("Done.", @src());
+    ctx.logger.info("Done.", @src());
 }

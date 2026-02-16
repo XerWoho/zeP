@@ -3,6 +3,7 @@ const std = @import("std");
 const Injector = @import("core").Injector;
 
 const Context = @import("context");
+const Errors = @import("errors");
 
 fn inject(ctx: *Context) !void {
     var injector = Injector.init(
@@ -11,9 +12,8 @@ fn inject(ctx: *Context) !void {
         &ctx.printer,
     );
     try injector.initInjector(true);
-    return;
 }
 
-pub fn _injectController(ctx: *Context) !void {
-    try inject(ctx);
+pub fn _injectController(ctx: *Context) Errors.Controller.Main!void {
+    inject(ctx) catch return Errors.Controller.Main.Failed;
 }

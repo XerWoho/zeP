@@ -3,38 +3,36 @@ const std = @import("std");
 const Cache = @import("../../lib/functions/cache.zig");
 const Context = @import("context");
 
-fn cacheClean(ctx: *Context, cache: *Cache) !void {
+const Errors = @import("errors");
+const CErrors = @import("../errors.zig");
+
+fn cacheClean(ctx: *Context, cache: *Cache) void {
     const cache_name = if (ctx.cmds.len < 4) null else ctx.cmds[3];
-    try cache.cleanAll(cache_name);
-    return;
+    cache.cleanAll(cache_name) catch |err| CErrors.handleCacheError(ctx, err, "clean");
 }
 
-fn cacheSize(_: *Context, cache: *Cache) !void {
-    try cache.size();
-    return;
+fn cacheSize(ctx: *Context, cache: *Cache) void {
+    cache.size() catch |err| CErrors.handleCacheError(ctx, err, "size");
 }
 
-fn cacheList(_: *Context, cache: *Cache) !void {
-    try cache.list();
-    return;
+fn cacheList(ctx: *Context, cache: *Cache) void {
+    cache.list() catch |err| CErrors.handleCacheError(ctx, err, "list");
 }
 
 pub fn _cacheController(ctx: *Context) !void {
-    if (ctx.cmds.len < 3) return error.CacheInvalidSubcommand;
+    if (ctx.cmds.len < 3) return Errors.Controller.MissingSubcommand.Cache;
 
-    var cache = try Cache.init(ctx);
+    var cache = Cache.init(ctx);
     defer cache.deinit();
 
     const arg = ctx.cmds[2];
     if (std.mem.eql(u8, arg, "size")) {
-        try cacheSize(ctx, &cache);
+        cacheSize(ctx, &cache);
     } else if (std.mem.eql(u8, arg, "clean")) {
-        try cacheClean(ctx, &cache);
-    } else if (std.mem.eql(u8, arg, "list") or
-        std.mem.eql(u8, arg, "ls"))
-    {
-        try cacheList(ctx, &cache);
+        cacheClean(ctx, &cache);
+    } else if (std.mem.eql(u8, arg, "list") or std.mem.eql(u8, arg, "ls")) {
+        cacheList(ctx, &cache);
     } else {
-        return error.CacheInvalidSubcommand;
+        return Errors.Controller.MissingSubcommand.Cache;
     }
 }

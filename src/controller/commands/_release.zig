@@ -3,124 +3,33 @@ const std = @import("std");
 const Release = @import("../../lib/cloud/release.zig");
 
 const Context = @import("context");
-fn releaseCreate(ctx: *Context, release: *Release) !void {
-    release.create() catch |err| {
-        switch (err) {
-            error.NotAuthed => {
-                try ctx.logger.err("Not Authenticated", @src());
-                try ctx.printer.append(
-                    "Not authenticated.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-            error.FetchFailed => {
-                try ctx.logger.err("Fetching Create Release Failed", @src());
-                try ctx.printer.append(
-                    "Fetching release create failed.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-            else => {
-                try ctx.logger.err("Creating Release Failed", @src());
-                try ctx.printer.append(
-                    "Creating release failed. Err={any}\n",
-                    .{err},
-                    .{ .color = .bright_red },
-                );
-            },
-        }
-    };
-    return;
+const Errors = @import("errors");
+const CErrors = @import("../errors.zig");
+
+fn releaseCreate(ctx: *Context, release: *Release) void {
+    release.create() catch |err| CErrors.handleCloudError(ctx, err, "Release Creating");
 }
 
-fn releaseList(ctx: *Context, release: *Release) !void {
-    release.list() catch |err| {
-        switch (err) {
-            error.NotAuthed => {
-                try ctx.logger.err("Not Authenticated", @src());
-                try ctx.printer.append(
-                    "Not authenticated.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-            error.FetchFailed => {
-                try ctx.logger.err("Fetching Releases Failed", @src());
-                try ctx.printer.append(
-                    "Fetching releases failed.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-            else => {
-                try ctx.logger.err("Listing Releases Failed", @src());
-                try ctx.printer.append(
-                    "Listing releases failed.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-        }
-    };
-    return;
+fn releaseList(ctx: *Context, release: *Release) void {
+    release.list() catch |err| CErrors.handleCloudError(ctx, err, "Release Listing");
 }
 
-fn releaseDelete(ctx: *Context, release: *Release) !void {
-    release.delete() catch |err| {
-        switch (err) {
-            error.NotAuthed => {
-                try ctx.logger.err("Not Authenticated", @src());
-                try ctx.printer.append(
-                    "Not authenticated.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-            error.FetchFailed => {
-                try ctx.logger.err("Fetching Release Delete Failed", @src());
-                try ctx.printer.append(
-                    "Fetching release delete failed.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-            error.NotFound => {
-                try ctx.logger.err("Release Not Found", @src());
-                try ctx.printer.append(
-                    "Release not found.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-            else => {
-                try ctx.logger.err("Release Deletion Failed", @src());
-                try ctx.printer.append(
-                    "Deleting release failed.\n",
-                    .{},
-                    .{ .color = .bright_red },
-                );
-            },
-        }
-    };
-    return;
+fn releaseDelete(ctx: *Context, release: *Release) void {
+    release.delete() catch |err| CErrors.handleCloudError(ctx, err, "Release Deleting");
 }
 
 pub fn _releaseController(ctx: *Context) !void {
-    if (ctx.cmds.len < 3) return error.ReleaseInvalidSubcommand;
+    if (ctx.cmds.len < 3) return Errors.Controller.MissingSubcommand.Release;
 
     var release = Release.init(ctx);
     const arg = ctx.cmds[2];
     if (std.mem.eql(u8, arg, "create")) {
-        try releaseCreate(ctx, &release);
-    } else if (std.mem.eql(u8, arg, "list") or
-        std.mem.eql(u8, arg, "ls"))
-    {
-        try releaseList(ctx, &release);
+        releaseCreate(ctx, &release);
+    } else if (std.mem.eql(u8, arg, "list") or std.mem.eql(u8, arg, "ls")) {
+        releaseList(ctx, &release);
     } else if (std.mem.eql(u8, arg, "delete")) {
-        try releaseDelete(ctx, &release);
+        releaseDelete(ctx, &release);
     } else {
-        return error.ReleaseInvalidSubcommand;
+        return Errors.Controller.MissingSubcommand.Release;
     }
 }

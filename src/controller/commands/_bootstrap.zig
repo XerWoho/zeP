@@ -5,6 +5,8 @@ const Bootstrap = @import("../../lib/functions/bootstrap.zig");
 const Context = @import("context");
 const Args = @import("args");
 
+const Errors = @import("errors");
+
 fn bootstrap(ctx: *Context) !void {
     const bootstrap_args = Args.parseBootstrap(ctx.options);
     var pkgs = try std.ArrayList([]const u8).initCapacity(ctx.allocator, 5);
@@ -15,9 +17,8 @@ fn bootstrap(ctx: *Context) !void {
     }
 
     try Bootstrap.bootstrap(ctx, bootstrap_args.zig, pkgs.items);
-    return;
 }
 
-pub fn _bootstrapController(ctx: *Context) !void {
-    try bootstrap(ctx);
+pub fn _bootstrapController(ctx: *Context) Errors.Controller.Main!void {
+    bootstrap(ctx) catch return Errors.Controller.Main.Failed;
 }

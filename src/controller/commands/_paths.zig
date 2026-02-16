@@ -1,8 +1,8 @@
 const std = @import("std");
 const Context = @import("context");
 
-fn paths(ctx: *Context) !void {
-    try ctx.printer.append("Paths:\n\nBase: {s}\nCustom: {s}\nPrebuilt: {s}\ncached: {s}\nPackage-Manifest: {s}\nPackge-Root: {s}\nzep-Manifest: {s}\nzep-Root: {s}\nZig-Manifest: {s}\nZig-Root: {s}\n\n", .{
+fn paths(ctx: *Context) void {
+    ctx.printer.append("Paths:\n\nBase: {s}\nCustom: {s}\nPrebuilt: {s}\ncached: {s}\nPackage-Manifest: {s}\nPackge-Root: {s}\nzep-Manifest: {s}\nzep-Root: {s}\nZig-Manifest: {s}\nZig-Root: {s}\n\n", .{
         ctx.paths.base,
         ctx.paths.custom,
         ctx.paths.prebuilt,
@@ -17,9 +17,8 @@ fn paths(ctx: *Context) !void {
         ctx.paths.zig_manifest,
         ctx.paths.zig_root,
     }, .{});
-    return;
 }
 
 pub fn _pathsController(ctx: *Context) !void {
-    try paths(ctx);
+    paths(ctx);
 }

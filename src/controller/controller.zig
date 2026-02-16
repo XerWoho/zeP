@@ -19,10 +19,10 @@ pub fn _controller(ctx: *Context) !void {
     Dispatcher.dispatcher(ctx, c) catch |err| {
         switch (err) {
             error.InvalidCommand => {
-                try ctx.printer.append("Invalid Command. Run: \n $ zep help\n\n", .{}, .{ .verbosity = 0 });
+                ctx.printer.append("Invalid Command. Run: \n $ zep help\n\n", .{}, .{ .verbosity = 0 });
             },
             else => {
-                try ctx.printer.append("Command failed. Error={any}\n", .{err}, .{ .verbosity = 0 });
+                ctx.printer.append("Command failed. Error={any}\n", .{err}, .{ .verbosity = 0 });
             },
         }
     };

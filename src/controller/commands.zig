@@ -25,6 +25,7 @@ pub const Commands = enum {
 
     paths,
     prebuilt,
+    prebuild,
     purge,
     version,
     runner,
