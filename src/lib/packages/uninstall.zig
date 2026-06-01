@@ -86,23 +86,23 @@ pub fn uninstallPackage(
     );
 }
 
-pub fn uninstallBinary(
-    self: *Uninstaller,
-    name: []const u8,
-    version: ?[]const u8,
-    namespace: Structs.Extras.Namespaces,
-) Errors.Installable!void {
-    self.ctx.logger.infof("Uninstalling Binary {s}", .{name}, @src());
+// pub fn uninstallBinary(
+//     self: *Uninstaller,
+//     name: []const u8,
+//     version: ?[]const u8,
+//     namespace: Structs.Extras.Namespaces,
+// ) Errors.Installable!void {
+//     self.ctx.logger.infof("Uninstalling Binary {s}", .{name}, @src());
 
-    var binary = try Package.init(
-        self.ctx,
-        name,
-        version,
-        namespace,
-    );
-    defer binary.deinit();
+//     var binary = try Package.init(
+//         self.ctx,
+//         name,
+//         version,
+//         namespace,
+//     );
+//     defer binary.deinit();
 
-    self.ctx.printer.append("Deleting Binary...\n[{s}]\n\n", .{name}, .{ .verbosity = 1 });
-    try binary.uninstallFromDisk(true);
-    self.ctx.printer.append("Successfully deleted - {s}\n\n", .{name}, .{ .color = .green });
-}
+//     self.ctx.printer.append("Deleting Binary...\n[{s}]\n\n", .{name}, .{ .verbosity = 1 });
+//     try binary.uninstallFromDisk(true);
+//     self.ctx.printer.append("Successfully deleted - {s}\n\n", .{name}, .{ .color = .green });
+// }

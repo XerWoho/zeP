@@ -36,20 +36,20 @@ fn install(ctx: *Context) !void {
         const name = split.first();
         const version = split.next();
 
-        if (!install_args.binary) {
-            installer.installPackage(
-                name,
-                version,
-                namespace,
-                install_args.inject,
-            ) catch |err| CErrors.handleInstallableError(ctx, err, "Installing Package");
-        } else {
-            installer.installBinary(
-                name,
-                version,
-                namespace,
-            ) catch |err| CErrors.handleInstallableError(ctx, err, "Installing Binary");
-        }
+        // if (!install_args.binary) {
+        installer.installPackage(
+            name,
+            version,
+            namespace,
+            install_args.inject,
+        ) catch |err| CErrors.handleInstallableError(ctx, err, "Installing Package");
+        // } else {
+        //     installer.installBinary(
+        //         name,
+        //         version,
+        //         namespace,
+        //     ) catch |err| CErrors.handleInstallableError(ctx, err, "Installing Binary");
+        // }
     } else {
         installer.installAll() catch |err| CErrors.handleInstallableError(ctx, err, "Installing All");
     }

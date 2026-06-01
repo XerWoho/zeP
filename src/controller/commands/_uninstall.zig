@@ -70,17 +70,17 @@ fn uninstall(ctx: *Context) !void {
     var uninstaller = Uninstaller.init(ctx);
     defer uninstaller.deinit();
 
-    if (install_args.binary) {
-        if (_namespace == null) {
-            ctx.printer.append(
-                "WARNING: For binary uninstalls, a namespace is required.\n\n",
-                .{},
-                .{ .color = .red },
-            );
-        }
-        const namespace = _namespace orelse .zep;
-        uninstaller.uninstallBinary(name, version, namespace) catch |err| CErrors.handleInstallableError(ctx, err, "Uninstalling Binary");
-    }
+    // if (install_args.binary) {
+    //     if (_namespace == null) {
+    //         ctx.printer.append(
+    //             "WARNING: For binary uninstalls, a namespace is required.\n\n",
+    //             .{},
+    //             .{ .color = .red },
+    //         );
+    //     }
+    //     const namespace = _namespace orelse .zep;
+    //     uninstaller.uninstallBinary(name, version, namespace) catch |err| CErrors.handleInstallableError(ctx, err, "Uninstalling Binary");
+    // }
 
     uninstaller.uninstallPackage(name) catch |err| CErrors.handleInstallableError(ctx, err, "Uninstalling Package");
 }

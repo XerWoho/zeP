@@ -236,74 +236,74 @@ fn resolvePackage(
     return package;
 }
 
-pub fn installBinary(
-    self: *Installer,
-    name: []const u8,
-    version: ?[]const u8,
-    namespace: Structs.Extras.Namespaces,
-) Errors.Installable!void {
-    var binary = try self.resolvePackage(
-        name,
-        version,
-        namespace,
-    );
-    defer binary.deinit();
+// pub fn installBinary(
+//     self: *Installer,
+//     name: []const u8,
+//     version: ?[]const u8,
+//     namespace: Structs.Extras.Namespaces,
+// ) Errors.Installable!void {
+//     var binary = try self.resolvePackage(
+//         name,
+//         version,
+//         namespace,
+//     );
+//     defer binary.deinit();
 
-    self.ctx.logger.info("Installing Binary...", @src());
-    self.ctx.printer.append(
-        "Installing Binary {s}\n",
-        .{binary.package.name},
-        .{
-            .verbosity = 3,
-        },
-    );
+//     self.ctx.logger.info("Installing Binary...", @src());
+//     self.ctx.printer.append(
+//         "Installing Binary {s}\n",
+//         .{binary.package.name},
+//         .{
+//             .verbosity = 3,
+//         },
+//     );
 
-    self.ctx.logger.info("Installing Binary via Downloader", @src());
-    try self.downloader.downloadBinary(
-        binary.package_id,
-        binary.package.source,
-    );
-    self.ctx.logger.info("Installed.", @src());
+//     self.ctx.logger.info("Installing Binary via Downloader", @src());
+//     try self.downloader.downloadPackage(
+//         binary.package_id,
+//         binary.package.source,
+//     );
+//     self.ctx.logger.info("Installed.", @src());
 
-    try binary.resolveZigVersion(); // resolve the zig version after fetching the source
-    const binary_path = try std.fs.path.join(self.ctx.allocator, &.{
-        self.ctx.paths.pkg_root,
-        binary.package_id,
-    });
-    defer self.ctx.allocator.free(binary_path);
-    const zig_version = if (std.mem.eql(u8, binary.package.zig_version, "/")) Constants.Default.zig_version else binary.package.zig_version;
-    self.ctx.printer.append(
-        "Building binary;\n > Path: {s}\n > Zig: {s}\n\n",
-        .{ binary_path, zig_version },
-        .{
-            .verbosity = 3,
-        },
-    );
+//     try binary.resolveZigVersion(); // resolve the zig version after fetching the source
+//     const binary_path = try std.fs.path.join(self.ctx.allocator, &.{
+//         self.ctx.paths.pkg_root,
+//         binary.package_id,
+//     });
+//     defer self.ctx.allocator.free(binary_path);
+//     const zig_version = if (std.mem.eql(u8, binary.package.zig_version, "/")) Constants.Default.zig_version else binary.package.zig_version;
+//     self.ctx.printer.append(
+//         "Building binary;\n > Path: {s}\n > Zig: {s}\n\n",
+//         .{ binary_path, zig_version },
+//         .{
+//             .verbosity = 3,
+//         },
+//     );
 
-    Locales.PRINTER_MUTE = true;
-    errdefer Locales.PRINTER_MUTE = false;
-    const target_files = Builder.build(
-        self.ctx,
-        binary_path,
-        zig_version,
-        .{
-            .mute = true,
-        },
-    ) catch return Errors.Installable.InstallFailed;
-    defer self.ctx.allocator.free(target_files);
-    Locales.PRINTER_MUTE = false;
+//     Locales.PRINTER_MUTE = true;
+//     errdefer Locales.PRINTER_MUTE = false;
+//     const target_files = Builder.build(
+//         self.ctx,
+//         binary_path,
+//         zig_version,
+//         .{
+//             .mute = true,
+//         },
+//     ) catch return Errors.Installable.InstallFailed;
+//     defer self.ctx.allocator.free(target_files);
+//     Locales.PRINTER_MUTE = false;
 
-    self.ctx.printer.append(
-        "Successfully installed - {s}\n",
-        .{binary.package.name},
-        .{ .color = .green },
-    );
-    self.ctx.printer.append(
-        "You might need to restart your terminal.\n\n",
-        .{},
-        .{ .color = .bright_black },
-    );
-}
+//     self.ctx.printer.append(
+//         "Successfully installed - {s}\n",
+//         .{binary.package.name},
+//         .{ .color = .green },
+//     );
+//     self.ctx.printer.append(
+//         "You might need to restart your terminal.\n\n",
+//         .{},
+//         .{ .color = .bright_black },
+//     );
+// }
 
 pub fn installPackage(
     self: *Installer,
